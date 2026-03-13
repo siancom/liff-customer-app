@@ -1,25 +1,34 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  QrCode, Clock, CheckCircle, ChevronRight, User, 
+  QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
   AlertCircle, Info, Ticket, Phone, Loader2, ArrowRight, Tag, 
-  LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse, Home, History as HistoryIcon
+  LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse,
+  History as HistoryIcon
 } from 'lucide-react';
 
-// --- MOCK DATA (จำลองฐานข้อมูล) ---
-const MOCK_COURSES = [
-  { "เบอร์โทร": "0878523749", "เลขที่ใบคอส": "IrisCourse1333", "วันที่ซื้อ": "6/3/2569", "ครั้งที่เหลือดิบ": "3", "ครั้งที่ใช้": "0", "สถานะ": "ยังคงเหลือ", "สาขาที่ซื้อ": "เฉวง", "ชื่อคอส": "3.3หน้าใสครบเชต", "ผู้ซื้อคอส": "สุดารัตน์ สัจจพรหม", "ราคา": "999", "จำนวนครั้งที่ได้": "3", "ยอดชำระแล้วทั้งหมด": "999", "ยอดค้างชำระ": "0", "ประเภทการชำระ": "จ่ายเต็ม", "คิวอาร์โค้ด": "https://barcode.tec-it.com/barcode.ashx?data=IrisCourse1333" },
-  { "เบอร์โทร": "0811112222", "เลขที่ใบคอส": "IrisCourse2000", "วันที่ซื้อ": "1/3/2569", "ครั้งที่เหลือดิบ": "5", "ครั้งที่ใช้": "0", "สถานะ": "ยังคงเหลือ", "สาขาที่ซื้อ": "เฉวง", "ชื่อคอส": "เลเซอร์ลดรอยดำ", "ผู้ซื้อคอส": "สมชาย ใจดี", "ราคา": "5,000", "จำนวนครั้งที่ได้": "5", "ยอดชำระแล้วทั้งหมด": "2,000", "ยอดค้างชำระ": "3,000", "ประเภทการชำระ": "ผ่อนชำระ", "รายการที่ได้รับ": "เลเซอร์ 5 ครั้ง" }
-];
+// --- FIREBASE IMPORTS ---
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
 
-const MOCK_CUSTOMERS = [
-  { "ชื่อ": "สุดารัตน์ สัจจพรหม", "ชื่อเล่น": "Faiฝ้าย", "เบอร์โทร": "0878523749", "สถานะสมาชิก": "ยังไม่สะสมยอด", "ปัญหาผิวหน้า": "ปกติ , สิว", "ยอดสะสม": "0", "หมายเลขใบสะสม": "Irismember1465" },
-  { "ชื่อ": "สมชาย ใจดี", "ชื่อเล่น": "ชาย", "เบอร์โทร": "0811112222", "สถานะสมาชิก": "สมาชิกระดับ VIP", "ปัญหาผิวหน้า": "รอยดำ", "ยอดสะสม": "2,000", "หมายเลขใบสะสม": "Irismember2000" }
-];
+// --- FIREBASE CONFIG (ของคุณ) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyBS3zKEA6zosmy8tLRTyJ38BPLlUQS30gU",
+  authDomain: "iris-clinic-app.firebaseapp.com",
+  projectId: "iris-clinic-app",
+  storageBucket: "iris-clinic-app.firebasestorage.app",
+  messagingSenderId: "372749467528",
+  appId: "1:372749467528:web:1e90ecab74274ec965843d",
+  measurementId: "G-BQW1W46XSH"
+};
 
-const MOCK_HISTORY = [
-  { "วันที่": "12/3/2569", "ชื่อลูกค้า": "สุดารัตน์ สัจจพรหม", "ประเภท": "เบิกสินค้า", "สินค้า": "เซรั่ม", "ยอดสินค้า": "850", "สถานะ": "เรียบร้อย", "สาขา": "ละไม" },
-  { "วันที่": "16/3/2569", "ชื่อลูกค้า": "สุดารัตน์ สัจจพรหม", "ประเภท": "ใช้คอส", "รายการ": "ทรีทเม้นท์หน้าใส", "ชื่อคอส": "3.3หน้าใสครบเชต", "ยอดสินค้า": "500", "สถานะ": "เรียบร้อย", "สาขา": "เฉวง" }
-];
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ใช้ appId แบบเดียวกับฝั่ง Admin (กำจัดอักขระพิเศษ)
+const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'iris-clinic-app';
+const appId = String(rawAppId).replace(/\//g, '_');
 
 // --- UTILS ---
 function parseNumber(val) {
@@ -51,18 +60,23 @@ export default function CustomerApp() {
   // 🌟 ตัวแปรสำหรับเก็บข้อมูลจาก LINE LIFF
   const [lineProfile, setLineProfile] = useState(null);
   
-  // 🛑 กรุณานำ LIFF ID ของคุณมาใส่ตรงนี้ 🛑
+  // 🛑 กรุณานำ LIFF ID ของคุณมาใส่ตรงนี้ (ถ้ามี) 🛑
   const LIFF_ID = "1657901378-jqDBnplK"; // เช่น "165xxxxxxx-xxxxxxx"
+
+  // 🌟 STATE สำหรับเก็บข้อมูลจาก Firebase 🌟
+  const [user, setUser] = useState(null);
+  const [dbCourses, setDbCourses] = useState([]);
+  const [dbCustomersRaw, setDbCustomersRaw] = useState([]);
+  const [dbHistories, setDbHistories] = useState([]);
 
   const [activeNav, setActiveNav] = useState('home'); 
   const [showQR, setShowQR] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // 1. โหลดและ Initialize LINE LIFF SDK เมื่อเปิดแอป
+  // 1. โหลดและ Initialize LINE LIFF SDK
   useEffect(() => {
     const initLiff = async () => {
       try {
-        // แทร็กสคริปต์ LIFF ลงในระบบ
         const script = document.createElement('script');
         script.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
         script.async = true;
@@ -73,15 +87,13 @@ export default function CustomerApp() {
             await window.liff.init({ liffId: LIFF_ID });
             
             if (window.liff.isLoggedIn()) {
-              // ถ้าล็อกอินแล้ว ดึงข้อมูลโปรไฟล์ LINE
               const profile = await window.liff.getProfile();
               setLineProfile({
                 displayName: profile.displayName,
                 pictureUrl: profile.pictureUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.displayName}&backgroundColor=b6e3f4`
               });
-              setAppState('login'); // เปลี่ยนหน้าไปให้ลูกค้ากรอกเบอร์โทรยืนยัน
+              setAppState('login'); 
             } else {
-              // ถ้ายังไม่ล็อกอิน (เช่นเปิดบนเบราว์เซอร์ปกติ) ให้เด้งไปล็อกอิน LINE
               window.liff.login();
             }
           } catch (initError) {
@@ -96,7 +108,6 @@ export default function CustomerApp() {
     };
 
     const fallbackToMockMode = () => {
-      // โหมดจำลองสำหรับกรณีเปิดพรีวิวแล้ว LIFF ID ไม่ถูกต้อง
       setLineProfile({
         displayName: "LINE User (จำลอง)",
         pictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=LINEUser&backgroundColor=e2e8f0`
@@ -107,25 +118,77 @@ export default function CustomerApp() {
     initLiff();
   }, []);
 
-  // 2. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ (Login / ผูกบัญชี)
+  // 2. 🚀 FIREBASE SETUP: เข้าสู่ระบบและดึงข้อมูล 🚀
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          try {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } catch (tokenErr) {
+            console.warn("Custom token mismatch. Falling back to anonymous auth.", tokenErr);
+            await signInAnonymously(auth);
+          }
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth error", error);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // 2.1 ดึงข้อมูลคอร์ส
+    const unsubCourses = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), (snapshot) => {
+      setDbCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Course fetch error:", err));
+
+    // 2.2 ดึงข้อมูลลูกค้า
+    const unsubCustomers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'customers'), (snapshot) => {
+      setDbCustomersRaw(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Customer fetch error:", err));
+
+    // 2.3 ดึงประวัติ
+    const unsubHistories = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'histories'), (snapshot) => {
+      setDbHistories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("History fetch error:", err));
+
+    return () => { unsubCourses(); unsubCustomers(); unsubHistories(); };
+  }, [user]);
+
+
+  // 3. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ (Login ด้วยข้อมูลจาก Firebase)
   const handleLogin = (e) => {
     e.preventDefault();
     setAppState('loading');
     setErrorMsg('');
 
-    // *ตรงจุดนี้ ในอนาคตคุณสามารถเปลี่ยนเป็นการเรียก FETCH ไปที่ Google Apps Script API ได้*
     setTimeout(() => {
       const cleanPhone = phoneNumber.trim();
-      const rawCustomer = MOCK_CUSTOMERS.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
+      
+      // ค้นหาลูกค้าจากฐานข้อมูล Firebase
+      const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
       
       if (rawCustomer) {
         const custName = (getFuzzyKey(rawCustomer, "ชื่อ") || '').trim();
         const oldAmount = parseNumber(getFuzzyKey(rawCustomer, "ยอดสะสม"));
-        const customerHistory = MOCK_HISTORY.filter(h => (getFuzzyKey(h, "ชื่อลูกค้า") || '').trim() === custName);
         
+        // ค้นหาประวัติของลูกค้าคนนี้
+        const customerHistory = dbHistories.filter(h => (getFuzzyKey(h, "ชื่อลูกค้า") || '').trim() === custName);
+        
+        // คำนวณยอด
         const historyAmount = customerHistory
           .filter(h => !getFuzzyKey(h, "ประเภท")?.includes('ใช้คอส') && getFuzzyKey(h, "ประเภท") !== 'คอส')
-          .reduce((sum, h) => sum + parseNumber(getFuzzyKey(h, "ยอดสินค้า")), 0);
+          .reduce((sum, h) => {
+             const rawAmt = getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]);
+             return sum + parseNumber(rawAmt);
+          }, 0);
           
         const totalAccumulated = oldAmount + historyAmount;
         let memberStatus = getFuzzyKey(rawCustomer, "สถานะสมาชิก") || "ยังไม่สะสมยอด";
@@ -139,10 +202,11 @@ export default function CustomerApp() {
             else if (totalAccumulated > 0) memberStatus = 'สะสมยอด';
         }
 
-        const userCourses = MOCK_COURSES.filter(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone).map(c => {
+        // ค้นหาคอร์สของลูกค้าคนนี้
+        const userCourses = dbCourses.filter(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone).map(c => {
           const total = parseNumber(getFuzzyKey(c, ["จำนวนครั้งที่ได้", "col_10"]));
           const used = parseNumber(getFuzzyKey(c, ["ครั้งที่ใช้", "col_5"]));
-          const remainingRaw = parseNumber(getFuzzyKey(c, ["ครั้งที่เหลือดิบ", "ครั้งที่เหลือ", "col_4"]));
+          const remainingRaw = getFuzzyKey(c, ["ครั้งที่เหลือดิบ", "ครั้งที่เหลือ", "col_4"]) !== undefined ? parseNumber(getFuzzyKey(c, ["ครั้งที่เหลือดิบ", "ครั้งที่เหลือ", "col_4"])) : 0;
           const totalUsed = remainingRaw + used;
           const remaining = Math.max(0, total - totalUsed);
           
@@ -182,7 +246,7 @@ export default function CustomerApp() {
            <Sparkles size={48} className="text-white" />
         </div>
         <h1 className="text-white text-3xl font-black tracking-widest mb-2">IrisCare</h1>
-        <p className="text-teal-100 text-sm tracking-widest uppercase mb-10 font-bold">เชื่อมต่อกับ LINE...</p>
+        <p className="text-teal-100 text-sm tracking-widest uppercase mb-10 font-bold">เชื่อมต่อกับฐานข้อมูล...</p>
         <Loader2 size={32} className="text-white animate-spin" />
       </div>
     );
@@ -349,16 +413,16 @@ export default function CustomerApp() {
               <h2 className="text-sm font-black text-gray-800 flex items-center mb-2"><HistoryIcon size={18} className="mr-2 text-pink-500"/> ประวัติเข้ารับบริการ</h2>
               {courseUsages.length > 0 ? courseUsages.map((h, i) => {
                 const isBerq = getFuzzyKey(h, "ประเภท")?.includes('เบิก');
-                const amt = parseNumber(getFuzzyKey(h, "ยอดสินค้า"));
+                const amt = parseNumber(getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]));
                 return (
                 <div key={i} className="bg-white rounded-[20px] p-4 shadow-sm border border-gray-100 flex items-center relative overflow-hidden">
                   <div className={`absolute left-0 top-0 w-1.5 h-full ${isBerq ? 'bg-indigo-400' : 'bg-pink-400'}`}></div>
                   <div className="flex-1 pl-2">
                     <div className="flex justify-between items-center mb-1.5">
                        <span className="text-[10px] font-mono text-gray-400 bg-gray-50 px-2 py-0.5 rounded">{getFuzzyKey(h, "วันที่")}</span>
-                       <span className="text-[10px] text-gray-500 font-bold flex items-center"><MapPin size={10} className="mr-1"/>{getFuzzyKey(h, "สาขา")}</span>
+                       <span className="text-[10px] text-gray-500 font-bold flex items-center"><MapPin size={10} className="mr-1"/>{getFuzzyKey(h, "สาขา") || '-'}</span>
                     </div>
-                    <h4 className="font-bold text-gray-800 text-sm leading-tight mb-1.5">{getFuzzyKey(h, ["ชื่อคอส", "คอสที่ซื้อ", "สินค้า"]) || '-'}</h4>
+                    <h4 className="font-bold text-gray-800 text-sm leading-tight mb-1.5">{getFuzzyKey(h, ["ชื่อคอส", "คอสที่ซื้อ", "สินค้า", "col_16", "col_18"]) || '-'}</h4>
                     <div className="flex flex-wrap items-center gap-2">
                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center ${isBerq ? 'bg-indigo-50 text-indigo-600' : 'bg-pink-50 text-pink-600'}`}><CheckCircle size={10} className="mr-1"/> {getFuzzyKey(h, "ประเภท")} {getFuzzyKey(h, "รายการ") ? `: ${getFuzzyKey(h, "รายการ")}` : ''}</span>
                        {isBerq && amt > 0 && <span className="text-[10px] bg-orange-50 text-orange-600 font-bold px-2 py-0.5 rounded-md border border-orange-100">เบิก: ฿{amt.toLocaleString()}</span>}
@@ -402,14 +466,14 @@ export default function CustomerApp() {
                 <div key={i} className="bg-white rounded-[20px] p-4 shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden">
                   <div className={`absolute left-0 top-0 w-1.5 h-full ${isBerq ? 'bg-indigo-400' : 'bg-orange-400'}`}></div>
                   <div className="flex-1 pl-2 pr-2">
-                    <h4 className="font-bold text-gray-800 text-sm mb-1">{getFuzzyKey(p, ["สินค้า", "รายการ"]) || '-'}</h4>
+                    <h4 className="font-bold text-gray-800 text-sm mb-1">{getFuzzyKey(p, ["สินค้า", "รายการ", "ชื่อคอส", "col_18", "col_16"]) || '-'}</h4>
                     <div className="flex items-center space-x-2 text-[10px]">
                        <span className="font-mono text-gray-400">{getFuzzyKey(p, "วันที่")}</span>
                        <span className={`${isBerq ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-orange-50 text-orange-600 border-orange-100'} font-bold px-1.5 py-0.5 rounded border`}>{getFuzzyKey(p, "ประเภท")}</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="font-black text-orange-600">+ {parseNumber(getFuzzyKey(p, "ยอดสินค้า")).toLocaleString()}</span>
+                    <span className="font-black text-orange-600">+ {parseNumber(getFuzzyKey(p, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"])).toLocaleString()}</span>
                   </div>
                 </div>
               )}) : (

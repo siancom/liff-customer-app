@@ -6,7 +6,7 @@ import {
   History as HistoryIcon
 } from 'lucide-react';
 
-// --- FIREBASE IMPORTS ---
+// --- FIREBASE IMPORTS ---pp
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot } from 'firebase/firestore';

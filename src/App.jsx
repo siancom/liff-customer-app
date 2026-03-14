@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
   AlertCircle, Info, Ticket, Phone, Loader2, ArrowRight, Tag, 
-  LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse,
-  History as HistoryIcon
+  LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse, Home, History as HistoryIcon
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -26,7 +25,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ใช้ appId แบบเดียวกับฝั่ง Admin (กำจัดอักขระพิเศษ)
 const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'iris-clinic-app';
 const appId = String(rawAppId).replace(/\//g, '_');
 
@@ -52,18 +50,24 @@ function getFuzzyKey(obj, targetKeys) {
   return undefined;
 }
 
+// 🌟 ฟังก์ชันแยกเลขที่ใบคอร์ส 🌟
+function extractCourseDetails(rawString) {
+  if (!rawString) return { id: null, name: '-' };
+  const match = String(rawString).match(/(IrisCourse\d+)(.*)/i);
+  if (match) {
+     return { id: match[1], name: match[2].trim() ? match[2].trim() : match[1] };
+  }
+  return { id: null, name: rawString };
+}
+
 export default function CustomerApp() {
-  const [appState, setAppState] = useState('loading'); // loading, login, dashboard
+  const [appState, setAppState] = useState('loading');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [customerData, setCustomerData] = useState(null);
   
-  // 🌟 ตัวแปรสำหรับเก็บข้อมูลจาก LINE LIFF
   const [lineProfile, setLineProfile] = useState(null);
-  
-  // 🛑 กรุณานำ LIFF ID ของคุณมาใส่ตรงนี้ (ถ้ามี) 🛑
-  const LIFF_ID = "1657901378-jqDBnplK"; // เช่น "165xxxxxxx-xxxxxxx"
+  const LIFF_ID = "1657901378-jqDBnplK";
 
-  // 🌟 STATE สำหรับเก็บข้อมูลจาก Firebase 🌟
   const [user, setUser] = useState(null);
   const [dbCourses, setDbCourses] = useState([]);
   const [dbCustomersRaw, setDbCustomersRaw] = useState([]);
@@ -73,7 +77,6 @@ export default function CustomerApp() {
   const [showQR, setShowQR] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // 1. โหลดและ Initialize LINE LIFF SDK
   useEffect(() => {
     const initLiff = async () => {
       try {
@@ -85,7 +88,6 @@ export default function CustomerApp() {
         script.onload = async () => {
           try {
             await window.liff.init({ liffId: LIFF_ID });
-            
             if (window.liff.isLoggedIn()) {
               const profile = await window.liff.getProfile();
               setLineProfile({
@@ -118,38 +120,25 @@ export default function CustomerApp() {
     initLiff();
   }, []);
 
-  // 2. 🚀 FIREBASE SETUP: เข้าสู่ระบบและดึงข้อมูล 🚀
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // ดักจับ Error auth/too-many-requests โดยการเพิ่มการหน่วงเวลา (Backoff) ในการลองใหม่
         const signInWithRetry = async (retries = 3, delay = 1000) => {
           try {
              if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                try {
-                   await signInWithCustomToken(auth, __initial_auth_token);
-                } catch (tokenErr) {
-                   console.warn("Custom token mismatch. Falling back to anonymous auth.", tokenErr);
-                   await signInAnonymously(auth);
-                }
-             } else {
-                await signInAnonymously(auth);
-             }
+                try { await signInWithCustomToken(auth, __initial_auth_token); } 
+                catch (tokenErr) { await signInAnonymously(auth); }
+             } else { await signInAnonymously(auth); }
           } catch (error) {
              if (error.code === 'auth/too-many-requests' && retries > 0) {
-                console.warn(`Too many requests, retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return signInWithRetry(retries - 1, delay * 2);
              }
              throw error;
           }
         };
-
         await signInWithRetry();
-
-      } catch (error) {
-        console.error("Auth error after retries:", error);
-      }
+      } catch (error) { console.error("Auth error after retries:", error); }
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -158,18 +147,14 @@ export default function CustomerApp() {
 
   useEffect(() => {
     if (!user) return;
-
-    // 2.1 ดึงข้อมูลคอร์ส
     const unsubCourses = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), (snapshot) => {
       setDbCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => console.error("Course fetch error:", err));
 
-    // 2.2 ดึงข้อมูลลูกค้า
     const unsubCustomers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'customers'), (snapshot) => {
       setDbCustomersRaw(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => console.error("Customer fetch error:", err));
 
-    // 2.3 ดึงประวัติ
     const unsubHistories = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'histories'), (snapshot) => {
       setDbHistories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => console.error("History fetch error:", err));
@@ -177,8 +162,6 @@ export default function CustomerApp() {
     return () => { unsubCourses(); unsubCustomers(); unsubHistories(); };
   }, [user]);
 
-
-  // 3. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ (Login ด้วยข้อมูลจาก Firebase)
   const handleLogin = (e) => {
     e.preventDefault();
     setAppState('loading');
@@ -186,29 +169,38 @@ export default function CustomerApp() {
 
     setTimeout(() => {
       const cleanPhone = phoneNumber.trim();
-      
-      // ค้นหาลูกค้าจากฐานข้อมูล Firebase
       const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
       
       if (rawCustomer) {
-        const custName = (getFuzzyKey(rawCustomer, "ชื่อ") || '').trim();
-        const oldAmount = parseNumber(getFuzzyKey(rawCustomer, "ยอดสะสม"));
+        const custName = (getFuzzyKey(rawCustomer, ["ชื่อลูกค้า", "ชื่อ"]) || '').trim();
+        const oldAmount = parseNumber(getFuzzyKey(rawCustomer, ["ยอดสะสม", "ยอดยกมา", "ยอดสะสมเดิม"]));
+        const customerHistory = dbHistories.filter(h => (getFuzzyKey(h, ["ชื่อลูกค้า", "ชื่อ"]) || '').trim() === custName);
         
-        // ค้นหาประวัติของลูกค้าคนนี้
-        const customerHistory = dbHistories.filter(h => (getFuzzyKey(h, "ชื่อลูกค้า") || '').trim() === custName);
-        
-        // คำนวณยอด
-        const historyAmount = customerHistory
-          .filter(h => !getFuzzyKey(h, "ประเภท")?.includes('ใช้คอส') && getFuzzyKey(h, "ประเภท") !== 'คอส')
-          .reduce((sum, h) => {
-             const rawAmt = getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]);
-             return sum + parseNumber(rawAmt);
-          }, 0);
-          
+        // กรองประวัติที่เลขบิลซ้ำ
+        const map = new Map();
+        const uniqueMyHistories = [];
+        customerHistory.forEach(h => {
+           const refRaw = getFuzzyKey(h, ["หมายเลขคำสั่งซื้อ", "เลขที่คำสั่งซื้อ", "รหัสคำสั่งซื้อ", "หมายเลขเอกสาร", "เลขที่บิล", "Order", "Ref"]);
+           const ref = refRaw ? String(refRaw).trim() : '';
+           const currentAmt = parseNumber(getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด"]));
+           
+           if (ref && ref !== '-' && ref.toLowerCase() !== 'null') {
+               if (!map.has(ref)) {
+                   const newObj = { ...h, _groupedAmount: currentAmt };
+                   map.set(ref, newObj);
+                   uniqueMyHistories.push(newObj);
+               } else if (currentAmt > 0 && map.get(ref)._groupedAmount === 0) {
+                   map.get(ref)._groupedAmount = currentAmt;
+               }
+           } else {
+               uniqueMyHistories.push({ ...h, _groupedAmount: currentAmt });
+           }
+        });
+
+        const historyAmount = uniqueMyHistories.reduce((sum, h) => sum + (h._groupedAmount || 0), 0);
         const totalAccumulated = oldAmount + historyAmount;
-        let memberStatus = getFuzzyKey(rawCustomer, "สถานะสมาชิก") || "ยังไม่สะสมยอด";
         
-        // เช็กสถานะ VIP / Member
+        let memberStatus = getFuzzyKey(rawCustomer, "สถานะสมาชิก") || "ยังไม่สะสมยอด";
         const basicStatuses = ['ยังไม่สะสมยอด', 'ทั่วไป', 'สะสมยอด', 'รอบัตร', ''];
         const isApproved = !basicStatuses.includes(memberStatus) && memberStatus !== '';
 
@@ -217,20 +209,27 @@ export default function CustomerApp() {
             else if (totalAccumulated > 0) memberStatus = 'สะสมยอด';
         }
 
-        // ค้นหาคอร์สของลูกค้าคนนี้
         const userCourses = dbCourses.filter(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone).map(c => {
           const total = parseNumber(getFuzzyKey(c, ["จำนวนครั้งที่ได้", "col_10"]));
           const used = parseNumber(getFuzzyKey(c, ["ครั้งที่ใช้", "col_5"]));
           const remainingRaw = getFuzzyKey(c, ["ครั้งที่เหลือดิบ", "ครั้งที่เหลือ", "col_4"]) !== undefined ? parseNumber(getFuzzyKey(c, ["ครั้งที่เหลือดิบ", "ครั้งที่เหลือ", "col_4"])) : 0;
           const totalUsed = remainingRaw + used;
           const remaining = Math.max(0, total - totalUsed);
-          
           return {
             ...c,
             totalUsed: totalUsed,
             remaining: remaining,
             status: remaining <= 0 ? 'ใช้ครบแล้ว' : 'ยังคงเหลือ'
           };
+        });
+
+        const sortedHistory = uniqueMyHistories.sort((a,b) => {
+           const refA = String(getFuzzyKey(a, ["หมายเลขเอกสาร", "Ref", "เลขที่บิล"]) || "");
+           const refB = String(getFuzzyKey(b, ["หมายเลขเอกสาร", "Ref", "เลขที่บิล"]) || "");
+           const numA = parseInt(refA.replace(/[^0-9]/g, ''), 10) || 0;
+           const numB = parseInt(refB.replace(/[^0-9]/g, ''), 10) || 0;
+           if (numA !== numB) return numB - numA;
+           return refB.localeCompare(refA);
         });
 
         setCustomerData({
@@ -241,7 +240,7 @@ export default function CustomerApp() {
           memberStatus: memberStatus,
           isApproved: isApproved,
           courses: userCourses,
-          history: customerHistory
+          history: sortedHistory
         });
         setAppState('dashboard');
         setActiveNav('home');
@@ -252,7 +251,6 @@ export default function CustomerApp() {
     }, 1000);
   };
 
-  // --- SCREEN 1: LOADING ---
   if (appState === 'loading') {
     return (
       <div className="bg-gradient-to-br from-teal-600 via-emerald-600 to-teal-800 min-h-screen flex flex-col items-center justify-center font-sans relative overflow-hidden">
@@ -267,7 +265,6 @@ export default function CustomerApp() {
     );
   }
 
-  // --- SCREEN 2: LOGIN (ผูกเบอร์โทรกับบัญชี LINE) ---
   if (appState === 'login') {
     return (
       <div className="bg-gray-50 min-h-screen flex justify-center font-sans relative overflow-hidden">
@@ -282,8 +279,6 @@ export default function CustomerApp() {
           </div>
           
           <div className="flex-1 px-8 pt-8 pb-12 flex flex-col items-center -mt-10 z-20">
-            
-            {/* แสดงรูปโปรไฟล์และชื่อจาก LINE LIFF */}
             <div className="w-24 h-24 rounded-[32px] bg-white p-1.5 shadow-xl mb-3 relative">
               <img src={lineProfile?.pictureUrl} alt="LINE Profile" className="w-full h-full rounded-[24px] object-cover" />
               <div className="absolute -bottom-2 -right-2 bg-green-500 border-[3px] border-white text-white p-1 rounded-full shadow-sm">
@@ -310,7 +305,7 @@ export default function CustomerApp() {
                 <Phone size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-600" />
                 <input 
                   type="tel" 
-                  placeholder="กรอกเบอร์โทรศัพท์ (เช่น 0812345678)"
+                  placeholder="กรอกเบอร์โทรศัพท์ (ที่อัปโหลดไว้)"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-4 focus:ring-teal-500/20 focus:bg-white focus:border-teal-500 text-base transition-all font-mono font-bold text-gray-800 tracking-wider shadow-inner"
@@ -322,12 +317,6 @@ export default function CustomerApp() {
                 <ArrowRight size={18} />
               </button>
             </form>
-
-            <div className="mt-auto w-full flex flex-col space-y-2 pt-10">
-               <p className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-widest mb-1">MOCKUP ACCOUNTS (ทดสอบ)</p>
-               <button onClick={() => setPhoneNumber('0878523749')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0878523749 (ยังไม่อนุมัติ VIP)</button>
-               <button onClick={() => setPhoneNumber('0811112222')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0811112222 (ผ่อนชำระ & VIP)</button>
-            </div>
           </div>
         </div>
       </div>
@@ -337,65 +326,49 @@ export default function CustomerApp() {
   // --- SCREEN 3: DASHBOARD ---
   const activeCourses = customerData.courses.filter(c => c.status === 'ยังคงเหลือ');
   const courseUsages = customerData.history.filter(h => getFuzzyKey(h, "ประเภท")?.includes('ใช้') || getFuzzyKey(h, "ประเภท")?.includes('เบิก') || getFuzzyKey(h, "ประเภท") === 'คอส');
-  const productPurchases = customerData.history.filter(h => {
-     const rawAmount = getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]);
-     return parseNumber(rawAmount) > 0;
-  });
+  const productPurchases = customerData.history.filter(h => (h._groupedAmount || 0) > 0);
 
   return (
     <div className="bg-gray-100 min-h-screen flex justify-center font-sans">
-      <div className="w-full max-w-md bg-slate-50 min-h-screen shadow-2xl relative flex flex-col overflow-hidden pb-20">
+      <div className="w-full max-w-md bg-slate-50 min-h-screen shadow-2xl relative flex flex-col pb-20">
         
         {/* HEADER */}
         <div className="bg-gradient-to-b from-teal-600 to-teal-800 pt-12 pb-8 px-6 rounded-b-[32px] shadow-lg relative z-10">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-xl"></div>
           <div className="flex justify-between items-center relative z-10">
              <div className="flex items-center space-x-4">
-                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 p-0.5 shadow-lg">
-                  {/* แสดงรูปโปรไฟล์ LINE ถ้ามี ถ้าไม่มีใช้รูปจำลอง */}
+                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md p-0.5 shadow-lg">
                   <img src={customerData.lineProfilePic} alt="Profile" className="w-full h-full rounded-xl object-cover" />
                 </div>
                 <div className="text-white">
-                  <p className="text-[10px] opacity-80 mb-0.5 tracking-wide uppercase">สวัสดีค่ะ, คุณ{customerData.lineDisplayName}</p>
-                  <h1 className="text-lg font-black leading-tight max-w-[200px] truncate flex items-center gap-1">
-                    {getFuzzyKey(customerData, "ชื่อ")}
-                    {customerData.isApproved && <Award size={16} className="text-amber-300 ml-1"/>}
-                  </h1>
+                  <p className="text-[10px] opacity-80 mb-0.5 uppercase">สวัสดีค่ะ, คุณ{customerData.lineDisplayName}</p>
+                  <h1 className="text-lg font-black max-w-[200px] truncate flex items-center gap-1">{getFuzzyKey(customerData, "ชื่อ")}{customerData.isApproved && <Award size={16} className="text-amber-300 ml-1"/>}</h1>
                 </div>
               </div>
-              <button onClick={() => { setAppState('login'); setPhoneNumber(''); }} className="bg-white/10 hover:bg-white/20 p-2.5 rounded-xl text-white backdrop-blur-md transition-colors"><LogOut size={18} /></button>
+              <button onClick={() => { setAppState('login'); setPhoneNumber(''); }} className="bg-white/10 p-2.5 rounded-xl text-white"><LogOut size={18} /></button>
           </div>
         </div>
 
-        {/* CONTENT AREA */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 relative z-0">
+        {/* MAIN CONTENT */}
+        <div className="flex-1 overflow-y-auto px-4 py-6">
           
-          {/* NAV 1: HOME (คอร์สของฉัน) */}
+          {/* NAV 1: HOME */}
           {activeNav === 'home' && (
             <div className="space-y-4 animate-in fade-in duration-300">
               <h2 className="text-sm font-black text-gray-800 flex items-center mb-2"><Ticket size={18} className="mr-2 text-teal-600"/> คอร์สที่ใช้งานได้ ({activeCourses.length})</h2>
-              
               {activeCourses.length > 0 ? activeCourses.map((course, idx) => {
                 const isPendingPayment = parseNumber(getFuzzyKey(course, "ยอดค้างชำระ")) > 0;
                 return (
                 <div key={idx} className={`bg-white rounded-[24px] p-5 shadow-sm border-2 ${isPendingPayment ? 'border-red-100' : 'border-transparent'} relative overflow-hidden`}>
                   <div className={`absolute top-0 left-0 w-1.5 h-full ${isPendingPayment ? 'bg-red-400' : 'bg-teal-400'}`}></div>
-                  
                   <div className="relative z-10 pl-1">
                     <div className="flex justify-between items-start mb-3">
                       <span className="bg-gray-100 text-gray-600 text-[9px] font-bold px-2 py-1 rounded-md uppercase flex items-center"><MapPin size={10} className="mr-1"/> {getFuzzyKey(course, "สาขาที่ซื้อ")}</span>
                       <span className="text-[10px] font-mono text-gray-400">ซื้อ: {getFuzzyKey(course, "วันที่ซื้อ")}</span>
                     </div>
-                    
-                    <h3 className="text-base font-black text-gray-900 leading-tight mb-2">{getFuzzyKey(course, "ชื่อคอส")}</h3>
-                    
+                    <h3 className="text-base font-black text-gray-900 mb-2">{getFuzzyKey(course, "ชื่อคอส")}</h3>
                     {isPendingPayment && (
-                      <div className="mb-3 bg-red-50 p-2.5 rounded-xl border border-red-100 flex items-center">
-                         <AlertCircle size={14} className="text-red-500 mr-2"/>
-                         <span className="text-[11px] font-bold text-red-700">ผ่อนชำระ: มียอดค้าง ฿{parseNumber(getFuzzyKey(course, "ยอดค้างชำระ")).toLocaleString()}</span>
-                      </div>
+                      <div className="mb-3 bg-red-50 p-2.5 rounded-xl border border-red-100 flex items-center"><AlertCircle size={14} className="text-red-500 mr-2"/><span className="text-[11px] font-bold text-red-700">ผ่อนชำระ: มียอดค้าง ฿{parseNumber(getFuzzyKey(course, "ยอดค้างชำระ")).toLocaleString()}</span></div>
                     )}
-
                     <div className="mb-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
                       <div className="flex justify-between text-xs mb-2">
                         <span className="text-gray-500 font-bold">ใช้ไปแล้ว <span className="font-black text-gray-900 text-sm mx-0.5">{course.totalUsed}</span>/{parseNumber(getFuzzyKey(course, "จำนวนครั้งที่ได้"))}</span>
@@ -405,66 +378,74 @@ export default function CustomerApp() {
                         <div className={`h-full rounded-full transition-all duration-1000 ${isPendingPayment ? 'bg-gradient-to-r from-red-400 to-orange-400' : 'bg-gradient-to-r from-teal-400 to-emerald-400'}`} style={{ width: `${(course.totalUsed / Math.max(1, parseNumber(getFuzzyKey(course, "จำนวนครั้งที่ได้")))) * 100}%` }}></div>
                       </div>
                     </div>
-
-                    <button onClick={() => setShowQR(course)} className="w-full bg-gray-900 text-white flex items-center justify-center space-x-2 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform">
-                      <QrCode size={18} /><span>แสดง QR เพื่อใช้งาน</span>
-                    </button>
+                    <button onClick={() => setShowQR(course)} className="w-full bg-gray-900 text-white flex items-center justify-center space-x-2 py-3 rounded-xl font-bold text-sm active:scale-95 transition-transform"><QrCode size={18} /><span>แสดง QR เพื่อใช้งาน</span></button>
                   </div>
                 </div>
                 )
               }) : (
-                <div className="text-center py-16 bg-white rounded-[24px] border border-gray-100 shadow-sm">
-                  <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"><Ticket size={32} className="text-gray-300" /></div>
-                  <h3 className="text-gray-800 font-black text-base mb-1">ไม่มีคอร์สที่ใช้งานได้</h3>
-                  <p className="text-[11px] text-gray-500 leading-relaxed px-6">ดูเหมือนว่าคุณจะใช้คอร์สครบหมดแล้ว<br/>สอบถามโปรโมชั่นใหม่ๆ ได้ที่เคาน์เตอร์</p>
-                </div>
+                <div className="text-center py-16 bg-white rounded-[24px] border border-gray-100 shadow-sm"><div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"><Ticket size={32} className="text-gray-300" /></div><h3 className="text-gray-800 font-black text-base mb-1">ไม่มีคอร์สที่ใช้งานได้</h3><p className="text-[11px] text-gray-500 leading-relaxed px-6">สอบถามโปรโมชั่นใหม่ๆ ได้ที่เคาน์เตอร์</p></div>
               )}
             </div>
           )}
 
-          {/* NAV 2: HISTORY (ประวัติการใช้งาน) */}
+          {/* NAV 2: HISTORY (ประวัติทั้งหมด) 🌟 อัปเดตใหม่ กดดูได้ 🌟 */}
           {activeNav === 'history' && (
             <div className="space-y-4 animate-in fade-in duration-300">
-              <h2 className="text-sm font-black text-gray-800 flex items-center mb-2"><HistoryIcon size={18} className="mr-2 text-pink-500"/> ประวัติเข้ารับบริการ</h2>
+              <h2 className="text-sm font-black text-gray-800 flex items-center mb-2"><HistoryIcon size={18} className="mr-2 text-pink-500"/> ประวัติการใช้งานทั้งหมด</h2>
+              
               {courseUsages.length > 0 ? courseUsages.map((h, i) => {
                 const isBerq = getFuzzyKey(h, "ประเภท")?.includes('เบิก');
-                const amt = parseNumber(getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]));
+                const isBuy = getFuzzyKey(h, "ประเภท")?.includes('ซื้อ');
+                const refNo = getFuzzyKey(h, ["หมายเลขเอกสาร", "col_2"]); 
+                const amt = h._groupedAmount || 0;
+                
+                // 🌟 แยกชื่อคอร์ส และ รหัสอ้างอิง ออกจากกัน 🌟
+                const rawStr = getFuzzyKey(h, ["ชื่อคอส", "คอสที่ซื้อ", "สินค้า", "col_16", "col_18"]);
+                const { id: displayCourseId, name: displayItemName } = extractCourseDetails(rawStr);
+
                 return (
-                <div key={i} className="bg-white rounded-[20px] p-4 shadow-sm border border-gray-100 flex items-center relative overflow-hidden">
-                  <div className={`absolute left-0 top-0 w-1.5 h-full ${isBerq ? 'bg-indigo-400' : 'bg-pink-400'}`}></div>
-                  <div className="flex-1 pl-2">
+                <div key={i} className="bg-white rounded-[20px] p-4 shadow-sm border border-gray-100 flex items-center relative overflow-hidden group">
+                  <div className={`absolute left-0 top-0 w-1.5 h-full ${isBerq ? 'bg-indigo-400' : isBuy ? 'bg-emerald-400' : 'bg-pink-400'}`}></div>
+                  
+                  <div className="flex-1 pl-2 pr-2">
                     <div className="flex justify-between items-center mb-1.5">
-                       <span className="text-[10px] font-mono text-gray-400 bg-gray-50 px-2 py-0.5 rounded">{getFuzzyKey(h, "วันที่")}</span>
-                       <span className="text-[10px] text-gray-500 font-bold flex items-center"><MapPin size={10} className="mr-1"/>{getFuzzyKey(h, "สาขา") || '-'}</span>
+                       <span className="text-[10px] font-mono text-gray-400 bg-gray-50 px-2 py-0.5 rounded">{getFuzzyKey(h, ["วันที่", "col_1"])}</span>
+                       <span className="text-[10px] text-gray-500 font-bold flex items-center"><MapPin size={10} className="mr-1"/>{getFuzzyKey(h, ["สาขา", "col_39"]) || 'ไม่ระบุ'}</span>
                     </div>
-                    <h4 className="font-bold text-gray-800 text-sm leading-tight mb-1.5">{getFuzzyKey(h, ["ชื่อคอส", "คอสที่ซื้อ", "สินค้า", "col_16", "col_18"]) || '-'}</h4>
+                    
+                    <h4 className="font-bold text-gray-800 text-sm leading-tight mb-1.5 line-clamp-1">
+                      {displayCourseId && <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 mr-1.5 align-middle font-mono">Ref: {displayCourseId}</span>}
+                      <span className="align-middle">{displayItemName}</span>
+                    </h4>
+                    
                     <div className="flex flex-wrap items-center gap-2">
-                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center ${isBerq ? 'bg-indigo-50 text-indigo-600' : 'bg-pink-50 text-pink-600'}`}><CheckCircle size={10} className="mr-1"/> {getFuzzyKey(h, "ประเภท")} {getFuzzyKey(h, "รายการ") ? `: ${getFuzzyKey(h, "รายการ")}` : ''}</span>
-                       {isBerq && amt > 0 && <span className="text-[10px] bg-orange-50 text-orange-600 font-bold px-2 py-0.5 rounded-md border border-orange-100">เบิก: ฿{amt.toLocaleString()}</span>}
+                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center ${isBerq ? 'bg-indigo-50 text-indigo-600' : isBuy ? 'bg-emerald-50 text-emerald-600' : 'bg-pink-50 text-pink-600'}`}>
+                         <CheckCircle size={10} className="mr-1"/> {getFuzzyKey(h, ["ประเภท", "col_4"])}
+                       </span>
                     </div>
+                  </div>
+                  
+                  <div className="shrink-0 flex flex-col items-end">
+                     {amt > 0 && <span className={`text-[11px] font-black ${isBuy ? 'text-emerald-600' : 'text-orange-600'}`}>฿{amt.toLocaleString()}</span>}
                   </div>
                 </div>
               )}) : (
-                <div className="text-center py-16 bg-white rounded-[24px] border border-gray-100 shadow-sm"><HeartPulse size={40} className="mx-auto text-gray-200 mb-3"/><p className="text-xs text-gray-400 font-bold">ยังไม่มีประวัติเข้าใช้บริการ</p></div>
+                <div className="text-center py-16 bg-white rounded-[24px] border border-gray-100 shadow-sm"><HeartPulse size={40} className="mx-auto text-gray-200 mb-3"/><p className="text-xs text-gray-400 font-bold">ยังไม่มีประวัติในระบบ</p></div>
               )}
             </div>
           )}
 
-          {/* NAV 3: PROFILE & POINTS (บัญชีและยอดสะสม) */}
+          {/* NAV 3: PROFILE */}
           {activeNav === 'profile' && (
             <div className="space-y-4 animate-in fade-in duration-300">
               <h2 className="text-sm font-black text-gray-800 flex items-center mb-2"><User size={18} className="mr-2 text-indigo-500"/> บัญชีสะสมยอด</h2>
               
-              {/* บัตรสะสมยอด */}
-              <div className={`p-6 rounded-[24px] shadow-lg text-white relative overflow-hidden ${customerData.isApproved ? 'bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 shadow-orange-500/30' : 'bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 shadow-indigo-500/30'}`}>
+              <div className={`p-6 rounded-[24px] shadow-lg text-white relative overflow-hidden ${customerData.isApproved ? 'bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500' : 'bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600'}`}>
                 <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-xl"></div>
                 <div className="relative z-10 flex justify-between items-start mb-4">
                    <div>
                      <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-0.5">สถานะสมาชิก</p>
-                     <p className="font-black text-lg flex items-center gap-1.5">
-                       {customerData.memberStatus}
-                       {customerData.isApproved && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px] border border-white/30 uppercase tracking-widest">VIP</span>}
-                     </p>
+                     <p className="font-black text-lg flex items-center gap-1.5">{customerData.memberStatus}{customerData.isApproved && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px] border border-white/30 uppercase tracking-widest">VIP</span>}</p>
                    </div>
                    <Award size={28} className={customerData.isApproved ? "text-yellow-200" : "text-indigo-200"} />
                 </div>
@@ -488,7 +469,7 @@ export default function CustomerApp() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="font-black text-orange-600">+ {parseNumber(getFuzzyKey(p, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"])).toLocaleString()}</span>
+                    <span className="font-black text-orange-600">+ {(p._groupedAmount || 0).toLocaleString()}</span>
                   </div>
                 </div>
               )}) : (
@@ -496,28 +477,24 @@ export default function CustomerApp() {
               )}
             </div>
           )}
-
         </div>
 
-        {/* --- BOTTOM NAVIGATION BAR --- */}
+        {/* BOTTOM NAVIGATION */}
         <div className="absolute bottom-0 left-0 w-full bg-white/90 backdrop-blur-xl border-t border-gray-200/60 pb-safe z-40">
           <div className="flex justify-around items-center px-2 py-2">
              <button onClick={() => setActiveNav('home')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors ${activeNav === 'home' ? 'text-teal-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'home' ? 'bg-teal-50' : ''}`}><Ticket size={22} className={activeNav === 'home' ? 'fill-teal-100/50' : ''} /></div>
-                <span className="text-[9px] font-bold">คอร์สของฉัน</span>
+                <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'home' ? 'bg-teal-50' : ''}`}><Ticket size={22} className={activeNav === 'home' ? 'fill-teal-100/50' : ''} /></div><span className="text-[9px] font-bold">คอร์สของฉัน</span>
              </button>
              <button onClick={() => setActiveNav('history')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors ${activeNav === 'history' ? 'text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'history' ? 'bg-pink-50' : ''}`}><HistoryIcon size={22} className={activeNav === 'history' ? 'fill-pink-100/50' : ''} /></div>
-                <span className="text-[9px] font-bold">ประวัติบริการ</span>
+                <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'history' ? 'bg-pink-50' : ''}`}><HistoryIcon size={22} className={activeNav === 'history' ? 'fill-pink-100/50' : ''} /></div><span className="text-[9px] font-bold">ประวัติทั้งหมด</span>
              </button>
              <button onClick={() => setActiveNav('profile')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors ${activeNav === 'profile' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'profile' ? 'bg-indigo-50' : ''}`}><User size={22} className={activeNav === 'profile' ? 'fill-indigo-100/50' : ''} /></div>
-                <span className="text-[9px] font-bold">บัญชี/ยอดสะสม</span>
+                <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'profile' ? 'bg-indigo-50' : ''}`}><User size={22} className={activeNav === 'profile' ? 'fill-indigo-100/50' : ''} /></div><span className="text-[9px] font-bold">บัญชีสะสม</span>
              </button>
           </div>
         </div>
 
-        {/* --- QR CODE MODAL --- */}
+        {/* --- QR CODE MODAL สำหรับ "คอร์ส" --- */}
         {showQR && (
           <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-sm rounded-[32px] p-8 flex flex-col items-center shadow-2xl animate-in zoom-in-95 relative overflow-hidden">
@@ -539,11 +516,11 @@ export default function CustomerApp() {
                  <div><p className="text-[10px] font-bold text-teal-600/70 uppercase tracking-wide mb-1">สาขา</p><p className="font-bold text-teal-900 text-sm">{getFuzzyKey(showQR, "สาขาที่ซื้อ")}</p></div>
                  <div className="text-right"><p className="text-[10px] font-bold text-teal-600/70 uppercase tracking-wide mb-1">ยอดคงเหลือ</p><p className="font-black text-teal-600 text-xl leading-none">{showQR.remaining} <span className="text-xs font-bold opacity-70 tracking-normal">ครั้ง</span></p></div>
               </div>
-              <p className="text-[11px] font-bold text-gray-400 text-center mb-6 leading-relaxed">โปรดแสดงหน้าจอนี้ให้พนักงานที่เคาน์เตอร์<br/>เพื่อทำการสแกนรับบริการ</p>
               <button onClick={() => setShowQR(null)} className="w-full py-3.5 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all">ปิดหน้าต่าง</button>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

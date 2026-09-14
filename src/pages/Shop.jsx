@@ -137,7 +137,19 @@ const Shop = ({
                 const name = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || p.name).trim();
                 const code = String(getFuzzyKey(p, ["รหัส", "col_1"]) || '').trim();
                 
-                const memberPrice = Number(getFuzzyKey(p, ["ราคาสมาชิก", "col_10"]) || 0);
+                const getWooMeta = (prod, keys) => {
+                    if (!prod.meta_data || !Array.isArray(prod.meta_data)) return undefined;
+                    const targetKeys = Array.isArray(keys) ? keys : [keys];
+                    for (const m of prod.meta_data) {
+                        if (targetKeys.some(k => m.key === k || String(m.key).toLowerCase().includes(k.toLowerCase()))) {
+                            return m.value;
+                        }
+                    }
+                    return undefined;
+                };
+
+                const rawMemberPrice = getFuzzyKey(p, ["ราคาสมาชิก", "col_10"]) || getWooMeta(p, ["ราคาสมาชิก", "col_10", "_member_price"]);
+                const memberPrice = Number(rawMemberPrice) || 0;
                 
                 let isUsingMemberPrice = false;
                 if (customerData?.isApproved && memberPrice > 0 && memberPrice < rawPrice) {
@@ -188,8 +200,20 @@ const Shop = ({
 
                 return true;
             }).map(mc => {
+                const getWooMeta = (prod, keys) => {
+                    if (!prod.meta_data || !Array.isArray(prod.meta_data)) return undefined;
+                    const targetKeys = Array.isArray(keys) ? keys : [keys];
+                    for (const m of prod.meta_data) {
+                        if (targetKeys.some(k => m.key === k || String(m.key).toLowerCase().includes(k.toLowerCase()))) {
+                            return m.value;
+                        }
+                    }
+                    return undefined;
+                };
+
                 let rawPrice = Number(getFuzzyKey(mc, ["ราคา", "ราคาขาย", "col_6", "col_5"]) || mc.price || 0);
-                const memberPrice = Number(getFuzzyKey(mc, ["ราคาสมาชิก", "col_10", "col_11"]) || 0);
+                const rawMemberPrice = getFuzzyKey(mc, ["ราคาสมาชิก", "col_10", "col_11"]) || getWooMeta(mc, ["ราคาสมาชิก", "col_10", "col_11", "_member_price"]);
+                const memberPrice = Number(rawMemberPrice) || 0;
                 
                 let isUsingMemberPrice = false;
                 if (customerData?.isApproved && memberPrice > 0 && memberPrice < rawPrice) {

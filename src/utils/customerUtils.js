@@ -134,7 +134,8 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
       totalUsed: totalUsed,
       remaining: remaining,
       status: remaining <= 0 ? 'ใช้ครบแล้ว' : 'ยังคงเหลือ',
-      computedRemainCredit: Math.max(0, remainingCredit)
+      computedRemainCredit: Math.max(0, remainingCredit),
+      computedTotalCredit: initialCredit
     };
   });
 
@@ -155,6 +156,7 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
     ...rawCustomer,
     cleanPhone,
     realAccumulatedAmount: totalAccumulated,
+    productAccumulatedAmount: productAccumulatedAmount,
     memberStatus: memberStatus,
     isApproved: isApproved,
     courses: userCourses,

@@ -20,6 +20,8 @@ import { fetchWithProxy, WOO_CFG } from './utils/wooProxy';
 import { MOCK_COUPONS } from './data/mockData';
 
 // --- UTILS ---
+import { buildCustomerData } from './utils/customerUtils';
+
 function parseNumber(val) {
   if (val === undefined || val === null) return 0;
   const cleaned = String(val).replace(/,/g, '').replace(/[^\d.-]/g, '').trim();
@@ -249,58 +251,15 @@ export default function CustomerApp() {
       const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
       
       if (rawCustomer) {
-        const custName = (getFuzzyKey(rawCustomer, "ชื่อ") || '').trim();
-        const oldAmount = parseNumber(getFuzzyKey(rawCustomer, "ยอดสะสม"));
+        // Use central utility to build consistent customer data
+        const builtData = buildCustomerData(rawCustomer, cleanPhone, dbHistories, dbCourses);
         
-        // ค้นหาประวัติของลูกค้าคนนี้
-        const customerHistory = dbHistories.filter(h => (getFuzzyKey(h, "ชื่อลูกค้า") || '').trim() === custName);
-        
-        // คำนวณยอด
-        const historyAmount = customerHistory
-          .filter(h => !getFuzzyKey(h, "ประเภท")?.includes('ใช้คอส') && getFuzzyKey(h, "ประเภท") !== 'คอส')
-          .reduce((sum, h) => {
-             const rawAmt = getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]);
-             return sum + parseNumber(rawAmt);
-          }, 0);
-          
-        const totalAccumulated = oldAmount + historyAmount;
-        let memberStatus = getFuzzyKey(rawCustomer, "สถานะสมาชิก") || "ยังไม่สะสมยอด";
-        
-        // เช็กสถานะ VIP / Member
-        const basicStatuses = ['ยังไม่สะสมยอด', 'ทั่วไป', 'สะสมยอด', 'รอบัตร', ''];
-        const isApproved = !basicStatuses.includes(memberStatus) && memberStatus !== '';
-
-        if (!isApproved) {
-            if (totalAccumulated >= 5000) memberStatus = 'รอบัตร';
-            else if (totalAccumulated > 0) memberStatus = 'สะสมยอด';
-        }
-
-        // ค้นหาคอร์สของลูกค้าคนนี้
-        const userCourses = dbCourses.filter(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone).map(c => {
-          const total = parseNumber(getFuzzyKey(c, ["จำนวนครั้งที่ได้", "col_10"]));
-          const used = parseNumber(getFuzzyKey(c, ["ครั้งที่ใช้", "col_5"]));
-          const remainingRaw = getFuzzyKey(c, ["ครั้งที่เหลือดิบ", "ครั้งที่เหลือ", "col_4"]) !== undefined ? parseNumber(getFuzzyKey(c, ["ครั้งที่เหลือดิบ", "ครั้งที่เหลือ", "col_4"])) : 0;
-          const totalUsed = remainingRaw + used;
-          const remaining = Math.max(0, total - totalUsed);
-          
-          return {
-            ...c,
-            totalUsed: totalUsed,
-            remaining: remaining,
-            status: remaining <= 0 ? 'ใช้ครบแล้ว' : 'ยังคงเหลือ'
-          };
-        });
-
         setCustomerData({
-          ...rawCustomer,
+          ...builtData,
           lineDisplayName: lineProfile?.displayName,
-          lineProfilePic: lineProfile?.pictureUrl,
-          realAccumulatedAmount: totalAccumulated,
-          memberStatus: memberStatus,
-          isApproved: isApproved,
-          courses: userCourses,
-          history: customerHistory
+          lineProfilePic: lineProfile?.pictureUrl
         });
+        
         setAppState('dashboard');
         setActiveNav('home');
       } else {
@@ -309,6 +268,22 @@ export default function CustomerApp() {
       }
     }, 1000);
   };
+
+  // 4. Update customerData in real-time if database changes
+  useEffect(() => {
+    if (appState === 'dashboard' && phoneNumber) {
+      const cleanPhone = phoneNumber.trim();
+      const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
+      if (rawCustomer) {
+        const builtData = buildCustomerData(rawCustomer, cleanPhone, dbHistories, dbCourses);
+        setCustomerData(prev => ({
+          ...builtData,
+          lineDisplayName: prev?.lineDisplayName || lineProfile?.displayName,
+          lineProfilePic: prev?.lineProfilePic || lineProfile?.pictureUrl
+        }));
+      }
+    }
+  }, [dbCustomersRaw, dbHistories, dbCourses, appState, phoneNumber, lineProfile]);
 
   // --- SCREEN 1: LOADING ---
   if (appState === 'loading') {
@@ -561,8 +536,9 @@ export default function CustomerApp() {
                    <Award size={28} className={customerData.isApproved ? "text-yellow-200" : "text-indigo-200"} />
                 </div>
                 <div className="relative z-10">
-                   <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1">ยอดสะสมสุทธิ</p>
-                   <p className="text-4xl font-black">฿{customerData.realAccumulatedAmount.toLocaleString()}</p>
+                   <p className="text-[11px] uppercase tracking-widest font-bold text-white/80 mb-1">ยอดสะสมรวมทั้งหมด</p>
+                   <p className="text-4xl font-black leading-none mb-2">฿{customerData.realAccumulatedAmount.toLocaleString()}</p>
+                   <p className="text-[10px] text-white/70 font-medium">ยอดซื้อสินค้า: ฿{(customerData.productAccumulatedAmount || 0).toLocaleString()}</p>
                 </div>
               </div>
 

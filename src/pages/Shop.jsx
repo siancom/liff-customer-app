@@ -24,6 +24,7 @@ const Shop = ({
     shopTab,
     setShopTab,
     dbProducts = [],
+    dbFirestoreProducts = [],
     dbMasterCourses = [],
     wooImagesMap = new Map(),
     selectedPackages,
@@ -135,7 +136,7 @@ const Shop = ({
                 const rawPrice = Number(getFuzzyKey(p, ["ราคา", "ราคาขาย", "col_5"]) || p.price || 0);
                 const isMemberDiscount = p.canDiscount && p.isMemberDiscount; // existing flag support
                 const name = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || p.name).trim();
-                const code = String(getFuzzyKey(p, ["รหัส", "col_1"]) || '').trim();
+                const code = String(getFuzzyKey(p, ["รหัส", "col_1", "sku"]) || p.sku || '').trim();
                 
                 const getWooMeta = (prod, keys) => {
                     if (!prod.meta_data || !Array.isArray(prod.meta_data)) return undefined;
@@ -148,7 +149,20 @@ const Shop = ({
                     return undefined;
                 };
 
-                const rawMemberPrice = getFuzzyKey(p, ["ราคาสมาชิก", "col_10"]) || getWooMeta(p, ["ราคาสมาชิก", "col_10", "_member_price"]);
+                let rawMemberPrice = getFuzzyKey(p, ["ราคาสมาชิก", "col_10"]) || getWooMeta(p, ["ราคาสมาชิก", "col_10", "_member_price"]);
+                
+                // 🌟 Try to find the member price in Firestore if not found in WooCommerce
+                if (!rawMemberPrice && dbFirestoreProducts && dbFirestoreProducts.length > 0) {
+                    const fsMatch = dbFirestoreProducts.find(fp => {
+                        const fsName = String(getFuzzyKey(fp, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').trim().toLowerCase();
+                        const fsCode = String(getFuzzyKey(fp, ["รหัส", "col_1"]) || '').trim().toUpperCase();
+                        return (fsName && name.toLowerCase().includes(fsName)) || (fsCode && code && fsCode === code.toUpperCase());
+                    });
+                    if (fsMatch) {
+                        rawMemberPrice = getFuzzyKey(fsMatch, ["ราคาสมาชิก", "col_10"]);
+                    }
+                }
+
                 const memberPrice = Number(rawMemberPrice) || 0;
                 
                 let isUsingMemberPrice = false;

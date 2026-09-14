@@ -501,7 +501,8 @@ export default function CustomerApp() {
              <Shop
                 shopTab={shopTab}
                 setShopTab={setShopTab}
-                dbProducts={dbProducts}
+                dbProducts={dbWooProducts}
+                dbFirestoreProducts={dbProducts}
                 dbMasterCourses={dbMasterCourses}
                 wooImagesMap={wooImagesMap}
                 customerData={customerData}

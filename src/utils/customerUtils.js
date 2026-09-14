@@ -41,16 +41,42 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
      }
   });
 
-  const historyAmount = uniqueMyHistories.reduce((sum, h) => sum + (h._groupedAmount || 0), 0);
-  const totalAccumulated = oldAmount + historyAmount;
+  let historyEarned = 0;
+  let historySpent = 0;
+  let productEarned = 0;
+
+  uniqueMyHistories.forEach(h => {
+      const type = String(getFuzzyKey(h, ["ประเภท", "col_4"]) || '');
+      const amt = h._groupedAmount || 0;
+      if (amt > 0) {
+          if (type.includes('เบิก') || type.includes('จ่าย') || type.includes('หัก')) {
+              historySpent += amt;
+          } else {
+              historyEarned += amt;
+              if (type.includes('สินค้า')) {
+                  productEarned += amt;
+              }
+          }
+      }
+  });
+
+  const totalAccumulated = oldAmount + historyEarned - historySpent;
+  const productAccumulatedAmount = oldAmount + productEarned;
   
   let memberStatus = getFuzzyKey(rawCustomer, "สถานะสมาชิก") || "ยังไม่สะสมยอด";
-  const basicStatuses = ['ยังไม่สะสมยอด', 'ทั่วไป', 'สะสมยอด', 'รอบัตร', ''];
-  const isApproved = !basicStatuses.includes(memberStatus) && memberStatus !== '';
+  
+  if (productAccumulatedAmount >= 5000 && ['ยังไม่สะสมยอด', 'ทั่วไป', 'สะสมยอด', ''].includes(memberStatus)) {
+      memberStatus = 'รอบัตร';
+  } else if (productAccumulatedAmount > 0 && productAccumulatedAmount < 5000 && ['ยังไม่สะสมยอด', 'ทั่วไป', ''].includes(memberStatus)) {
+      memberStatus = 'สะสมยอด';
+  }
 
-  if (!isApproved) {
-      if (totalAccumulated >= 5000) memberStatus = 'รอบัตร';
-      else if (totalAccumulated > 0) memberStatus = 'สะสมยอด';
+  const basicStatuses = ['ยังไม่สะสมยอด', 'ทั่วไป', 'สะสมยอด', 'รอบัตร', ''];
+  let isApproved = !basicStatuses.includes(memberStatus) && memberStatus !== '';
+
+  // 🌟 Force member price if product purchases >= 5000
+  if (productAccumulatedAmount >= 5000) {
+      isApproved = true;
   }
 
   const userCourses = dbCourses.filter(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone).map(c => {

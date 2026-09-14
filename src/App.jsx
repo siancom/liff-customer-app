@@ -66,6 +66,8 @@ export default function CustomerApp() {
 
   // 🌟 NEW STATE FOR SHOP & CART 🌟
   const [dbWooProducts, setDbWooProducts] = useState([]);
+  const [dbProducts, setDbProducts] = useState([]);
+  const [dbMasterCourses, setDbMasterCourses] = useState([]);
   const [wooImagesMap, setWooImagesMap] = useState(new Map());
   const [shopTab, setShopTab] = useState('products');
   const [cart, setCart] = useState([]);
@@ -234,7 +236,17 @@ export default function CustomerApp() {
       setDbHistories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => console.error("History fetch error:", err));
 
-    return () => { unsubCourses(); unsubCustomers(); unsubHistories(); };
+    // 2.4 ดึงข้อมูลสินค้าจากระบบ
+    const unsubProducts = onSnapshot(getAppCollection('products'), (snapshot) => {
+      setDbProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Products fetch error:", err));
+
+    // 2.5 ดึงข้อมูล master_courses
+    const unsubMasterCourses = onSnapshot(getAppCollection('master_courses'), (snapshot) => {
+      setDbMasterCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Master courses fetch error:", err));
+
+    return () => { unsubCourses(); unsubCustomers(); unsubHistories(); unsubProducts(); unsubMasterCourses(); };
   }, [user]);
 
 
@@ -489,8 +501,8 @@ export default function CustomerApp() {
              <Shop
                 shopTab={shopTab}
                 setShopTab={setShopTab}
-                dbProducts={dbWooProducts}
-                dbMasterCourses={dbCourses}
+                dbProducts={dbProducts}
+                dbMasterCourses={dbMasterCourses}
                 wooImagesMap={wooImagesMap}
                 customerData={customerData}
                 handleAddToCart={handleAddToCart}

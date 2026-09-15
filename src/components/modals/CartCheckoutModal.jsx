@@ -19,7 +19,6 @@ export default function CartCheckoutModal({
     // Calculate total available credit from active courses
     const activeCourses = (customerData?.courses || []).filter(c => c.status === 'ยังคงเหลือ');
     const totalCreditValue = activeCourses.reduce((sum, c) => sum + (c.computedRemainCredit || 0), 0);
-    const isCreditSufficient = totalCreditValue >= totals.total;
     const [deliveryInfo, setDeliveryInfo] = useState({ name: '', phone: '', address: '' });
     const [isEditingAddress, setIsEditingAddress] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,6 +51,7 @@ export default function CartCheckoutModal({
         }
     }
     const finalPrice = Math.max(0, baseTotal - discountAmount);
+    const isCreditSufficient = totalCreditValue >= finalPrice;
 
     if (!isOpen) return null;
 
@@ -233,9 +233,9 @@ export default function CartCheckoutModal({
                                             <Banknote size={32} className={isCreditSufficient ? 'text-teal-500 mb-2' : 'text-red-400 mb-2'} />
                                             <p className="text-xs font-bold text-gray-800">ยอดคงเหลือ: ฿{totalCreditValue.toLocaleString()}</p>
                                             {!isCreditSufficient ? (
-                                                <p className="text-[10px] text-red-500 mt-1 font-bold">วงเงินไม่เพียงพอสำหรับการชำระยอด ฿{totals.total.toLocaleString()}</p>
+                                                <p className="text-[10px] text-red-500 mt-1 font-bold">วงเงินไม่เพียงพอสำหรับการชำระยอด ฿{finalPrice.toLocaleString()}</p>
                                             ) : (
-                                                <p className="text-[10px] text-teal-600 mt-1 font-bold">ยอดหลังหักชำระ: ฿{(totalCreditValue - totals.total).toLocaleString()}</p>
+                                                <p className="text-[10px] text-teal-600 mt-1 font-bold">ยอดหลังหักชำระ: ฿{(totalCreditValue - finalPrice).toLocaleString()}</p>
                                             )}
                                         </div>
                                     </div>

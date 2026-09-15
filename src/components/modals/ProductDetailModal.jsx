@@ -152,10 +152,31 @@ export default function ProductDetailModal({
                        </span>
                    )}
                    <h2 className="text-xl font-black text-gray-900 mb-2 leading-tight">{selectedProduct.name}</h2>
+                   {/* 🌟 ช่วงราคาสมาชิกของเซต — คำนวณจากราคาสมาชิกแต่ละชิ้นในเซต */}
+                   {(() => {
+                     const members = subItems.map(s => Number(s.memberPrice) || 0).filter(v => v > 0);
+                     const showMemberRange = selectedProduct.wooType === 'grouped' && members.length > 0;
+                     const showMemberSingle = selectedProduct.wooType !== 'grouped' && Number(selectedProduct.memberPrice) > 0;
+                     if (!showMemberRange && !showMemberSingle) return null;
+                     return (
+                       <div className="inline-flex items-center gap-1.5 mb-1.5 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
+                         <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wide">ราคาสมาชิก</span>
+                         <span className="text-[13px] font-black text-emerald-700">
+                           {showMemberRange
+                             ? `฿${Math.min(...members).toLocaleString()} - ฿${Math.max(...members).toLocaleString()}`
+                             : `฿${Number(selectedProduct.memberPrice).toLocaleString()}`}
+                         </span>
+                       </div>
+                     );
+                   })()}
                    <div className="flex items-end gap-2 mb-4">
-                       <span className="text-2xl font-black text-[#EE4D2D]">฿{selectedProduct.price.toLocaleString()}</span>
-                       {selectedProduct.originalPrice > selectedProduct.price && (
-                           <span className="text-sm text-gray-400 line-through mb-1">฿{selectedProduct.originalPrice.toLocaleString()}</span>
+                       {selectedProduct.priceRange ? (
+                           <span className="text-2xl font-black text-[#EE4D2D]">{selectedProduct.priceRange}</span>
+                       ) : (
+                           <span className="text-2xl font-black text-[#EE4D2D]">฿{Number(selectedProduct.price || 0).toLocaleString()}</span>
+                       )}
+                       {!selectedProduct.priceRange && selectedProduct.originalPrice > selectedProduct.price && (
+                           <span className="text-sm text-gray-400 line-through mb-1">฿{Number(selectedProduct.originalPrice || 0).toLocaleString()}</span>
                        )}
                    </div>
                    
@@ -183,7 +204,7 @@ export default function ProductDetailModal({
                                                onClick={() => setSelectedVariation(variation)}
                                                className={`px-3 py-2 rounded-xl text-[11px] font-bold border transition-all ${isSelected ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}
                                            >
-                                               {attrs} (+฿{parseFloat(variation.price || 0).toLocaleString()})
+                                               {attrs} (+฿{parseFloat(variation.price || 0).toLocaleString()}{Number(variation.memberPrice) > 0 && Number(variation.memberPrice) < parseFloat(variation.price || 0) ? ` / สมาชิก ฿${Number(variation.memberPrice).toLocaleString()}` : ''})
                                            </button>
                                        );
                                    })}
@@ -207,7 +228,12 @@ export default function ProductDetailModal({
                                                </div>
                                                <div>
                                                    <p className="text-[10px] font-bold text-gray-800 line-clamp-1">{subItem.name}</p>
-                                                   <p className="text-[10px] text-[#EE4D2D] font-bold">฿{parseFloat(subItem.price||0).toLocaleString()}</p>
+                                                   <p className="text-[10px] text-[#EE4D2D] font-bold flex items-center gap-1.5">
+                                                       ฿{parseFloat(subItem.price||0).toLocaleString()}
+                                                       {Number(subItem.memberPrice) > 0 && Number(subItem.memberPrice) < parseFloat(subItem.price || 0) && (
+                                                           <span className="text-emerald-600">| สมาชิก ฿{Number(subItem.memberPrice).toLocaleString()}</span>
+                                                       )}
+                                                   </p>
                                                </div>
                                            </div>
                                            <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-0.5 shrink-0 ml-2">

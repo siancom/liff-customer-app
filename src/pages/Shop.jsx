@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Image as ImageIcon, ArrowRight, Sparkles, ShoppingCart, Ticket, HeartPulse, ShoppingBag, Loader2, HistoryIcon, Star, Truck, Percent, Search, X, Gift, ShieldCheck, MessageCircle, CheckCircle2, Zap, LayoutGrid } from 'lucide-react';
-import { getFuzzyKey } from '../utils/helpers';
+import { getFuzzyKey, parseNumber } from '../utils/helpers';
 import PriceCompareModal from '../components/modals/PriceCompareModal';
 
 const COURSE_FALLBACKS = [
@@ -42,6 +42,7 @@ const Shop = ({
     const [competitorPrice, setCompetitorPrice] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCourseCategory, setActiveCourseCategory] = useState('all');
+    const [activeProductCategory, setActiveProductCategory] = useState('all');
     const [localDisplayLimit, setLocalDisplayLimit] = useState(10);
     const observerTarget = useRef(null);
 
@@ -50,27 +51,16 @@ const Shop = ({
         setLocalDisplayLimit(10);
     }, [shopTab, activeCourseCategory]);
 
-    // Infinite scroll observer
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0].isIntersecting) {
-                    setLocalDisplayLimit(prev => prev + 10);
-                }
-            },
-            { threshold: 0.1, rootMargin: '100px' }
-        );
-
-        if (observerTarget.current) {
-            observer.observe(observerTarget.current);
-        }
-
-        return () => {
-            if (observerTarget.current) {
-                observer.unobserve(observerTarget.current);
+    const observer = useRef(null);
+    const lastElementRef = useCallback(node => {
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) {
+                setLocalDisplayLimit(prev => prev + 10);
             }
-        };
-    }, [observerTarget]);
+        }, { threshold: 0.1, rootMargin: '100px' });
+        if (node) observer.current.observe(node);
+    }, []);
 
     // Stable shuffle function
     const shuffleArray = (array) => {
@@ -114,6 +104,29 @@ const Shop = ({
         return 'other';
     };
 
+    // Extract dynamic product categories based on active dbProducts
+    const PRODUCT_CATEGORIES = useMemo(() => {
+        const cats = new Set();
+        dbProducts.forEach(p => {
+            const name = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').trim();
+            const status = String(getFuzzyKey(p, ["สถานะ", "status", "การใช้งาน", "state"]) || '').trim();
+            if (!name || p.isStoreUseOnly) return;
+            if (status === 'ร่าง' || status === 'draft' || status === 'ปิดใช้งาน' || status === 'ปิด' || status === 'ไม่แสดง' || status === 'ซ่อน') return;
+            if (p.categories && Array.isArray(p.categories)) {
+                if (p.categories.some(cat => cat.name && (cat.name.includes('คอร์ส') || cat.name.toLowerCase().includes('course')))) return;
+            }
+            let cat = '';
+            if (p.categories && Array.isArray(p.categories) && p.categories.length > 0) {
+                cat = p.categories[0].name;
+            } else {
+                cat = String(getFuzzyKey(p, ["หมวดสินค้า", "หมวดหมู่", "category"]) || '').trim();
+            }
+            if (!cat) cat = 'อื่นๆ';
+            cats.add(cat);
+        });
+        return [{ id: 'all', label: 'ทั้งหมด' }, ...Array.from(cats).map(c => ({ id: c, label: c }))];
+    }, [dbProducts]);
+
     const currentTabItems = useMemo(() => {
         let items = [];
         if (shopTab === 'products') {
@@ -133,7 +146,7 @@ const Shop = ({
                 return true;
             }).map(p => {
                 // Ensure standard format for UI
-                const rawPrice = Number(getFuzzyKey(p, ["ราคา", "ราคาขาย", "col_5"]) || p.price || 0);
+                const rawPrice = parseNumber(getFuzzyKey(p, ["ราคา", "ราคาขาย", "col_5"]) || p.price || 0);
                 const isMemberDiscount = p.canDiscount && p.isMemberDiscount; // existing flag support
                 const name = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || p.name).trim();
                 const code = String(getFuzzyKey(p, ["รหัส", "col_1", "sku"]) || p.sku || '').trim();
@@ -163,7 +176,7 @@ const Shop = ({
                     }
                 }
 
-                const memberPrice = Number(rawMemberPrice) || 0;
+                const memberPrice = parseNumber(rawMemberPrice) || 0;
                 
                 let isUsingMemberPrice = false;
                 if (customerData?.isApproved && memberPrice > 0 && memberPrice < rawPrice) {
@@ -181,6 +194,14 @@ const Shop = ({
                     image = (code ? wooImagesMap.get(code.toUpperCase()) : null) || wooImagesMap.get(name.toLowerCase());
                 }
 
+                let cat = '';
+                if (p.categories && Array.isArray(p.categories) && p.categories.length > 0) {
+                    cat = p.categories[0].name;
+                } else {
+                    cat = String(getFuzzyKey(p, ["หมวดสินค้า", "หมวดหมู่", "category"]) || '').trim();
+                }
+                if (!cat) cat = 'อื่นๆ';
+
                 return {
                     ...p,
                     id: p.id,
@@ -190,10 +211,16 @@ const Shop = ({
                     image: image,
                     isUsingMemberPrice: isUsingMemberPrice,
                     type: 'product',
-                    stock: Number(getFuzzyKey(p, ["จำนวนคงเหลือ", "col_12"]) || 0),
-                    isBrochure: p.isBrochure || false
+                    stock: parseNumber(getFuzzyKey(p, ["จำนวนคงเหลือ", "col_12"]) || 0),
+                    isBrochure: p.isBrochure || false,
+                    category: cat
                 };
             });
+
+            // Apply product category filter
+            if (activeProductCategory !== 'all') {
+                items = items.filter(i => i.category === activeProductCategory);
+            }
         }
         
         else if (shopTab === 'courses' || shopTab === 'single_courses') {
@@ -225,9 +252,9 @@ const Shop = ({
                     return undefined;
                 };
 
-                let rawPrice = Number(getFuzzyKey(mc, ["ราคา", "ราคาขาย", "col_6", "col_5"]) || mc.price || 0);
+                let rawPrice = parseNumber(getFuzzyKey(mc, ["ราคา", "ราคาขาย", "col_6", "col_5"]) || mc.price || 0);
                 const rawMemberPrice = getFuzzyKey(mc, ["ราคาสมาชิก", "col_10", "col_11"]) || getWooMeta(mc, ["ราคาสมาชิก", "col_10", "col_11", "_member_price"]);
-                const memberPrice = Number(rawMemberPrice) || 0;
+                const memberPrice = parseNumber(rawMemberPrice) || 0;
                 
                 let isUsingMemberPrice = false;
                 if (customerData?.isApproved && memberPrice > 0 && memberPrice < rawPrice) {
@@ -255,8 +282,9 @@ const Shop = ({
         const shuffledItems = shuffleArray(items);
 
         // Filter by search term if it exists
-        return shuffledItems.filter(item => searchTerm === '' || item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [shopTab, dbProducts, dbMasterCourses, searchTerm, activeCourseCategory, wooImagesMap]);
+        const filtered = shuffledItems.filter(item => searchTerm === '' || item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        return filtered.slice(0, localDisplayLimit);
+    }, [shopTab, dbProducts, dbFirestoreProducts, dbMasterCourses, searchTerm, activeCourseCategory, activeProductCategory, localDisplayLimit, wooImagesMap]);
 
 
 
@@ -301,6 +329,20 @@ const Shop = ({
                         </button>
                     )}
                 </div>
+
+                {shopTab === 'products' && PRODUCT_CATEGORIES.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto hide-scrollbar mt-3 pb-1">
+                        {PRODUCT_CATEGORIES.map(cat => (
+                            <button
+                                key={cat.id}
+                                onClick={() => setActiveProductCategory(cat.id)}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${activeProductCategory === cat.id ? 'bg-blue-50 border-blue-200 text-blue-600 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                {cat.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {shopTab === 'single_courses' && (
                     <div className="flex gap-2 overflow-x-auto hide-scrollbar mt-3 pb-1">
@@ -718,7 +760,7 @@ const Shop = ({
 
                     {/* Infinite Scroll Loader */}
                     {localDisplayLimit < currentTabItems.filter(i => !i.isBrochure).length && (
-                        <div ref={observerTarget} className="w-full flex justify-center py-6">
+                        <div ref={lastElementRef} className="w-full flex justify-center py-6">
                             <Loader2 size={24} className="text-gray-300 animate-spin" />
                         </div>
                     )}

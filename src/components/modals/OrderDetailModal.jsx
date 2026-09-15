@@ -1,7 +1,20 @@
 import React, { useRef, useState } from 'react';
-import { X, ReceiptText, Clock, ImageIcon, Info, ShoppingBag, MapPin, Tag, Loader2, QrCode, CheckCircle2, Circle, Download, RefreshCcw } from 'lucide-react';
+import { X, ReceiptText, Clock, ImageIcon, Info, ShoppingBag, MapPin, Tag, Loader2, QrCode, CheckCircle2, Circle, Download, RefreshCcw, Truck, Package, Ticket } from 'lucide-react';
+import { getFuzzyKey } from '../../utils/helpers';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
+
+const TRACK17_PHASE_TH = {
+    infoReceived: 'แจ้งข้อมูลแล้ว',
+    pending: 'รอติดตาม',
+    notFound: 'ไม่พบเลขพัสดุ',
+    inTransit: 'อยู่ระหว่างขนส่ง',
+    outForDelivery: 'กำลังนำส่ง',
+    delivered: 'จัดส่งสำเร็จ',
+    exception: 'การขนส่งมีปัญหา',
+    expired: 'หมดเวลาติดตาม',
+    undelivered: 'ส่งไม่สำเร็จ',
+};
 
 export default function OrderDetailModal({
     selectedOrder,
@@ -11,7 +24,9 @@ export default function OrderDetailModal({
     parseNumber,
     handleCancelOrder,
     isActionLoading,
-    handleReorder
+    handleReorder,
+    activeCourses,
+    setShowQR
 }) {
     const receiptRef = useRef(null);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -60,7 +75,7 @@ export default function OrderDetailModal({
                                 (selectedOrder.status || '').includes('ยกเลิก') ? 'bg-red-50 text-red-600 border-red-100' : 'bg-gray-50 text-gray-600 border-gray-200'
                             }`}>{selectedOrder.status}</span>
                         </div>
-                        <p className="text-[11px] text-gray-400 font-medium mb-3"><Clock size={12} className="inline mr-1 mb-0.5"/> {new Date(selectedOrder.createdAt).toLocaleString('th-TH')}</p>
+                        <p className="text-[11px] text-gray-400 font-medium mb-3"><Clock size={12} className="inline mr-1 mb-0.5"/> {selectedOrder.createdAtStr || new Date(selectedOrder.createdAt).toLocaleString('th-TH')}</p>
                         
                         {(selectedOrder.orderNo || selectedOrder.wooOrderId || selectedOrder.id) && (
                             <div className="flex flex-col items-center justify-center p-3 bg-gray-50 rounded-xl border border-gray-100 mt-3">
@@ -111,6 +126,83 @@ export default function OrderDetailModal({
                         )}
                     </div>
 
+                    {/* 📦 ติดตามพัสดุ (17TRACK) */}
+                    {selectedOrder.trackingNo && (() => {
+                        const t = selectedOrder.trackingInfo;
+                        const phase = t?.phase || 'pending';
+                        const phaseTh = TRACK17_PHASE_TH[phase] || phase;
+                        const tone = phase === 'delivered' ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                            : (phase === 'exception' || phase === 'undelivered') ? 'bg-rose-50 border-rose-200 text-rose-800'
+                            : 'bg-sky-50 border-sky-200 text-sky-800';
+                        return (
+                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                                <h3 className="text-xs font-black text-gray-800 mb-4 flex items-center"><Truck size={14} className="mr-1.5 text-sky-500"/> ติดตามพัสดุ</h3>
+
+                                {/* 🌟 แถบขั้นตอนแบบ Shopee: สั่งซื้อ → จัดส่ง → กำลังขนส่ง → ส่งสำเร็จ */}
+                                <div className="flex items-center justify-between mb-5 relative">
+                                    <div className="absolute top-4 left-6 right-6 h-0.5 bg-gray-100 -z-0"></div>
+                                    <div className="absolute top-4 left-6 right-6 h-0.5 bg-sky-400 -z-0 transition-all" style={{ width: phase === 'delivered' ? '100%' : (phase === 'inTransit' || phase === 'outForDelivery' ? '66%' : '33%') }}></div>
+                                    
+                                    <div className="flex flex-col items-center gap-1.5 bg-white px-2 relative z-10">
+                                        <div className="w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center shadow-sm"><ReceiptText size={14} /></div>
+                                        <span className="text-[9px] font-bold text-sky-600">สั่งซื้อแล้ว</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-1.5 bg-white px-2 relative z-10">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${phase !== 'pending' ? 'bg-sky-500 text-white' : 'bg-gray-100 text-gray-400'}`}><Package size={14} /></div>
+                                        <span className={`text-[9px] font-bold ${phase !== 'pending' ? 'text-sky-600' : 'text-gray-400'}`}>จัดส่งแล้ว</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-1.5 bg-white px-2 relative z-10">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${(phase === 'inTransit' || phase === 'outForDelivery' || phase === 'delivered') ? 'bg-sky-500 text-white' : 'bg-gray-100 text-gray-400'}`}><Truck size={14} /></div>
+                                        <span className={`text-[9px] font-bold ${(phase === 'inTransit' || phase === 'outForDelivery' || phase === 'delivered') ? 'text-sky-600' : 'text-gray-400'}`}>กำลังขนส่ง</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-1.5 bg-white px-2 relative z-10">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${phase === 'delivered' ? 'bg-emerald-50 text-emerald-500 ring-2 ring-emerald-500 ring-inset' : 'bg-gray-100 text-gray-400'}`}>{phase === 'delivered' ? <CheckCircle2 size={16} className="fill-emerald-500 text-white" /> : <CheckCircle2 size={16} />}</div>
+                                        <span className={`text-[9px] font-bold ${phase === 'delivered' ? 'text-emerald-600' : 'text-gray-400'}`}>ส่งสำเร็จ</span>
+                                    </div>
+                                </div>
+
+                                {/* 📦 ข้อมูลพัสดุ */}
+                                <div className={`p-3 rounded-xl border flex items-center justify-between mb-4 ${tone}`}>
+                                    <div>
+                                        <p className="text-[11px] font-black mb-0.5 flex items-center"><Package size={12} className="mr-1"/> {phaseTh}</p>
+                                        <p className="text-[10px] opacity-80 font-mono tracking-wider">{selectedOrder.trackingNo} {t?.carrier ? `· ${t.carrier}` : ''}</p>
+                                    </div>
+                                    {t?.fetchedAt && <span className="text-[8.5px] opacity-70">อัพเดท {new Date(t.fetchedAt).toLocaleString('th-TH', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</span>}
+                                </div>
+
+                                {/* 📜 Timeline ล่าสุด */}
+                                {!t && <p className="text-[10px] text-gray-400 text-center py-1">ร้านกำลังเตรียมข้อมูลการติดตาม — สถานะจะแสดงที่นี่เมื่อมีการอัพเดทค่ะ</p>}
+                                {t?.lastEvent && (
+                                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 mb-3">
+                                        <p className="text-[9px] font-black text-gray-700 mb-1">กิจกรรมล่าสุด</p>
+                                        <p className="text-[10px] text-gray-600 leading-snug">{t.lastEvent.desc}</p>
+                                        <p className="text-[9px] text-gray-400 mt-0.5">
+                                            {t.lastEvent.time ? new Date(t.lastEvent.time).toLocaleString('th-TH') : ''}
+                                            {t.lastEvent.location ? ` · ${t.lastEvent.location}` : ''}
+                                        </p>
+                                    </div>
+                                )}
+                                {t?.events?.length > 0 && (
+                                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                                        {t.events.map((ev, i) => (
+                                            <div key={i} className="flex gap-2">
+                                                <div className="flex flex-col items-center pt-1">
+                                                    <span className={`w-2 h-2 rounded-full shrink-0 ${i === 0 ? 'bg-sky-500 ring-2 ring-sky-200' : 'bg-gray-300'}`}></span>
+                                                    {i < t.events.length - 1 && <span className="w-px flex-1 bg-gray-200 min-h-[10px]"></span>}
+                                                </div>
+                                                <div className="flex-1 min-w-0 pb-1">
+                                                    <p className="text-[9.5px] font-bold text-gray-700 leading-snug">{ev.desc}</p>
+                                                    <p className="text-[8.5px] text-gray-400">{ev.time ? new Date(ev.time).toLocaleString('th-TH') : ''}{ev.location ? ` · ${ev.location}` : ''}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <p className="text-[8px] text-gray-300 text-right mt-1.5 font-medium">ข้อมูลจาก 17TRACK · อัพเดทโดยร้านค่ะ</p>
+                            </div>
+                        );
+                    })()}
+                    
                     {/* 🌟 สลิปการโอนเงินที่แนบมา 🌟 */}
                     {selectedOrder.slipImage && (
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
@@ -231,7 +323,28 @@ export default function OrderDetailModal({
                     ) : (
                         /* E-Receipt & Re-order */
                         <>
-                            {(selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว') && (
+                            {/* Course Details Button */}
+                            {(() => {
+                                if (selectedOrder.itemType !== 'course' || !activeCourses || !setShowQR) return null;
+                                const matchingCourse = activeCourses.find(c => {
+                                    const refKeys = ["หมายเลขคำสั่งซื้อ", "อ้างอิง", "เลขที่ใบเสร็จ", "เลขที่ใบคอส"];
+                                    return refKeys.some(k => String(getFuzzyKey(c, k)) === selectedOrder.orderNo) || c.id === selectedOrder.original?.id;
+                                });
+                                if (!matchingCourse) return null;
+                                return (
+                                    <button 
+                                        onClick={() => {
+                                            setSelectedOrder(null);
+                                            setShowQR(matchingCourse);
+                                        }}
+                                        className="flex-[2] py-3.5 bg-[#12B981] hover:bg-[#059669] text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/30"
+                                    >
+                                        <Ticket size={16} /> ดูรายละเอียดคอร์ส
+                                    </button>
+                                );
+                            })()}
+
+                            {(selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') && (
                                 <button 
                                     onClick={handleDownloadReceipt}
                                     disabled={isDownloading}
@@ -243,7 +356,7 @@ export default function OrderDetailModal({
                             )}
                             
                             {/* Re-order is available if it has cartItems */}
-                            {selectedOrder.cartItems && selectedOrder.cartItems.length > 0 && handleReorder && (
+                            {selectedOrder.itemType !== 'course' && selectedOrder.cartItems && selectedOrder.cartItems.length > 0 && typeof handleReorder === 'function' && (
                                 <button 
                                     onClick={() => handleReorder(selectedOrder.cartItems)}
                                     className="flex-[2] py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 active:scale-95 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/30 transition-all flex items-center justify-center gap-1.5"

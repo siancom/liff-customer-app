@@ -27,6 +27,9 @@ export default function Orders({
             paymentMethodStr: String(getFuzzyKey(od, ["ช่องทาง", "การชำระเงิน", "ประเภท", "col_4"]) || 'ชำระแล้วผ่านแอป'),
             createdAtStr: String(getFuzzyKey(od, ["วันที่", "col_3", "col_1"]) || ''),
             createdAt: new Date().toISOString(), // Fallback for Modal
+            trackingNo: od.trackingNo || null,
+            trackingInfo: od.trackingInfo || null,
+            fulfillment: od.fulfillment || null,
             price: parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),
             itemPrice: parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),
             originalPrice: parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),

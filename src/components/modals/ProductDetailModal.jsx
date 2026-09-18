@@ -155,8 +155,8 @@ export default function ProductDetailModal({
                    {/* 🌟 ช่วงราคาสมาชิกของเซต — คำนวณจากราคาสมาชิกแต่ละชิ้นในเซต */}
                    {(() => {
                      const members = subItems.map(s => Number(s.memberPrice) || 0).filter(v => v > 0);
-                     const showMemberRange = selectedProduct.wooType === 'grouped' && members.length > 0;
-                     const showMemberSingle = selectedProduct.wooType !== 'grouped' && Number(selectedProduct.memberPrice) > 0;
+                     const showMemberRange = ['grouped', 'bundle', 'woosb'].includes(selectedProduct.wooType) && members.length > 0;
+                     const showMemberSingle = !['grouped', 'bundle', 'woosb'].includes(selectedProduct.wooType) && Number(selectedProduct.memberPrice) > 0;
                      if (!showMemberRange && !showMemberSingle) return null;
                      return (
                        <div className="inline-flex items-center gap-1.5 mb-1.5 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
@@ -213,7 +213,7 @@ export default function ProductDetailModal({
                        </div>
                    )}
 
-                   {selectedProduct.wooType === 'grouped' && (
+                   {['grouped', 'bundle', 'woosb'].includes(selectedProduct.wooType) && (
                        <div className="mb-6">
                            <h3 className="text-xs font-bold text-gray-500 mb-2">รายการในเซต</h3>
                            {isLoadingSubItems ? (

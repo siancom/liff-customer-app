@@ -1,6 +1,6 @@
 import { getFuzzyKey, parseNumber } from './helpers';
 
-export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourses) => {
+export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourses, dbOrders = []) => {
   const custName = (getFuzzyKey(rawCustomer, ["ชื่อลูกค้า", "ชื่อ"]) || '').trim();
   const oldAmount = parseNumber(getFuzzyKey(rawCustomer, ["ยอดสะสม", "ยอดยกมา", "ยอดสะสมเดิม"]));
 
@@ -56,6 +56,19 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
          }
      } else {
          uniqueMyHistories.push({ ...h, _groupedAmount: currentAmt });
+     }
+  });
+
+  // Attach tracking info from orders collection
+  uniqueMyHistories.forEach(h => {
+     const hRef = getFuzzyKey(h, ["หมายเลขคำสั่งซื้อ", "เลขที่คำสั่งซื้อ", "รหัสคำสั่งซื้อ", "หมายเลขเอกสาร", "เลขที่บิล", "Order", "Ref"]);
+     if (hRef && dbOrders.length > 0) {
+         const matchingOrder = dbOrders.find(o => String(o.orderNo) === String(hRef));
+         if (matchingOrder && matchingOrder.trackingNo) {
+             h.trackingNo = matchingOrder.trackingNo;
+             h.trackingInfo = matchingOrder.trackingInfo || null;
+             h.fulfillment = matchingOrder.fulfillment || null;
+         }
      }
   });
 

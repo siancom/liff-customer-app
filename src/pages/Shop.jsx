@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Image as ImageIcon, ArrowRight, Sparkles, ShoppingCart, Ticket, HeartPulse, ShoppingBag, Loader2, HistoryIcon, Star, Truck, Percent, Search, X, Gift, ShieldCheck, MessageCircle, CheckCircle2, Zap, LayoutGrid } from 'lucide-react';
 import { getFuzzyKey, parseNumber } from '../utils/helpers';
+import { computeFinalPrice } from '../utils/priceUtils';
 import PriceCompareModal from '../components/modals/PriceCompareModal';
 
 const COURSE_FALLBACKS = [
@@ -36,7 +37,9 @@ const Shop = ({
     handleCollectCoupon,
     buyAgainItems,
     isPaginating,
-    shopDisplayLimit
+    shopDisplayLimit,
+    cart = [],
+    setIsCartModalOpen
 }) => {
     const [priceCheckItem, setPriceCheckItem] = useState(null);
     const [competitorPrice, setCompetitorPrice] = useState('');
@@ -106,7 +109,8 @@ const Shop = ({
 
     // Extract dynamic product categories based on active dbProducts
     const PRODUCT_CATEGORIES = useMemo(() => {
-        const cats = new Set();
+        const cats = new Map();
+        let total = 0;
         dbProducts.forEach(p => {
             const name = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').trim();
             const status = String(getFuzzyKey(p, ["สถานะ", "status", "การใช้งาน", "state"]) || '').trim();
@@ -122,10 +126,40 @@ const Shop = ({
                 cat = String(getFuzzyKey(p, ["หมวดสินค้า", "หมวดหมู่", "category"]) || '').trim();
             }
             if (!cat) cat = 'อื่นๆ';
-            cats.add(cat);
+            
+            cats.set(cat, (cats.get(cat) || 0) + 1);
+            total++;
         });
-        return [{ id: 'all', label: 'ทั้งหมด' }, ...Array.from(cats).map(c => ({ id: c, label: c }))];
+        
+        return [
+            { id: 'all', label: 'ทั้งหมด', count: total }, 
+            ...Array.from(cats.entries()).map(([c, count]) => ({ id: c, label: c, count: count }))
+        ];
     }, [dbProducts]);
+
+    const courseCategoriesWithCounts = useMemo(() => {
+        const counts = { all: 0, facial: 0, machine: 0, acne_sets: 0, nourish: 0, ipl: 0, other: 0, walkin: 0, old_courses: 0 };
+        let total = 0;
+        dbMasterCourses.forEach(mc => {
+            const name = String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim();
+            const status = String(getFuzzyKey(mc, ["สถานะ", "status", "การใช้งาน", "state"]) || '').trim();
+            if (!name) return;
+            if (status === 'ร่าง' || status === 'draft' || status === 'ปิดใช้งาน' || status === 'ปิด' || status === 'ไม่แสดง' || status === 'ซ่อน') return;
+            
+            const cat = getCourseCategory(mc);
+            if (cat !== 'old_courses') {
+                if (counts[cat] !== undefined) {
+                    counts[cat]++;
+                }
+                total++;
+            }
+        });
+
+        return COURSE_CATEGORIES.map(c => ({
+            ...c,
+            count: c.id === 'all' ? total : (counts[c.id] || 0)
+        }));
+    }, [dbMasterCourses]);
 
     const currentTabItems = useMemo(() => {
         let items = [];
@@ -146,37 +180,13 @@ const Shop = ({
                 return true;
             }).map(p => {
                 // Ensure standard format for UI
-                const rawPrice = parseNumber(getFuzzyKey(p, ["ราคา", "ราคาขาย", "col_5"]) || p.price || 0);
+                const rawPrice = parseNumber(getFuzzyKey(p, ["ราคาขายเต็ม", "ราคาปกติ", "col_6"]) || p.price || 0);
                 const isMemberDiscount = p.canDiscount && p.isMemberDiscount; // existing flag support
                 const name = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || p.name).trim();
                 const code = String(getFuzzyKey(p, ["รหัส", "col_1", "sku"]) || p.sku || '').trim();
                 
-                const getWooMeta = (prod, keys) => {
-                    if (!prod.meta_data || !Array.isArray(prod.meta_data)) return undefined;
-                    const targetKeys = Array.isArray(keys) ? keys : [keys];
-                    for (const m of prod.meta_data) {
-                        if (targetKeys.some(k => m.key === k || String(m.key).toLowerCase().includes(k.toLowerCase()))) {
-                            return m.value;
-                        }
-                    }
-                    return undefined;
-                };
-
-                let rawMemberPrice = getFuzzyKey(p, ["ราคาสมาชิก", "col_10"]) || getWooMeta(p, ["ราคาสมาชิก", "col_10", "_member_price"]);
-                
-                // 🌟 Try to find the member price in Firestore if not found in WooCommerce
-                if (!rawMemberPrice && dbFirestoreProducts && dbFirestoreProducts.length > 0) {
-                    const fsMatch = dbFirestoreProducts.find(fp => {
-                        const fsName = String(getFuzzyKey(fp, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').trim().toLowerCase();
-                        const fsCode = String(getFuzzyKey(fp, ["รหัส", "col_1"]) || '').trim().toUpperCase();
-                        return (fsName && name.toLowerCase().includes(fsName)) || (fsCode && code && fsCode === code.toUpperCase());
-                    });
-                    if (fsMatch) {
-                        rawMemberPrice = getFuzzyKey(fsMatch, ["ราคาสมาชิก", "col_10"]);
-                    }
-                }
-
-                const memberPrice = parseNumber(rawMemberPrice) || 0;
+                // Use central priceUtils for member price (simulates POS exactly)
+                const memberPrice = computeFinalPrice(p, true, ["ราคาขายเต็ม", "ราคาปกติ", "col_6"]);
                 
                 let isUsingMemberPrice = false;
                 if (customerData?.isApproved && memberPrice > 0 && memberPrice < rawPrice) {
@@ -202,6 +212,8 @@ const Shop = ({
                 }
                 if (!cat) cat = 'อื่นๆ';
 
+                const desc = String(getFuzzyKey(p, ["รายละเอียดสินค้า", "รายละเอียด", "รายละเอียดสินค้า (ถ้ามี)", "description", "details"]) || p.description || '').trim();
+
                 return {
                     ...p,
                     id: p.id,
@@ -213,7 +225,9 @@ const Shop = ({
                     type: 'product',
                     stock: parseNumber(getFuzzyKey(p, ["จำนวนคงเหลือ", "col_12"]) || 0),
                     isBrochure: p.isBrochure || false,
-                    category: cat
+                    category: cat,
+                    isWoo: !!p.wooId,
+                    desc: desc
                 };
             });
 
@@ -264,6 +278,8 @@ const Shop = ({
                 let finalPrice = isUsingMemberPrice ? memberPrice : rawPrice;
                 let finalOriginalPrice = isUsingMemberPrice ? rawPrice : (mc.originalPrice || 0);
 
+                const desc = String(getFuzzyKey(mc, ["รายละเอียดสินค้า", "รายละเอียด", "รายละเอียดสินค้า (ถ้ามี)", "description", "details"]) || mc.desc || '').trim();
+
                 return {
                     ...mc,
                     id: mc.id,
@@ -273,7 +289,8 @@ const Shop = ({
                     image: mc.image,
                     isUsingMemberPrice: isUsingMemberPrice,
                     type: 'course',
-                    isBrochure: mc.isBrochure || false
+                    isBrochure: mc.isBrochure || false,
+                    desc: desc
                 };
             });
         }
@@ -283,8 +300,8 @@ const Shop = ({
 
         // Filter by search term if it exists
         const filtered = shuffledItems.filter(item => searchTerm === '' || item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-        return filtered.slice(0, localDisplayLimit);
-    }, [shopTab, dbProducts, dbFirestoreProducts, dbMasterCourses, searchTerm, activeCourseCategory, activeProductCategory, localDisplayLimit, wooImagesMap]);
+        return filtered;
+    }, [shopTab, dbProducts, dbFirestoreProducts, dbMasterCourses, searchTerm, activeCourseCategory, activeProductCategory, wooImagesMap]);
 
 
 
@@ -336,9 +353,14 @@ const Shop = ({
                             <button
                                 key={cat.id}
                                 onClick={() => setActiveProductCategory(cat.id)}
-                                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${activeProductCategory === cat.id ? 'bg-blue-50 border-blue-200 text-blue-600 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 ${activeProductCategory === cat.id ? 'bg-blue-50 border-blue-200 text-blue-600 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                             >
                                 {cat.label}
+                                {cat.count !== undefined && (
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeProductCategory === cat.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                        {cat.count}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -346,13 +368,18 @@ const Shop = ({
 
                 {shopTab === 'single_courses' && (
                     <div className="flex gap-2 overflow-x-auto hide-scrollbar mt-3 pb-1">
-                        {COURSE_CATEGORIES.map(cat => (
+                        {courseCategoriesWithCounts.map(cat => (
                             <button
                                 key={cat.id}
                                 onClick={() => setActiveCourseCategory(cat.id)}
-                                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${activeCourseCategory === cat.id ? 'bg-rose-50 border-rose-200 text-rose-600 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 ${activeCourseCategory === cat.id ? 'bg-rose-50 border-rose-200 text-rose-600 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                             >
                                 {cat.label}
+                                {cat.count !== undefined && (
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeCourseCategory === cat.id ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-500'}`}>
+                                        {cat.count}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -780,7 +807,7 @@ const Shop = ({
                 <Loader2 className="animate-spin text-[#EE4D2D]" size={24} />
             </div>
             )}
-            {shopDisplayLimit >= currentTabItems.length && currentTabItems.length > 0 && (
+            {localDisplayLimit >= currentTabItems.filter(i => !i.isBrochure).length && currentTabItems.filter(i => !i.isBrochure).length > 0 && (
             <div className="text-center py-6">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">แสดงรายการทั้งหมดแล้ว</p>
             </div>
@@ -792,6 +819,19 @@ const Shop = ({
                 onClose={() => setPriceCheckItem(null)}
                 product={priceCheckItem}
             />
+
+            {/* 🌟 Floating Cart Button (แสดงในหน้าร้านค้า) 🌟 */}
+            {cart.length > 0 && setIsCartModalOpen && (
+                <button
+                    onClick={() => setIsCartModalOpen(true)}
+                    className="fixed bottom-24 right-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-4 shadow-[0_10px_25px_rgba(79,70,229,0.4)] transition-transform hover:scale-105 border-2 border-white z-50 flex items-center justify-center animate-bounce-in"
+                >
+                    <ShoppingCart size={24} />
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                        {cart.reduce((s, i) => s + i.qty, 0)}
+                    </span>
+                </button>
+            )}
         </div>
     );
 };

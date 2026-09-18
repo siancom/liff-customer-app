@@ -102,22 +102,22 @@ export default function OrderDetailModal({
 
                                     {/* Step 2: Paid / Approved */}
                                     <div className="flex flex-col items-center gap-1.5 bg-white px-2">
-                                        {(selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว') ? 
+                                        {(selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') ? 
                                             <CheckCircle2 size={20} className="text-teal-500 fill-teal-50" /> : 
                                             <Circle size={20} className="text-gray-200 fill-white" />
                                         }
                                         <span className={`text-[9px] font-bold ${
-                                            (selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว') ? 'text-gray-800' : 'text-gray-400'
+                                            (selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') ? 'text-gray-800' : 'text-gray-400'
                                         }`}>ชำระเงินแล้ว</span>
                                     </div>
 
                                     {/* Step 3: Shipped / Completed */}
                                     <div className="flex flex-col items-center gap-1.5 bg-white px-2">
-                                        {selectedOrder.status === 'จัดส่งแล้ว' ? 
+                                        {(selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') ? 
                                             <CheckCircle2 size={20} className="text-teal-500 fill-teal-50" /> : 
                                             <Circle size={20} className="text-gray-200 fill-white" />
                                         }
-                                        <span className={`text-[9px] font-bold ${selectedOrder.status === 'จัดส่งแล้ว' ? 'text-gray-800' : 'text-gray-400'}`}>
+                                        <span className={`text-[9px] font-bold ${(selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') ? 'text-gray-800' : 'text-gray-400'}`}>
                                             {selectedOrder.itemType === 'product' ? 'จัดส่งแล้ว' : 'เสร็จสิ้น'}
                                         </span>
                                     </div>
@@ -126,8 +126,8 @@ export default function OrderDetailModal({
                         )}
                     </div>
 
-                    {/* 📦 ติดตามพัสดุ (17TRACK) */}
-                    {selectedOrder.trackingNo && (() => {
+                    {/* 📦 ติดตามพัสดุ (17TRACK) หรือ แถบสถานะการจัดส่ง (สำหรับสินค้า) */}
+                    {(selectedOrder.trackingNo || selectedOrder.itemType === 'product' || selectedOrder.fulfillment) && (() => {
                         const t = selectedOrder.trackingInfo;
                         const phase = t?.phase || 'pending';
                         const phaseTh = TRACK17_PHASE_TH[phase] || phase;
@@ -141,7 +141,7 @@ export default function OrderDetailModal({
                                 {/* 🌟 แถบขั้นตอนแบบ Shopee: สั่งซื้อ → จัดส่ง → กำลังขนส่ง → ส่งสำเร็จ */}
                                 <div className="flex items-center justify-between mb-5 relative">
                                     <div className="absolute top-4 left-6 right-6 h-0.5 bg-gray-100 -z-0"></div>
-                                    <div className="absolute top-4 left-6 right-6 h-0.5 bg-sky-400 -z-0 transition-all" style={{ width: phase === 'delivered' ? '100%' : (phase === 'inTransit' || phase === 'outForDelivery' ? '66%' : '33%') }}></div>
+                                    <div className="absolute top-4 left-6 right-6 h-0.5 bg-sky-400 -z-0 transition-all" style={{ width: phase === 'delivered' ? '100%' : (phase === 'inTransit' || phase === 'outForDelivery' ? '66%' : (phase !== 'pending' ? '33%' : '0%')) }}></div>
                                     
                                     <div className="flex flex-col items-center gap-1.5 bg-white px-2 relative z-10">
                                         <div className="w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center shadow-sm"><ReceiptText size={14} /></div>
@@ -182,7 +182,7 @@ export default function OrderDetailModal({
                                         </p>
                                     </div>
                                 )}
-                                {t?.events?.length > 0 && (
+                                {t?.events?.length > 0 ? (
                                     <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                                         {t.events.map((ev, i) => (
                                             <div key={i} className="flex gap-2">
@@ -196,6 +196,11 @@ export default function OrderDetailModal({
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 text-gray-400">
+                                        <Package size={24} className="mx-auto mb-2 opacity-50"/>
+                                        <p className="text-xs">อยู่ระหว่างเตรียมการจัดส่ง</p>
                                     </div>
                                 )}
                                 <p className="text-[8px] text-gray-300 text-right mt-1.5 font-medium">ข้อมูลจาก 17TRACK · อัพเดทโดยร้านค่ะ</p>

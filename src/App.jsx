@@ -3,7 +3,7 @@ import {
   QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
   AlertCircle, Info, Ticket, Phone, Loader2, ArrowRight, Tag, 
   LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse,
-  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays
+  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, Gift
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -14,6 +14,7 @@ import { onSnapshot, addDoc, writeBatch, doc, query, where, updateDoc } from 'fi
 import Shop from './pages/Shop';
 import Orders from './pages/Orders';
 import Booking from './pages/Booking';
+import Privileges from './pages/Privileges';
 import BookingModal from './components/modals/BookingModal';
 import CartCheckoutModal from './components/modals/CartCheckoutModal';
 import ProductDetailModal from './components/modals/ProductDetailModal';
@@ -79,6 +80,7 @@ export default function CustomerApp() {
 
   // 🌟 NEW STATE FOR SHOP & CART 🌟
   const [dbProducts, setDbProducts] = useState([]);
+  const [dbOrders, setDbOrders] = useState([]);
   const [dbMasterCourses, setDbMasterCourses] = useState([]);
   const [shopTab, setShopTab] = useState('products');
   const [cart, setCart] = useState([]);
@@ -155,88 +157,9 @@ export default function CustomerApp() {
 
   // ═══════════ 🌟 WOOCOMMERCE: สินค้าเซต (grouped) + หลายตัวเลือก (variable) 🌟 ═══════════
 
-  // 🌟 หาราคาสมาชิกของสินค้า Woo: 1) meta ราคาสมาชิกบนเว็บ 2) จับคู่ชื่อกับคลัง Firestore (ราคาสมาชิก/ส่วนลด VIP ตามแบรนด์เหมือน POS)
-  const getWooMemberPrice = (wooItem) => {
-    try {
-      const meta = (wooItem.meta_data || []).find(m => m && (String(m.key) === '_member_price' || String(m.key).includes('ราคาสมาชิก')));
-      let mp = parseNumber(meta?.value);
-      if (mp > 0) return mp;
-
-      const wName = String(wooItem.name || '').replace(/\s+/g, '').toLowerCase();
-      if (!wName) return 0;
-      const fs = dbProducts.find(fp => {
-        const fName = String(getFuzzyKey(fp, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').replace(/\s+/g, '').toLowerCase();
-        return fName && (fName.includes(wName) || wName.includes(fName));
-      });
-      if (fs) {
-        const full = getFullPrice(fs);
-        const vipFinal = computeFinalPrice(fs, true);
-        if (vipFinal > 0 && (full === 0 || vipFinal < full)) return vipFinal;
-        mp = parseNumber(getFuzzyKey(fs, ["ราคาสมาชิก", "col_10"]));
-        if (mp > 0 && (full === 0 || mp < full)) return mp;
-      }
-    } catch (e) {}
-    return 0;
-  };
-
+  // 🌟 (Moved WooCommerce sync to Admin Dashboard for performance and deduplication)
   useEffect(() => {
-    let isMounted = true;
-    const fetchWooProducts = async () => {
-      try {
-        const baseUrl = WOO_CFG.url.endsWith('/') ? WOO_CFG.url.slice(0, -1) : WOO_CFG.url;
-        const data = await fetchWithProxy(`${baseUrl}/wp-json/wc/v3/products?status=publish&per_page=100`);
-        if (!isMounted || !Array.isArray(data)) return;
-
-        const formatted = data.map(p => {
-          const allImages = p.images ? p.images.map(img => img.src) : [];
-
-          let price = parseFloat(p.price || p.regular_price || 0);
-          let originalPrice = parseFloat(p.regular_price || 0);
-          let minPrice = price, maxPrice = price;
-
-          // 🌟 variable/grouped/bundle: ดึงช่วงราคาจาก price_html (ตัด <del> ตัวเลขเก่าออกก่อน parse)
-          if (['variable', 'grouped', 'bundle', 'woosb'].includes(p.type)) {
-            if (p.price_html) {
-              const stripped = p.price_html.replace(/<[^>]+>/g, '').replace(/,/g, '');
-              const numbers = stripped.match(/\d+(\.\d+)?/g);
-              if (numbers && numbers.length > 0) {
-                minPrice = Math.min(...numbers.map(Number));
-                maxPrice = Math.max(...numbers.map(Number));
-                price = minPrice; // แสดง "เริ่มต้น" ที่ราคาต่ำสุด
-              }
-            }
-          }
-          if (originalPrice <= price) originalPrice = 0;
-
-          // 🌟 สต็อกจาก Woo — ดึงตามแบบเดียวกับราคา ไม่งั้นทุกตัวโดนติด "หมดชั่วคราว"
-          // manage_stock=true → ใช้ stock_quantity, ไม่บริหารสต็อก → ถ้า instock ถือว่ามีของเพียงพอ
-          const wooStock = p.manage_stock
-            ? (parseInt(p.stock_quantity) || 0)
-            : (String(p.stock_status) === 'outofstock' ? 0 : 99);
-
-          return {
-            id: `woo-${p.id}`, wooId: p.id,
-            name: p.name || 'ไม่ระบุชื่อ',
-            desc: (p.short_description || p.description || '').replace(/<[^>]*>?/gm, ''),
-            price, originalPrice, minPrice, maxPrice,
-            stock: wooStock,
-            memberPrice: getWooMemberPrice(p),
-            type: p.categories?.some(c => String(c.name).toLowerCase().includes('คอร์ส') || String(c.name).toLowerCase().includes('บริการ')) ? 'course' : 'product',
-            image: allImages.length > 0 ? allImages[0] : null,
-            images: allImages,
-            categories: p.categories || [],
-            wooType: p.type,
-            groupedIds: p.grouped_products || [],
-            isWoo: true
-          };
-        });
-        if (isMounted) setWooProducts(formatted);
-      } catch (e) {
-        console.error('Woo fetch error:', e);
-      }
-    };
-    fetchWooProducts();
-    return () => { isMounted = false; };
+    setWooProducts([]);
   }, []);
 
   // 🌟 โหลดตัวเลือกย่อยเมื่อเปิดดูสินค้า Woo: variable → variations, grouped → สินค้าลูกในเซต
@@ -245,8 +168,9 @@ export default function CustomerApp() {
       setSubItems([]); setSelectedVariation(null); setGroupedSelections({});
       return;
     }
+    const isGroupedType = ['grouped', 'bundle', 'woosb'].includes(selectedProduct.wooType);
     const needSub = selectedProduct.wooType === 'variable' ||
-      (selectedProduct.wooType === 'grouped' && selectedProduct.groupedIds?.length > 0);
+      (isGroupedType && selectedProduct.groupedIds?.length > 0);
     if (!needSub) {
       setSubItems([]); setSelectedVariation(null); setGroupedSelections({});
       return;
@@ -261,15 +185,15 @@ export default function CustomerApp() {
           const data = await fetchWithProxy(`${baseUrl}/wp-json/wc/v3/products/${selectedProduct.wooId}/variations`);
           if (!isMounted) return;
           const list = Array.isArray(data) ? data : [];
-          // 🌟 แนบราคาสมาชิกแต่ละตัวเลือก (จาก Woo meta / คลัง Firestore)
-          setSubItems(list.map(s => ({ ...s, memberPrice: getWooMemberPrice(s) })));
-          if (list.length > 0) setSelectedVariation({ ...list[0], memberPrice: getWooMemberPrice(list[0]) });
-        } else if (selectedProduct.wooType === 'grouped') {
+          // 🌟 แนบราคาสมาชิก
+          setSubItems(list.map(s => ({ ...s, memberPrice: parseNumber(s.regular_price || s.price || 0) })));
+          if (list.length > 0) setSelectedVariation({ ...list[0], memberPrice: parseNumber(list[0].regular_price || list[0].price || 0) });
+        } else if (isGroupedType) {
           const data = await fetchWithProxy(`${baseUrl}/wp-json/wc/v3/products?include=${selectedProduct.groupedIds.join(',')}&per_page=100`);
           if (!isMounted) return;
           const list = Array.isArray(data) ? data : [];
-          // 🌟 แนบราคาสมาชิกของแต่ละชิ้นในเซต
-          setSubItems(list.map(s => ({ ...s, memberPrice: getWooMemberPrice(s) })));
+          // 🌟 แนบราคาสมาชิก
+          setSubItems(list.map(s => ({ ...s, memberPrice: parseNumber(s.regular_price || s.price || 0) })));
           const initial = {};
           list.forEach(item => { initial[item.id] = 1; });
           setGroupedSelections(initial);
@@ -318,7 +242,7 @@ export default function CustomerApp() {
       showToast(`เพิ่ม "${selectedProduct.name}" ลงตะกร้าแล้ว`);
       return true;
 
-    } else if (selectedProduct.wooType === 'grouped' && selectedProduct.groupedIds?.length > 0) {
+    } else if (['grouped', 'bundle', 'woosb'].includes(selectedProduct.wooType) && selectedProduct.groupedIds?.length > 0) {
       let totalAdded = 0;
       subItems.forEach(subItem => {
         const qty = groupedSelections[subItem.id] || 0;
@@ -504,7 +428,12 @@ export default function CustomerApp() {
       setFeatureFlags(snap.data() || {});
     }, (err) => console.error("Feature flags fetch error:", err));
 
-    return () => { unsubCourses(); unsubCustomers(); unsubHistories(); unsubProducts(); unsubMasterCourses(); unsubFlags(); };
+    // 2.7 ดึงข้อมูลคำสั่งซื้อเพื่อดูสถานะการจัดส่ง
+    const unsubOrders = onSnapshot(getAppCollection('orders'), (snapshot) => {
+      setDbOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Orders fetch error:", err));
+
+    return () => { unsubCourses(); unsubCustomers(); unsubHistories(); unsubProducts(); unsubMasterCourses(); unsubFlags(); unsubOrders(); };
   }, [user]);
 
 
@@ -522,7 +451,7 @@ export default function CustomerApp() {
       
       if (rawCustomer) {
         // Use central utility to build consistent customer data
-        const builtData = buildCustomerData(rawCustomer, cleanPhone, dbHistories, dbCourses);
+        const builtData = buildCustomerData(rawCustomer, cleanPhone, dbHistories, dbCourses, dbOrders);
         
         setCustomerData({
           ...builtData,
@@ -840,39 +769,7 @@ export default function CustomerApp() {
           {activeNav === 'home' && (
             <div className="space-y-4 animate-in fade-in duration-300">
 
-              {/* 🌟 กระเป๋าเงินเครดิต (Wallet) 🌟 */}
-              <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 relative overflow-hidden">
-                <div className="absolute right-0 top-0 w-32 h-32 bg-orange-50 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                <div className="relative z-10 flex justify-between items-center mb-1">
-                   <div className="flex items-center space-x-2">
-                     <div className="bg-orange-100 text-orange-600 p-1.5 rounded-lg"><Banknote size={18}/></div>
-                     <h3 className="text-sm font-black text-gray-800">วงเงินเครดิตคงเหลือ</h3>
-                   </div>
-                   <button onClick={() => setIsCartModalOpen(true)} className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors">ประวัติวงเงิน</button>
-                </div>
-                <div className="relative z-10 mt-3 flex items-baseline">
-                   <span className="text-3xl font-black text-orange-500 tracking-tight">฿{totalCreditBalance.toLocaleString()}</span>
-                   {maxTotalCredit > totalCreditBalance && (
-                     <span className="text-xs text-gray-400 font-bold ml-2">/ ฿{maxTotalCredit.toLocaleString()}</span>
-                   )}
-                </div>
-                <div className="relative z-10 mt-4 flex space-x-2">
-                   <button 
-                     onClick={() => {
-                        showToast('ฟีเจอร์นี้อยู่ระหว่างการพัฒนา กรุณาติดต่อหน้าร้าน');
-                     }}
-                     className="flex-1 bg-gray-900 text-white text-xs font-black py-3 rounded-xl shadow-md active:scale-95 transition-transform flex items-center justify-center space-x-1.5"
-                   >
-                     <QrCode size={14}/><span>ชำระด้วยเครดิต</span>
-                   </button>
-                   <button 
-                     onClick={() => setIsWalletTopUpOpen(true)}
-                     className="flex-1 bg-white text-gray-900 border border-gray-200 text-xs font-black py-3 rounded-xl shadow-sm active:scale-95 transition-transform flex items-center justify-center space-x-1.5"
-                   >
-                     <ArrowDownToLine size={14}/><span>เติมเครดิต</span>
-                   </button>
-                </div>
-              </div>
+
 
               {/* 🌟 แบนเนอร์วิเคราะห์ผิว AI (เปิด/ปิดได้จากแอดมิน: flag skinCheck) 🌟 */}
               {featureFlags.skinCheck !== false && (
@@ -948,9 +845,21 @@ export default function CustomerApp() {
                       </div>
                     </div>
 
-                    <button onClick={(e) => { e.stopPropagation(); setShowQR(course); }} className="w-full bg-gray-900 text-white flex items-center justify-center space-x-2 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform">
-                      <QrCode size={18} /><span>แสดง QR เพื่อใช้งาน</span>
-                    </button>
+                    <div className="space-y-2 mt-4">
+                      <button onClick={(e) => { e.stopPropagation(); setShowQR(course); }} className="w-full bg-gray-900 text-white flex items-center justify-center space-x-2 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform">
+                        <QrCode size={18} /><span>แสดง QR เพื่อใช้งาน</span>
+                      </button>
+                      
+                      <div className="flex gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); setShowSkinProgress(true); }} className="flex-1 bg-teal-50 text-teal-700 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl font-bold text-xs shadow-sm border border-teal-100 active:scale-95 transition-transform">
+                          <Sparkles size={16} /><span>ประวัติผิว</span>
+                        </button>
+                        
+                        <button onClick={(e) => { e.stopPropagation(); setSelectedCourseDetail(course); }} className="flex-1 bg-gray-50 text-gray-700 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl font-bold text-xs shadow-sm border border-gray-200 active:scale-95 transition-transform">
+                          <Info size={16} /><span>รายละเอียดคอร์ส</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 );
@@ -1015,7 +924,7 @@ export default function CustomerApp() {
              <Shop
                 shopTab={shopTab}
                 setShopTab={setShopTab}
-                dbProducts={[...dbProducts, ...wooProducts]}
+                dbProducts={dbProducts}
                 dbFirestoreProducts={dbProducts}
                 dbMasterCourses={dbMasterCourses}
                 wooImagesMap={new Map()}
@@ -1030,6 +939,8 @@ export default function CustomerApp() {
                 handleCollectCoupon={() => {}}
                 isPaginating={false}
                 shopDisplayLimit={50}
+                cart={cart}
+                setIsCartModalOpen={setIsCartModalOpen}
                 onOpenSkinCheck={featureFlags.skinCheck !== false ? () => setShowSkinCheck(true) : undefined}
                 mySingleCourses={mySingleCourses}
                 onShowCourseQR={(course) => setShowQR(course)}
@@ -1048,27 +959,86 @@ export default function CustomerApp() {
              />
           )}
 
+          {/* NAV 5: PRIVILEGES (สิทธิพิเศษ) */}
+          {activeNav === 'privileges' && (
+             <Privileges
+                customerData={customerData}
+                parseNumber={parseNumber}
+                handleRedeemReward={() => {
+                  showToast('ยังไม่เปิดให้แลกของรางวัลในขณะนี้', 'error');
+                  return { success: false, msg: 'ยังไม่เปิดให้แลกของรางวัลในขณะนี้' };
+                }}
+                MOCK_COUPONS={MOCK_COUPONS}
+                marketingPromotions={[]}
+                handleCollectCoupon={(code) => {
+                  showToast('เก็บคูปอง ' + code + ' เรียบร้อยแล้ว!', 'success');
+                }}
+                dbLuckyPrizes={[]}
+                showToast={showToast}
+             />
+          )}
+
           {activeNav === 'profile' && (
             <div className="space-y-4 animate-in fade-in duration-300">
               <h2 className="text-sm font-black text-gray-800 flex items-center mb-2"><User size={18} className="mr-2 text-indigo-500"/> บัญชีสะสมยอด</h2>
               
-              {/* บัตรสะสมยอด */}
+              {/* 🌟 บัตรสมาชิกและกระเป๋าเงิน (Merged VIP Card) 🌟 */}
               <div className={`p-6 rounded-[24px] shadow-lg text-white relative overflow-hidden ${customerData.isApproved ? 'bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 shadow-orange-500/30' : 'bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 shadow-indigo-500/30'}`}>
-                <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-xl"></div>
+                <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-xl pointer-events-none"></div>
+                <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
+                
+                {/* --- Top Section: Membership --- */}
                 <div className="relative z-10 flex justify-between items-start mb-4">
                    <div>
                      <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-0.5">สถานะสมาชิก</p>
                      <p className="font-black text-lg flex items-center gap-1.5">
                        {customerData.memberStatus}
-                       {customerData.isApproved && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px] border border-white/30 uppercase tracking-widest">VIP</span>}
+                       {customerData.isApproved && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px] border border-white/30 uppercase tracking-widest backdrop-blur-sm shadow-sm">VIP</span>}
                      </p>
                    </div>
                    <Award size={28} className={customerData.isApproved ? "text-yellow-200" : "text-indigo-200"} />
                 </div>
-                <div className="relative z-10">
+                
+                <div className="relative z-10 mb-1">
                    <p className="text-[11px] uppercase tracking-widest font-bold text-white/80 mb-1">ยอดสะสมรวมทั้งหมด</p>
-                   <p className="text-4xl font-black leading-none mb-2">฿{customerData.realAccumulatedAmount.toLocaleString()}</p>
+                   <p className="text-4xl font-black leading-none mb-1">฿{customerData.realAccumulatedAmount.toLocaleString()}</p>
                    <p className="text-[10px] text-white/70 font-medium">ยอดซื้อสินค้า: ฿{(customerData.productAccumulatedAmount || 0).toLocaleString()}</p>
+                </div>
+
+                {/* --- Divider --- */}
+                <div className="relative z-10 h-px w-full bg-white/20 my-5"></div>
+
+                {/* --- Bottom Section: Wallet --- */}
+                <div className="relative z-10 flex justify-between items-center mb-2">
+                   <div className="flex items-center space-x-2">
+                     <div className="bg-white/20 text-white p-1.5 rounded-lg backdrop-blur-sm"><Banknote size={16}/></div>
+                     <h3 className="text-xs font-black text-white/95">วงเงินเครดิตคงเหลือ</h3>
+                   </div>
+                   <button onClick={() => setIsCartModalOpen(true)} className="text-[10px] font-bold text-white bg-white/10 px-2.5 py-1.5 rounded-lg border border-white/20 hover:bg-white/20 transition-colors backdrop-blur-sm">ประวัติวงเงิน</button>
+                </div>
+
+                <div className="relative z-10 flex items-baseline mb-4">
+                   <span className="text-3xl font-black text-white tracking-tight drop-shadow-sm">฿{totalCreditBalance.toLocaleString()}</span>
+                   {maxTotalCredit > totalCreditBalance && (
+                     <span className="text-xs text-white/70 font-bold ml-2">/ ฿{maxTotalCredit.toLocaleString()}</span>
+                   )}
+                </div>
+
+                <div className="relative z-10 flex space-x-2 mt-2">
+                   <button 
+                     onClick={() => {
+                        showToast('ฟีเจอร์นี้อยู่ระหว่างการพัฒนา กรุณาติดต่อหน้าร้าน');
+                     }}
+                     className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border border-white/30 text-[11px] font-black py-3 rounded-xl shadow-sm active:scale-95 transition-all flex items-center justify-center space-x-1.5"
+                   >
+                     <QrCode size={14}/><span>ชำระด้วยเครดิต</span>
+                   </button>
+                   <button 
+                     onClick={() => setIsWalletTopUpOpen(true)}
+                     className={`flex-1 bg-white hover:bg-gray-50 text-[11px] font-black py-3 rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center space-x-1.5 ${customerData.isApproved ? 'text-orange-600' : 'text-indigo-600'}`}
+                   >
+                     <ArrowDownToLine size={14}/><span>เติมเครดิต</span>
+                   </button>
                 </div>
               </div>
 
@@ -1149,26 +1119,19 @@ export default function CustomerApp() {
                 <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'shop' ? 'bg-emerald-50' : ''}`}><ShoppingBag size={22} className={activeNav === 'shop' ? 'fill-emerald-100/50' : ''} /></div><span className="text-[9px] font-bold">ร้านค้า</span>
              </button>
              
-             {/* กึ่งกลาง ตะกร้าสินค้า */}
+             {/* กึ่งกลาง จองคิว */}
              <div className="relative -top-6 flex justify-center w-full max-w-[80px]">
                 <button 
-                  onClick={() => setIsCartModalOpen(true)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-4 shadow-[0_10px_25px_rgba(79,70,229,0.4)] transition-transform hover:scale-105 relative border-4 border-white"
+                  onClick={() => setActiveNav('booking')}
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-[0_10px_25px_rgba(37,99,235,0.4)] transition-transform hover:scale-105 relative border-4 border-white"
                 >
-                  <ShoppingCart size={24} />
-                  {cart.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
-                      {cart.reduce((s,i)=>s+i.qty,0)}
-                    </span>
-                  )}
+                  <CalendarDays size={24} />
                 </button>
              </div>
 
-             <button onClick={() => setActiveNav('booking')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors ${activeNav === 'booking' ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'booking' ? 'bg-blue-50' : ''}`}><CalendarDays size={22} className={activeNav === 'booking' ? 'fill-blue-100/50' : ''} /></div><span className="text-[9px] font-bold">จองคิว</span>
-             </button>
-             <button onClick={() => setActiveNav('orders')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors ${activeNav === 'orders' ? 'text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'orders' ? 'bg-pink-50' : ''}`}><ReceiptText size={22} className={activeNav === 'orders' ? 'fill-pink-100/50' : ''} /></div><span className="text-[9px] font-bold">คำสั่งซื้อ</span>
+
+             <button onClick={() => setActiveNav('privileges')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors ${activeNav === 'privileges' ? 'text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}>
+                <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'privileges' ? 'bg-pink-50' : ''}`}><Gift size={22} className={activeNav === 'privileges' ? 'text-pink-500' : ''} /></div><span className="text-[9px] font-bold">สิทธิพิเศษ</span>
              </button>
              <button onClick={() => setActiveNav('profile')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors ${activeNav === 'profile' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}>
                 <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'profile' ? 'bg-indigo-50' : ''}`}><User size={22} className={activeNav === 'profile' ? 'fill-indigo-100/50' : ''} /></div>

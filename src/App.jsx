@@ -772,12 +772,6 @@ export default function CustomerApp() {
                 </button>
               </div>
             </div>
-
-            <div className="mt-8 w-full flex flex-col space-y-2 pt-6 border-t border-gray-100">
-               <p className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-widest mb-1">MOCKUP ACCOUNTS (ทดสอบ)</p>
-               <button onClick={() => setPhoneNumber('0878523749')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0878523749 (ยังไม่อนุมัติ VIP)</button>
-               <button onClick={() => setPhoneNumber('0811112222')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0811112222 (ผ่อนชำระ & VIP)</button>
-            </div>
           </div>
         </div>
 

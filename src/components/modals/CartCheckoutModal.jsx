@@ -20,6 +20,8 @@ export default function CartCheckoutModal({
     const activeCourses = (customerData?.courses || []).filter(c => c.status === 'ยังคงเหลือ');
     const totalCreditValue = activeCourses.reduce((sum, c) => sum + (c.computedRemainCredit || 0), 0);
     const [deliveryInfo, setDeliveryInfo] = useState({ name: '', phone: '', address: '' });
+    const [selectedBranch, setSelectedBranch] = useState(customerData?.defaultBranch || 'สาขาเฉวง');
+    const availableBranches = ["สาขาเฉวง", "สาขาหน้าทอน"];
     const [isEditingAddress, setIsEditingAddress] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
@@ -87,7 +89,8 @@ export default function CartCheckoutModal({
             baseTotal,
             discountAmount,
             finalPrice,
-            orderNote
+            orderNote,
+            selectedBranch
         };
 
         const result = await onConfirmOrder(orderData);
@@ -190,6 +193,23 @@ export default function CartCheckoutModal({
                                         <span className="text-[10px] text-rose-500 font-bold bg-rose-50 px-2 py-1 rounded-md">คุ้มกว่า!</span>
                                     </button>
                                 )}
+                            </div>
+
+                            {/* Branch Selection */}
+                            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                                <h3 className="text-xs font-black text-gray-800 flex items-center mb-3"><Store size={16} className="mr-1.5 text-teal-600"/> สาขาที่รับบริการ/รับสินค้า</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {availableBranches.map(branch => (
+                                        <button 
+                                            key={branch}
+                                            type="button" 
+                                            onClick={() => setSelectedBranch(branch)}
+                                            className={`p-3 rounded-xl border font-bold text-xs transition-all ${selectedBranch === branch ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}
+                                        >
+                                            {branch}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Order Note */}

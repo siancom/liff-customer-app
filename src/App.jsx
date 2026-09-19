@@ -529,170 +529,6 @@ export default function CustomerApp() {
     return () => unsubBookings();
   }, [dbCustomersRaw, dbHistories, dbCourses, appState, phoneNumber, lineProfile]);
 
-  // --- SCREEN 1: LOADING ---
-  if (appState === 'loading') {
-    return (
-      <div className="bg-gradient-to-br from-teal-600 via-emerald-600 to-teal-800 min-h-screen flex flex-col items-center justify-center font-sans relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-20 -mt-20 blur-3xl"></div>
-        <div className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-[32px] border border-white/30 flex items-center justify-center mb-6 shadow-2xl animate-pulse">
-           <Sparkles size={48} className="text-white" />
-        </div>
-        <h1 className="text-white text-3xl font-black tracking-widest mb-2">IrisCare</h1>
-        <p className="text-teal-100 text-sm tracking-widest uppercase mb-10 font-bold">เชื่อมต่อกับฐานข้อมูล...</p>
-        <Loader2 size={32} className="text-white animate-spin" />
-      </div>
-    );
-  }
-
-  // --- SCREEN 2: LOGIN (ผูกเบอร์โทรกับบัญชี LINE) ---
-  if (appState === 'login') {
-    return (
-      <div className="bg-gray-50 min-h-screen flex justify-center font-sans relative overflow-hidden">
-        <div className="w-full max-w-md bg-white min-h-screen shadow-2xl flex flex-col relative z-10">
-          <div className="h-64 bg-gradient-to-br from-teal-500 via-emerald-500 to-teal-700 relative overflow-hidden rounded-b-[48px] shadow-lg">
-             <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 text-white pt-8">
-                <Sparkles size={36} className="mb-2 opacity-90"/>
-                <h1 className="text-2xl font-black tracking-widest uppercase">IrisCare</h1>
-                <p className="text-sm opacity-80 tracking-wide mt-1">ยินดีต้อนรับสู่ระบบสมาชิก</p>
-             </div>
-          </div>
-          
-          <div className="flex-1 px-8 pt-8 pb-12 flex flex-col items-center -mt-10 z-20">
-            
-            {/* แสดงรูปโปรไฟล์และชื่อจาก LINE LIFF */}
-            <div className="w-24 h-24 rounded-[32px] bg-white p-1.5 shadow-xl mb-3 relative">
-              <img src={lineProfile?.pictureUrl} alt="LINE Profile" className="w-full h-full rounded-[24px] object-cover" />
-              <div className="absolute -bottom-2 -right-2 bg-green-500 border-[3px] border-white text-white p-1 rounded-full shadow-sm">
-                 <CheckCircle size={16} />
-              </div>
-            </div>
-            <h2 className="text-base font-black text-gray-800 mb-6 flex items-center">
-              <span className="text-green-500 mr-2 text-xl">•</span> {lineProfile?.displayName}
-            </h2>
-            
-            <p className="text-sm text-gray-500 text-center mb-8 leading-relaxed px-4">
-              กรุณายืนยันเบอร์โทรศัพท์ที่ใช้สมัครบริการ<br/>เพื่อเข้าถึงข้อมูลคอร์สและยอดสะสมของคุณ
-            </p>
-
-            {errorMsg && (
-              <div className="w-full bg-red-50 border border-red-100 text-red-600 text-xs font-bold p-3 rounded-2xl mb-6 flex items-start shadow-sm animate-in fade-in">
-                 <AlertCircle size={16} className="mr-2 shrink-0 mt-0.5" />
-                 <p>{errorMsg}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleLogin} className="w-full space-y-5">
-              <div className="relative">
-                <Phone size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-600" />
-                <input 
-                  type="tel" 
-                  placeholder="กรอกเบอร์โทรศัพท์ (เช่น 0812345678)"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-4 focus:ring-teal-500/20 focus:bg-white focus:border-teal-500 text-base transition-all font-mono font-bold text-gray-800 tracking-wider shadow-inner"
-                  required
-                />
-              </div>
-              <button type="submit" className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-base py-4 rounded-[20px] hover:opacity-90 shadow-lg shadow-teal-500/30 flex items-center justify-center space-x-2 active:scale-95 transition-all">
-                <span>เข้าสู่ระบบด้วยเบอร์โทร</span>
-                <ArrowRight size={18} />
-              </button>
-            </form>
-
-            <div className="w-full mt-8">
-              <div className="flex items-center justify-between mb-4 px-2">
-                <span className="text-sm font-black text-gray-800">บริการสำหรับคุณ</span>
-                <div className="flex items-center space-x-1.5 bg-white border border-gray-200 py-1.5 px-3 rounded-full shadow-sm">
-                  <MapPin size={12} className="text-teal-600" />
-                  <select 
-                    value={bookingForm.branch} 
-                    onChange={(e) => {
-                      setBookingForm({...bookingForm, branch: e.target.value});
-                      localStorage.setItem('defaultBranch', e.target.value);
-                    }}
-                    className="text-[10px] font-bold text-gray-600 bg-transparent outline-none focus:outline-none appearance-none cursor-pointer"
-                  >
-                    <option value="สาขาเฉวง">สาขาเฉวง</option>
-                    <option value="สาขาละไม">สาขาละไม</option>
-                  </select>
-                  <ChevronRight size={12} className="text-gray-400" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <button onClick={() => setIsBookingModalOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-teal-300">
-                   <div className="w-12 h-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center mb-2 group-hover:bg-teal-500 group-hover:text-white transition-colors">
-                     <CalendarPlus size={22} />
-                   </div>
-                   <span className="text-[11px] font-bold text-gray-700">จองคิว</span>
-                </button>
-
-                <button onClick={() => setIsPromotionModalOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-pink-300 relative">
-                   <div className="absolute top-0 right-0 w-2 h-2 bg-pink-500 rounded-full mt-2 mr-2 animate-pulse"></div>
-                   <div className="w-12 h-12 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2 group-hover:bg-pink-500 group-hover:text-white transition-colors">
-                     <Gift size={22} />
-                   </div>
-                   <span className="text-[11px] font-bold text-gray-700">โปรโมชัน</span>
-                </button>
-
-                <button onClick={() => setIsHelpCenterOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-blue-300">
-                   <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-2 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                     <HelpCircle size={22} />
-                   </div>
-                   <span className="text-[11px] font-bold text-gray-700">ช่วยเหลือ</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-8 w-full flex flex-col space-y-2 pt-6 border-t border-gray-100">
-               <p className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-widest mb-1">MOCKUP ACCOUNTS (ทดสอบ)</p>
-               <button onClick={() => setPhoneNumber('0878523749')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0878523749 (ยังไม่อนุมัติ VIP)</button>
-               <button onClick={() => setPhoneNumber('0811112222')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0811112222 (ผ่อนชำระ & VIP)</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- SCREEN 3: DASHBOARD ---
-  if (!customerData || !customerData.courses) {
-    return (
-      <div className="bg-gray-100 min-h-screen flex justify-center items-center">
-        <Loader2 size={32} className="animate-spin text-teal-500" />
-      </div>
-    );
-  }
-
-  const activeCourses = customerData.courses.filter(c => {
-    if (c.status !== 'ยังคงเหลือ') return false;
-    const courseName = String(getFuzzyKey(c, ["ชื่อคอส", "ชื่อคอร์ส", "col_8"]) || '').toLowerCase();
-    const isCreditCourse = courseName.includes('วงเงิน') || courseName.includes('เติมเงิน') || courseName.includes('เครดิต') || courseName.includes('voucher') || courseName.includes('บัตรกำนัล') || courseName.includes('ฝากเงิน');
-    return !isCreditCourse;
-  }).sort((a, b) => {
-      const dateA = parseThaiDate(getFuzzyKey(a, ["วันที่", "วันที่ซื้อ", "col_1"])) || new Date(0);
-      const dateB = parseThaiDate(getFuzzyKey(b, ["วันที่", "วันที่ซื้อ", "col_1"])) || new Date(0);
-      return dateB.getTime() - dateA.getTime();
-  });
-
-  // 🌟 คอร์สรายครั้งของลูกค้าที่ยังใช้ได้ — ไปแสดงในแท็บ "คอร์สรายครั้ง" ของร้านค้า
-  const isSingleCourse = (c) => {
-    const name = String(getFuzzyKey(c, ["ชื่อคอส", "ชื่อคอร์ส"]) || '');
-    return parseNumber(getFuzzyKey(c, ["จำนวนครั้งที่ได้"])) === 1 || name.includes('รายครั้ง') || name.includes('1 ครั้ง') || name.includes('1ฟรี1');
-  };
-  const mySingleCourses = activeCourses.filter(isSingleCourse);
-  const myNormalCourses = activeCourses.filter(c => !isSingleCourse(c));
-  
-  const totalCreditBalance = customerData.courses.reduce((sum, c) => sum + (c.computedRemainCredit || 0), 0);
-  const maxTotalCredit = customerData.courses.reduce((sum, c) => sum + (c.computedTotalCredit || 0), 0);
-  
-  const courseUsages = customerData.history.filter(h => getFuzzyKey(h, "ประเภท")?.includes('ใช้') || getFuzzyKey(h, "ประเภท")?.includes('เบิก') || getFuzzyKey(h, "ประเภท") === 'คอส');
-  const productPurchases = customerData.history.filter(h => {
-     const rawAmount = getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]);
-     return parseNumber(rawAmount) > 0;
-  });
-
   // 🌟 BOOKING HANDLERS 🌟
   const timeSlots = ['10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30'];
   const timeToMins = (t) => {
@@ -819,6 +655,212 @@ export default function CustomerApp() {
       setBookingError('');
       setIsBookingModalOpen(true);
   };
+
+
+  // --- SCREEN 1: LOADING ---
+  if (appState === 'loading') {
+    return (
+      <div className="bg-gradient-to-br from-teal-600 via-emerald-600 to-teal-800 min-h-screen flex flex-col items-center justify-center font-sans relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-20 -mt-20 blur-3xl"></div>
+        <div className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-[32px] border border-white/30 flex items-center justify-center mb-6 shadow-2xl animate-pulse">
+           <Sparkles size={48} className="text-white" />
+        </div>
+        <h1 className="text-white text-3xl font-black tracking-widest mb-2">IrisCare</h1>
+        <p className="text-teal-100 text-sm tracking-widest uppercase mb-10 font-bold">เชื่อมต่อกับฐานข้อมูล...</p>
+        <Loader2 size={32} className="text-white animate-spin" />
+      </div>
+    );
+  }
+
+  // --- SCREEN 2: LOGIN (ผูกเบอร์โทรกับบัญชี LINE) ---
+  if (appState === 'login') {
+    return (
+      <div className="bg-gray-50 min-h-screen flex justify-center font-sans relative overflow-hidden">
+        <div className="w-full max-w-md bg-white min-h-screen shadow-2xl flex flex-col relative z-10">
+          <div className="h-64 bg-gradient-to-br from-teal-500 via-emerald-500 to-teal-700 relative overflow-hidden rounded-b-[48px] shadow-lg">
+             <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 text-white pt-8">
+                <Sparkles size={36} className="mb-2 opacity-90"/>
+                <h1 className="text-2xl font-black tracking-widest uppercase">IrisCare</h1>
+                <p className="text-sm opacity-80 tracking-wide mt-1">ยินดีต้อนรับสู่ระบบสมาชิก</p>
+             </div>
+          </div>
+          
+          <div className="flex-1 px-8 pt-8 pb-12 flex flex-col items-center -mt-10 z-20">
+            
+            {/* แสดงรูปโปรไฟล์และชื่อจาก LINE LIFF */}
+            <div className="w-24 h-24 rounded-[32px] bg-white p-1.5 shadow-xl mb-3 relative">
+              <img src={lineProfile?.pictureUrl} alt="LINE Profile" className="w-full h-full rounded-[24px] object-cover" />
+              <div className="absolute -bottom-2 -right-2 bg-green-500 border-[3px] border-white text-white p-1 rounded-full shadow-sm">
+                 <CheckCircle size={16} />
+              </div>
+            </div>
+            <h2 className="text-base font-black text-gray-800 mb-6 flex items-center">
+              <span className="text-green-500 mr-2 text-xl">•</span> {lineProfile?.displayName}
+            </h2>
+            
+            <p className="text-sm text-gray-500 text-center mb-8 leading-relaxed px-4">
+              กรุณายืนยันเบอร์โทรศัพท์ที่ใช้สมัครบริการ<br/>เพื่อเข้าถึงข้อมูลคอร์สและยอดสะสมของคุณ
+            </p>
+
+            {errorMsg && (
+              <div className="w-full bg-red-50 border border-red-100 text-red-600 text-xs font-bold p-3 rounded-2xl mb-6 flex items-start shadow-sm animate-in fade-in">
+                 <AlertCircle size={16} className="mr-2 shrink-0 mt-0.5" />
+                 <p>{errorMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="w-full space-y-5">
+              <div className="relative">
+                <Phone size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-600" />
+                <input 
+                  type="tel" 
+                  placeholder="กรอกเบอร์โทรศัพท์ (เช่น 0812345678)"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-4 focus:ring-teal-500/20 focus:bg-white focus:border-teal-500 text-base transition-all font-mono font-bold text-gray-800 tracking-wider shadow-inner"
+                  required
+                />
+              </div>
+              <button type="submit" className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-base py-4 rounded-[20px] hover:opacity-90 shadow-lg shadow-teal-500/30 flex items-center justify-center space-x-2 active:scale-95 transition-all">
+                <span>เข้าสู่ระบบด้วยเบอร์โทร</span>
+                <ArrowRight size={18} />
+              </button>
+            </form>
+
+            <div className="w-full mt-8">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <span className="text-sm font-black text-gray-800">บริการสำหรับคุณ</span>
+                <div className="flex items-center space-x-1.5 bg-white border border-gray-200 py-1.5 px-3 rounded-full shadow-sm">
+                  <MapPin size={12} className="text-teal-600" />
+                  <select 
+                    value={bookingForm.branch} 
+                    onChange={(e) => {
+                      setBookingForm({...bookingForm, branch: e.target.value});
+                      localStorage.setItem('defaultBranch', e.target.value);
+                    }}
+                    className="text-[10px] font-bold text-gray-600 bg-transparent outline-none focus:outline-none appearance-none cursor-pointer"
+                  >
+                    <option value="สาขาเฉวง">สาขาเฉวง</option>
+                    <option value="สาขาละไม">สาขาละไม</option>
+                  </select>
+                  <ChevronRight size={12} className="text-gray-400" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <button onClick={() => setIsBookingModalOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-teal-300">
+                   <div className="w-12 h-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center mb-2 group-hover:bg-teal-500 group-hover:text-white transition-colors">
+                     <CalendarPlus size={22} />
+                   </div>
+                   <span className="text-[11px] font-bold text-gray-700">จองคิว</span>
+                </button>
+
+                <button onClick={() => setIsPromotionModalOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-pink-300 relative">
+                   <div className="absolute top-0 right-0 w-2 h-2 bg-pink-500 rounded-full mt-2 mr-2 animate-pulse"></div>
+                   <div className="w-12 h-12 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2 group-hover:bg-pink-500 group-hover:text-white transition-colors">
+                     <Gift size={22} />
+                   </div>
+                   <span className="text-[11px] font-bold text-gray-700">โปรโมชัน</span>
+                </button>
+
+                <button onClick={() => setIsHelpCenterOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-blue-300">
+                   <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-2 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                     <HelpCircle size={22} />
+                   </div>
+                   <span className="text-[11px] font-bold text-gray-700">ช่วยเหลือ</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-8 w-full flex flex-col space-y-2 pt-6 border-t border-gray-100">
+               <p className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-widest mb-1">MOCKUP ACCOUNTS (ทดสอบ)</p>
+               <button onClick={() => setPhoneNumber('0878523749')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0878523749 (ยังไม่อนุมัติ VIP)</button>
+               <button onClick={() => setPhoneNumber('0811112222')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0811112222 (ผ่อนชำระ & VIP)</button>
+            </div>
+          </div>
+        </div>
+
+        <BookingModal
+            isBookingModalOpen={isBookingModalOpen}
+            closeBookingModal={() => setIsBookingModalOpen(false)}
+            bookingStep={bookingStep}
+            bookingCourse={bookingCourse}
+            bookingForm={bookingForm}
+            customerData={customerData}
+            setBookingForm={setBookingForm}
+            handleBookingSubmit={handleBookingSubmit}
+            handleRescheduleSubmit={handleRescheduleSubmit}
+            bookingError={bookingError}
+            availableBranches={["สาขาเฉวง", "สาขาหน้าทอน"]}
+            bookingDateList={bookingDateList}
+            formatShortDate={formatShortDate}
+            getLocalDateString={getLocalDateString}
+            storeHolidays={[]}
+            timeSlots={timeSlots}
+            bookedTimeRanges={bookedTimeRanges}
+            timeToMins={timeToMins}
+            isSubmittingBooking={isSubmittingBooking}
+            generatedTicket={generatedTicket}
+            setGeneratedTicket={setGeneratedTicket}
+            setBookingStep={setBookingStep}
+            setBookingCourse={setBookingCourse}
+            setIsBookingModalOpen={setIsBookingModalOpen}
+            setShowCancelConfirm={setShowCancelConfirm}
+            setBookingError={setBookingError}
+            showCancelConfirm={showCancelConfirm}
+            isActionLoading={isActionLoading}
+            handleCancelBooking={handleCancelBooking}
+            openReschedule={openReschedule}
+        />
+        <PromotionModal
+           isOpen={isPromotionModalOpen}
+           onClose={() => setIsPromotionModalOpen(false)}
+        />
+        <HelpCenterModal
+          isOpen={isHelpCenterOpen}
+          onClose={() => setIsHelpCenterOpen(false)}
+        />
+      </div>
+    );
+  }
+
+  // --- SCREEN 3: DASHBOARD ---
+  if (!customerData || !customerData.courses) {
+    return (
+      <div className="bg-gray-100 min-h-screen flex justify-center items-center">
+        <Loader2 size={32} className="animate-spin text-teal-500" />
+      </div>
+    );
+  }
+
+  const activeCourses = customerData.courses.filter(c => {
+    if (c.status !== 'ยังคงเหลือ') return false;
+    const courseName = String(getFuzzyKey(c, ["ชื่อคอส", "ชื่อคอร์ส", "col_8"]) || '').toLowerCase();
+    const isCreditCourse = courseName.includes('วงเงิน') || courseName.includes('เติมเงิน') || courseName.includes('เครดิต') || courseName.includes('voucher') || courseName.includes('บัตรกำนัล') || courseName.includes('ฝากเงิน');
+    return !isCreditCourse;
+  }).sort((a, b) => {
+      const dateA = parseThaiDate(getFuzzyKey(a, ["วันที่", "วันที่ซื้อ", "col_1"])) || new Date(0);
+      const dateB = parseThaiDate(getFuzzyKey(b, ["วันที่", "วันที่ซื้อ", "col_1"])) || new Date(0);
+      return dateB.getTime() - dateA.getTime();
+  });
+
+  // 🌟 คอร์สรายครั้งของลูกค้าที่ยังใช้ได้ — ไปแสดงในแท็บ "คอร์สรายครั้ง" ของร้านค้า
+  const isSingleCourse = (c) => {
+    const name = String(getFuzzyKey(c, ["ชื่อคอส", "ชื่อคอร์ส"]) || '');
+    return parseNumber(getFuzzyKey(c, ["จำนวนครั้งที่ได้"])) === 1 || name.includes('รายครั้ง') || name.includes('1 ครั้ง') || name.includes('1ฟรี1');
+  };
+  const mySingleCourses = activeCourses.filter(isSingleCourse);
+  const myNormalCourses = activeCourses.filter(c => !isSingleCourse(c));
+  
+  const totalCreditBalance = customerData.courses.reduce((sum, c) => sum + (c.computedRemainCredit || 0), 0);
+  const maxTotalCredit = customerData.courses.reduce((sum, c) => sum + (c.computedTotalCredit || 0), 0);
+  
+  const courseUsages = customerData.history.filter(h => getFuzzyKey(h, "ประเภท")?.includes('ใช้') || getFuzzyKey(h, "ประเภท")?.includes('เบิก') || getFuzzyKey(h, "ประเภท") === 'คอส');
+  const productPurchases = customerData.history.filter(h => {
+     const rawAmount = getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]);
+     return parseNumber(rawAmount) > 0;
+  });
 
   return (
     <div className="bg-gray-100 min-h-screen flex justify-center font-sans">

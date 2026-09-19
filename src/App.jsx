@@ -358,10 +358,17 @@ export default function CustomerApp() {
             if (window.liff.isLoggedIn()) {
               const profile = await window.liff.getProfile();
               setLineProfile({
+                userId: profile.userId,
                 displayName: profile.displayName,
                 pictureUrl: profile.pictureUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.displayName}&backgroundColor=b6e3f4`
               });
-              setAppState('login'); 
+              const savedPhone = localStorage.getItem(`liff_phone_${profile.userId}`);
+              if (savedPhone) {
+                  setPhoneNumber(savedPhone);
+                  setAppState('auto_login');
+              } else {
+                  setAppState('login'); 
+              }
             } else {
               window.liff.login();
             }
@@ -378,10 +385,17 @@ export default function CustomerApp() {
 
     const fallbackToMockMode = () => {
       setLineProfile({
+        userId: 'mock_user',
         displayName: "LINE User (จำลอง)",
         pictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=LINEUser&backgroundColor=e2e8f0`
       });
-      setTimeout(() => setAppState('login'), 1000);
+      const savedPhone = localStorage.getItem(`liff_phone_mock_user`);
+      if (savedPhone) {
+          setPhoneNumber(savedPhone);
+          setAppState('auto_login');
+      } else {
+          setTimeout(() => setAppState('login'), 1000);
+      }
     };
 
     initLiff();
@@ -476,9 +490,18 @@ export default function CustomerApp() {
   }, [user]);
 
 
+  useEffect(() => {
+     if (appState === 'auto_login') {
+         if (dbCustomersRaw.length > 0) {
+             handleLogin();
+         }
+     }
+  }, [appState, dbCustomersRaw]);
+
+
   // 3. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ (Login ด้วยข้อมูลจาก Firebase)
   const handleLogin = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setAppState('loading');
     setErrorMsg('');
 
@@ -498,10 +521,17 @@ export default function CustomerApp() {
           lineProfilePic: lineProfile?.pictureUrl
         });
         
+        if (lineProfile?.userId) {
+            localStorage.setItem(`liff_phone_${lineProfile.userId}`, cleanPhone);
+        }
+        
         setAppState('dashboard');
         setActiveNav('home');
       } else {
         setErrorMsg('ไม่พบข้อมูลสำหรับเบอร์โทรศัพท์นี้ กรุณาลองใหม่อีกครั้งค่ะ');
+        if (lineProfile?.userId) {
+            localStorage.removeItem(`liff_phone_${lineProfile.userId}`);
+        }
         setAppState('login');
       }
     }, 1000);
@@ -658,7 +688,7 @@ export default function CustomerApp() {
 
 
   // --- SCREEN 1: LOADING ---
-  if (appState === 'loading') {
+  if (appState === 'loading' || appState === 'auto_login') {
     return (
       <div className="bg-gradient-to-br from-teal-600 via-emerald-600 to-teal-800 min-h-screen flex flex-col items-center justify-center font-sans relative overflow-hidden">
         <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-20 -mt-20 blur-3xl"></div>
@@ -878,7 +908,12 @@ export default function CustomerApp() {
                   </h1>
                 </div>
              </div>
-              <button onClick={() => { setAppState('login'); setPhoneNumber(''); }} className="bg-white/10 hover:bg-white/20 p-2.5 rounded-xl text-white backdrop-blur-md transition-colors"><LogOut size={18} /></button>
+              <button onClick={() => { 
+                if (lineProfile?.userId) localStorage.removeItem(`liff_phone_${lineProfile.userId}`);
+                setAppState('login'); 
+                setPhoneNumber(''); 
+                setCustomerData(null);
+              }} className="bg-white/10 hover:bg-white/20 p-2.5 rounded-xl text-white backdrop-blur-md transition-colors"><LogOut size={18} /></button>
           </div>
         </div>
         )}

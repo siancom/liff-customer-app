@@ -4,7 +4,7 @@ import { parseThaiDate, getFuzzyKey } from '../utils/helpers';
 import { QRCodeSVG } from 'qrcode.react';
 import Gamification from './Gamification';
 
-export default function Privileges({ customerData, parseNumber, handleRedeemReward, MOCK_COUPONS, marketingPromotions, handleCollectCoupon, dbLuckyPrizes, showToast }) {
+export default function Privileges({ customerData, parseNumber, handleRedeemReward, MOCK_COUPONS, marketingPromotions, handleCollectCoupon, dbLuckyPrizes, dbRedeemTiers, showToast, handleRequestVIPUpgrade }) {
   const tier = customerData?.memberStatus || 'Member';
   const [activeSubTab, setActiveSubTab] = useState('rewards');
 
@@ -101,26 +101,7 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
 
   const activePromos = marketingPromotions?.filter(p => p.isActive !== false) || [];
 
-  const rewards = [
-    {
-      id: "RWD-SUNCREEN-500",
-      name: "ฟรี ครีมกันแดดเนื้อน้ำ 30ml",
-      points: 500,
-      image: "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?q=80&w=300&auto=format&fit=crop"
-    },
-    {
-      id: "RWD-COUPON-1000",
-      name: "คูปองส่วนลด 300 บาท (สำหรับคอร์ส)",
-      points: 1000,
-      image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=300&auto=format&fit=crop"
-    },
-    {
-      id: "RWD-TREATMENT-2500",
-      name: "ฟรี ทรีทเมนต์หน้าใส 1 ครั้ง",
-      points: 2500,
-      image: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?q=80&w=300&auto=format&fit=crop"
-    }
-  ];
+  const rewards = (dbRedeemTiers || []).filter(r => r.isActive !== false);
 
   const doRedeem = async (reward) => {
       setRedeemingId(reward.id);
@@ -414,10 +395,11 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
                  const isRedeeming = redeemingId === reward.id;
                  return (
                  <div key={reward.id} className={`bg-white rounded-[20px] shadow-sm border p-3 flex flex-col relative group ${!canRedeem ? 'border-gray-100 opacity-80' : 'border-teal-100'}`}>
-                     <div className="h-28 rounded-xl overflow-hidden mb-3 bg-gray-50 relative">
-                         <img src={reward.image} alt={reward.name} className={`w-full h-full object-cover transition-transform duration-300 ${canRedeem ? 'group-hover:scale-105' : 'grayscale'}`} />
+                     <div className={`h-28 rounded-xl overflow-hidden mb-3 bg-gradient-to-br ${reward.grad || 'from-teal-400 to-teal-500'} flex items-center justify-center relative`}>
+                         <span className={`text-5xl drop-shadow-md transition-transform duration-300 ${canRedeem ? 'group-hover:scale-110' : 'grayscale'}`}>{reward.emoji || '🎁'}</span>
                      </div>
-                     <h4 className="font-bold text-gray-800 text-xs mb-2 line-clamp-2 min-h-[32px] leading-tight">{reward.name}</h4>
+                     <h4 className="font-bold text-gray-800 text-xs mb-1 line-clamp-2 min-h-[32px] leading-tight">{reward.name}</h4>
+                     {reward.desc && <p className="text-[10px] text-gray-500 mb-2 line-clamp-1">{reward.desc}</p>}
                      
                      <div className="mt-auto">
                         <div className={`flex items-center font-black text-sm mb-2 ${canRedeem ? 'text-teal-600' : 'text-gray-400'}`}>
@@ -478,7 +460,14 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
           </div>
       )}
 
-      <div className="bg-gradient-to-r from-teal-50 to-teal-100/50 rounded-[24px] p-5 shadow-sm border border-teal-100 flex items-center justify-between mb-4 mt-8 group hover:shadow-md transition-shadow">
+      <button 
+          onClick={() => {
+              if (handleRequestVIPUpgrade) {
+                  handleRequestVIPUpgrade();
+              }
+          }}
+          className="w-full text-left bg-gradient-to-r from-teal-50 to-teal-100/50 rounded-[24px] p-5 shadow-sm border border-teal-100 flex items-center justify-between mb-4 mt-8 group hover:shadow-md transition-shadow active:scale-95"
+      >
           <div>
               <h4 className="font-black text-teal-700 text-sm mb-1 flex items-center"><Heart size={16} className="mr-1.5 text-teal-600" /> อัปเกรดระดับสมาชิก</h4>
               <p className="text-[10px] text-teal-600/80">สะสมยอดซื้อครบ 5,000.- เพื่อเลื่อนเป็น VIP</p>
@@ -486,7 +475,7 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
           <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-teal-600 shadow-sm border border-teal-100 group-hover:scale-110 transition-transform">
               <ArrowRight size={18} />
           </div>
-      </div>
+      </button>
       </>
       )}
 

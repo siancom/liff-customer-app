@@ -330,8 +330,8 @@ export default function SkinProgressModal({ isOpen, onClose, phone, getAppCollec
             ctx.fillText('ผลการดูแลผิว ก่อน–หลัง', W / 2, 160);
 
             const [imgA, imgB] = await Promise.all([
-                scanA.thumb ? loadImg(scanA.thumb) : Promise.resolve(null),
-                scanB.thumb ? loadImg(scanB.thumb) : Promise.resolve(null),
+                (scanA.thumb || scanA.image) ? loadImg(scanA.thumb || scanA.image) : Promise.resolve(null),
+                (scanB.thumb || scanB.image) ? loadImg(scanB.thumb || scanB.image) : Promise.resolve(null),
             ]);
             const pill = (cx, cy, text, bg) => {
                 ctx.font = 'bold 34px Prompt, sans-serif';
@@ -606,7 +606,7 @@ export default function SkinProgressModal({ isOpen, onClose, phone, getAppCollec
                                         return (
                                             <div key={s.id || idx} className="bg-white border border-gray-100 rounded-2xl p-2.5 flex items-center gap-3 shadow-sm">
                                                 <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
-                                                    {s.thumb ? <img src={s.thumb} alt="scan" className="w-full h-full object-cover" />
+                                                    {(s.thumb || s.image) ? <img src={(s.thumb || s.image)} alt="scan" className="w-full h-full object-cover" />
                                                         : <div className="w-full h-full flex items-center justify-center text-gray-300"><Camera size={18} /></div>}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -670,7 +670,7 @@ export default function SkinProgressModal({ isOpen, onClose, phone, getAppCollec
                                                 {[{ s: A, tag: 'ก่อน', cls: 'bg-gray-800 border-gray-700' }, { s: B, tag: 'หลัง', cls: 'bg-pink-500 border-pink-400' }].map(({ s, tag, cls }) => (
                                                     <div key={tag} className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
                                                         <div className={`relative aspect-square bg-gray-100`}>
-                                                            {s.thumb ? <img src={s.thumb} alt={tag} className="w-full h-full object-cover" />
+                                                            {(s.thumb || s.image) ? <img src={(s.thumb || s.image)} alt={tag} className="w-full h-full object-cover" />
                                                                 : <div className="w-full h-full flex items-center justify-center text-gray-300"><Camera size={24} /></div>}
                                                             <span className={`absolute top-2 left-2 text-white text-[9px] font-black px-2 py-0.5 rounded-lg ${cls}`}>{tag}</span>
                                                         </div>

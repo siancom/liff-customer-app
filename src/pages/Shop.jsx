@@ -196,12 +196,21 @@ const Shop = ({
                 let finalPrice = isUsingMemberPrice ? memberPrice : rawPrice;
                 let finalOriginalPrice = isUsingMemberPrice ? rawPrice : (p.originalPrice || 0);
                 
-                let image = getFuzzyKey(p, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || p.image;
+                let imageRaw = getFuzzyKey(p, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || p.image;
+                let imagesArray = [];
+                let image = '';
+
                 if (p.images && p.images.length > 0) {
-                    image = p.images[0].src;
+                    imagesArray = p.images;
+                    image = typeof p.images[0] === 'object' ? p.images[0].src : p.images[0];
+                } else if (typeof imageRaw === 'string' && imageRaw.length > 5) {
+                    imagesArray = imageRaw.split(/[\n, ]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
+                    image = imagesArray.length > 0 ? imagesArray[0] : imageRaw;
                 }
+
                 if (!image || image.length < 5) {
                     image = (code ? wooImagesMap.get(code.toUpperCase()) : null) || wooImagesMap.get(name.toLowerCase());
+                    if (image) imagesArray = [image];
                 }
 
                 let cat = '';
@@ -221,6 +230,7 @@ const Shop = ({
                     price: finalPrice,
                     originalPrice: finalOriginalPrice,
                     image: image,
+                    images: imagesArray,
                     isUsingMemberPrice: isUsingMemberPrice,
                     type: 'product',
                     stock: parseNumber(getFuzzyKey(p, ["จำนวนคงเหลือ", "col_12"]) || 0),
@@ -280,13 +290,18 @@ const Shop = ({
 
                 const desc = String(getFuzzyKey(mc, ["รายละเอียดสินค้า", "รายละเอียด", "รายละเอียดสินค้า (ถ้ามี)", "description", "details"]) || mc.desc || '').trim();
 
+                const rawImage = String(getFuzzyKey(mc, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || mc.image || '').trim();
+                const imagesArray = rawImage.split(/[\n, ]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
+                const mainImage = imagesArray.length > 0 ? imagesArray[0] : rawImage;
+
                 return {
                     ...mc,
                     id: mc.id,
                     name: String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || mc.name).trim(),
                     price: finalPrice,
                     originalPrice: finalOriginalPrice,
-                    image: mc.image,
+                    image: mainImage,
+                    images: imagesArray.length > 0 ? imagesArray : (mc.images || []),
                     isUsingMemberPrice: isUsingMemberPrice,
                     type: 'course',
                     isBrochure: mc.isBrochure || false,

@@ -3,7 +3,7 @@ import {
   QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
   AlertCircle, Info, Ticket, Phone, Loader2, ArrowRight, Tag, 
   LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse,
-  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, Gift
+  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, Gift, HelpCircle
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -30,6 +30,8 @@ import AIFeedbackModal from './components/modals/AIFeedbackModal';
 
 // --- WALLET MODAL ---
 import WalletTopUpModal from './components/modals/WalletTopUpModal';
+import HelpCenterModal from './components/modals/HelpCenterModal';
+import VipRegistrationModal from './components/modals/VipRegistrationModal';
 
 // --- UTILS ---
 import { buildCustomerData } from './utils/customerUtils';
@@ -105,7 +107,12 @@ export default function CustomerApp() {
   const [showSkinProgress, setShowSkinProgress] = useState(false);
   const [showSurvey, setShowSurvey] = useState(false);
   const [featureFlags, setFeatureFlags] = useState({});
+  const [dbCoupons, setDbCoupons] = useState([]);
+  const [dbRedeemTiers, setDbRedeemTiers] = useState([]);
+  const [dbLuckyPrizes, setDbLuckyPrizes] = useState([]);
   const [toast, setToast] = useState(null);
+  const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
+  const [isVipRegistrationOpen, setIsVipRegistrationOpen] = useState(false);
   
   // 🌟 WALLET STATE 🌟
   const [isWalletTopUpOpen, setIsWalletTopUpOpen] = useState(false);
@@ -425,15 +432,38 @@ export default function CustomerApp() {
 
     // 2.6 🌟 สวิตช์เปิด/ปิดฟีเจอร์ (realtime จากแอดมิน) config/featureFlags
     const unsubFlags = onSnapshot(getAppDoc('config', 'featureFlags'), (snap) => {
-      setFeatureFlags(snap.data() || {});
+      if (snap.exists()) setFeatureFlags(snap.data());
     }, (err) => console.error("Feature flags fetch error:", err));
+
+    const unsubCoupons = onSnapshot(getAppCollection('coupons'), (snapshot) => {
+      setDbCoupons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Coupons fetch error:", err));
+
+    const unsubRedeemTiers = onSnapshot(getAppDoc('config', 'redeemTiers'), (snap) => {
+      if (snap.exists()) setDbRedeemTiers(Array.isArray(snap.data()?.tiers) ? snap.data().tiers : []);
+    }, (err) => console.error("Redeem tiers fetch error:", err));
+
+    const unsubLuckyPrizes = onSnapshot(getAppCollection('lucky_wheel_prizes'), (snapshot) => {
+      setDbLuckyPrizes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Lucky prizes fetch error:", err));
 
     // 2.7 ดึงข้อมูลคำสั่งซื้อเพื่อดูสถานะการจัดส่ง
     const unsubOrders = onSnapshot(getAppCollection('orders'), (snapshot) => {
       setDbOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => console.error("Orders fetch error:", err));
 
-    return () => { unsubCourses(); unsubCustomers(); unsubHistories(); unsubProducts(); unsubMasterCourses(); unsubFlags(); unsubOrders(); };
+    return () => { 
+      unsubCourses(); 
+      unsubCustomers(); 
+      unsubHistories(); 
+      unsubProducts(); 
+      unsubMasterCourses(); 
+      unsubFlags(); 
+      unsubCoupons(); 
+      unsubRedeemTiers(); 
+      unsubLuckyPrizes(); 
+      unsubOrders(); 
+    };
   }, [user]);
 
 
@@ -785,7 +815,7 @@ export default function CustomerApp() {
                       <p className="text-[10px] text-white/80 font-bold leading-relaxed mt-1">สแกนใบหน้า รู้สภาพผิว 8 ด้าน + แนะนำแผนดูแล<br/>เก็บประวัติ เทียบ Before/After ก่อน-หลังได้</p>
                       <div className="flex items-center gap-2 mt-3">
                         <button onClick={() => setShowSkinCheck(true)} className="bg-white text-violet-700 text-[11px] font-black px-4 py-2.5 rounded-xl shadow-md active:scale-95 transition-transform flex items-center gap-1.5">
-                          <span>เริ่มสแกนฟรี</span><ArrowRight size={13} />
+                          <span>เริ่มสแกนฟรี ({Math.max(0, 20 - (parseInt(localStorage.getItem(`ai_skin_usage_${new Date().toLocaleDateString('en-CA')}`) || '0', 10)))}/20)</span><ArrowRight size={13} />
                         </button>
                         {featureFlags.skinProgress !== false && (
                           <button onClick={() => setShowSkinProgress(true)} className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-[10px] font-bold px-3 py-2.5 rounded-xl border border-white/20 active:scale-95 transition-all">
@@ -850,15 +880,9 @@ export default function CustomerApp() {
                         <QrCode size={18} /><span>แสดง QR เพื่อใช้งาน</span>
                       </button>
                       
-                      <div className="flex gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); setShowSkinProgress(true); }} className="flex-1 bg-teal-50 text-teal-700 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl font-bold text-xs shadow-sm border border-teal-100 active:scale-95 transition-transform">
-                          <Sparkles size={16} /><span>ประวัติผิว</span>
-                        </button>
-                        
-                        <button onClick={(e) => { e.stopPropagation(); setSelectedCourseDetail(course); }} className="flex-1 bg-gray-50 text-gray-700 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl font-bold text-xs shadow-sm border border-gray-200 active:scale-95 transition-transform">
-                          <Info size={16} /><span>รายละเอียดคอร์ส</span>
-                        </button>
-                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); setShowSkinProgress(true); }} className="w-full bg-teal-50 text-teal-700 flex items-center justify-center space-x-2 py-3 rounded-xl font-bold text-sm shadow-sm border border-teal-100 active:scale-95 transition-transform">
+                        <Sparkles size={18} /><span>ดูประวัติการวิเคราะห์ผิว</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -964,17 +988,18 @@ export default function CustomerApp() {
              <Privileges
                 customerData={customerData}
                 parseNumber={parseNumber}
-                handleRedeemReward={() => {
-                  showToast('ยังไม่เปิดให้แลกของรางวัลในขณะนี้', 'error');
-                  return { success: false, msg: 'ยังไม่เปิดให้แลกของรางวัลในขณะนี้' };
+                handleRedeemReward={async (reward) => {
+                  return { success: true }; 
                 }}
-                MOCK_COUPONS={MOCK_COUPONS}
+                MOCK_COUPONS={dbCoupons}
                 marketingPromotions={[]}
                 handleCollectCoupon={(code) => {
                   showToast('เก็บคูปอง ' + code + ' เรียบร้อยแล้ว!', 'success');
                 }}
-                dbLuckyPrizes={[]}
+                dbLuckyPrizes={dbLuckyPrizes}
+                dbRedeemTiers={dbRedeemTiers}
                 showToast={showToast}
+                handleRequestVIPUpgrade={() => setIsVipRegistrationOpen(true)}
              />
           )}
 
@@ -1104,6 +1129,23 @@ export default function CustomerApp() {
               }) : (
                 <div className="text-center py-10 bg-white rounded-2xl border border-gray-100"><ShoppingBag size={32} className="mx-auto text-gray-200 mb-2"/><p className="text-xs text-gray-400 font-bold">ไม่มีประวัติการได้ยอดสะสม</p></div>
               )}
+              
+              {/* ศูนย์ช่วยเหลือลูกค้า */}
+              <button 
+                onClick={() => setIsHelpCenterOpen(true)}
+                className="w-full bg-white rounded-[20px] p-4 shadow-sm border border-gray-100 flex items-center justify-between mt-4 group active:scale-95 transition-all"
+              >
+                 <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                       <HelpCircle size={20} />
+                    </div>
+                    <div className="text-left">
+                       <h4 className="font-bold text-gray-800 text-sm">ศูนย์ช่วยเหลือลูกค้า</h4>
+                       <p className="text-[10px] text-gray-500">วิธีใช้งานแอป นโยบาย และติดต่อแอดมิน</p>
+                    </div>
+                 </div>
+                 <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500 transition-colors" />
+              </button>
             </div>
           )}
 
@@ -1420,6 +1462,19 @@ export default function CustomerApp() {
           getAppCollection={getAppCollection}
         />
 
+        <HelpCenterModal
+          isOpen={isHelpCenterOpen}
+          onClose={() => setIsHelpCenterOpen(false)}
+        />
+
+        {/* VIP REGISTRATION MODAL */}
+        <VipRegistrationModal 
+           isOpen={isVipRegistrationOpen} 
+           onClose={() => setIsVipRegistrationOpen(false)} 
+           customerData={customerData}
+           showToast={showToast}
+        />
+
         <WalletTopUpModal
           isOpen={isWalletTopUpOpen}
           setIsOpen={setIsWalletTopUpOpen}
@@ -1510,8 +1565,66 @@ export default function CustomerApp() {
                   </div>
 
                   {/* Actions */}
-                  <div className="mb-6">
+                  <div className="mb-6 space-y-2">
                      <button onClick={() => { setSelectedCourseDetail(null); setShowQR(selectedCourseDetail); }} className="w-full bg-teal-500 hover:bg-teal-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-teal-500/30 flex items-center justify-center text-base active:scale-95 transition-all"><QrCode className="mr-2"/> รับบริการ / เบิกสินค้า (แสดง QR)</button>
+                     
+                     <button onClick={() => { 
+                        const courseName = String(getFuzzyKey(selectedCourseDetail, "ชื่อคอส") || '').trim();
+                        const matchingMaster = dbMasterCourses.find(mc => String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim() === courseName);
+                        if (matchingMaster) {
+                          const rawPrice = parseNumber(getFuzzyKey(matchingMaster, ["ราคา", "ราคาขาย", "col_6", "col_5"]) || matchingMaster.price || 0);
+                          const desc = String(getFuzzyKey(matchingMaster, ["รายละเอียดสินค้า", "รายละเอียด", "รายละเอียดสินค้า (ถ้ามี)", "description", "details"]) || matchingMaster.desc || '').trim();
+                          const credit = parseNumber(getFuzzyKey(matchingMaster, ["เครดิต", "วงเงิน", "credit", "col_8"]) || 0);
+                          const itemCat = String(getFuzzyKey(matchingMaster, ["หมวดหมู่", "หมวดสินค้า", "category", "ประเภท", "col_2"]) || 'บริการคลินิก').trim();
+                          const validity = String(getFuzzyKey(matchingMaster, ["อายุ", "อายุคอร์ส", "validity", "กำหนดเวลา"]) || '').trim();
+                          
+                          const vipVal = String(getFuzzyKey(matchingMaster, ["แถม VIP", "แถม VIP Card", "vip", "ฟรีบัตรสมาชิก"]) || '').trim().toLowerCase();
+                          const isVip = vipVal === 'true' || vipVal === 'yes' || vipVal === 'ใช่' || vipVal === 'แถม' || vipVal === 'มี';
+                          
+                          const receivedItems = String(getFuzzyKey(matchingMaster, ["รายการที่ได้รับในคอร์ส", "รายการที่ได้รับ", "receivedItems", "คอร์สย่อย"]) || '').trim();
+
+                          const imageStr = String(getFuzzyKey(matchingMaster, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || '').trim();
+                          const imagesArray = imageStr.split(/[\n, ]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
+                          const finalImages = imagesArray.length > 0 ? imagesArray : (matchingMaster.images || []);
+                          const finalImage = finalImages.length > 0 ? (typeof finalImages[0] === 'object' ? finalImages[0].src : finalImages[0]) : '';
+
+                          setSelectedProduct({
+                            ...matchingMaster,
+                            name: String(getFuzzyKey(matchingMaster, ["ชื่อคอส", "col_4"]) || matchingMaster.name).trim(),
+                            image: finalImage,
+                            images: finalImages,
+                            price: rawPrice,
+                            type: 'course',
+                            desc: desc,
+                            credit: credit,
+                            itemCategory: itemCat,
+                            validity: validity,
+                            isVip: isVip,
+                            receivedItems: receivedItems
+                          });
+                        } else {
+                          const matchingProd = dbProducts.find(p => String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').trim() === courseName);
+                          if (matchingProd) {
+                            const rawPrice = parseNumber(getFuzzyKey(matchingProd, ["ราคาขายเต็ม", "ราคาปกติ", "col_6"]) || matchingProd.price || 0);
+                            const desc = String(getFuzzyKey(matchingProd, ["รายละเอียดสินค้า", "รายละเอียด", "รายละเอียดสินค้า (ถ้ามี)", "description", "details"]) || matchingProd.description || '').trim();
+                            const imageStr = String(getFuzzyKey(matchingProd, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || matchingProd.image || '').trim();
+                            const imagesArray = imageStr.split(/[\n, ]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
+                            const finalImages = matchingProd.images && matchingProd.images.length > 0 ? matchingProd.images : (imagesArray.length > 0 ? imagesArray : []);
+                            const finalImage = finalImages.length > 0 ? (typeof finalImages[0] === 'object' ? finalImages[0].src : finalImages[0]) : '';
+
+                            setSelectedProduct({
+                              ...matchingProd,
+                              name: String(getFuzzyKey(matchingProd, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || matchingProd.name).trim(),
+                              image: finalImage,
+                              images: finalImages,
+                              price: rawPrice,
+                              type: 'product',
+                              desc: desc
+                            });
+                          }
+                          else alert("ไม่พบรายละเอียดคอร์สนี้ในระบบ (อาจถูกลบหรือเปลี่ยนชื่อ)");
+                        }
+                     }} className="w-full bg-white text-gray-700 py-3 rounded-2xl font-bold border border-gray-200 shadow-sm flex items-center justify-center text-sm active:scale-95 transition-all hover:bg-gray-50"><Info className="mr-2" size={16}/> ดูรายละเอียดสิ่งที่ได้รับในคอร์ส</button>
                   </div>
 
                   {/* History */}

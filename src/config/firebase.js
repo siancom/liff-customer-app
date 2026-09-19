@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, collection, doc as fsDoc } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBS3zKEA6zosmy8tLRTyJ38BPLlUQS30gU",
@@ -16,6 +17,7 @@ const app = initializeApp(firebaseConfig);
 export { app };
 export const auth = getAuth(app);
 export const db = getFirestore(app, "iris-care");
+export const storage = getStorage(app);
 
 const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'iris-clinic-app';
 export const appId = String(rawAppId).replace(/\//g, '_');

@@ -112,6 +112,7 @@ export default function CustomerApp() {
   const [dbRedeemTiers, setDbRedeemTiers] = useState([]);
   const [dbLuckyPrizes, setDbLuckyPrizes] = useState([]);
   const [toast, setToast] = useState(null);
+  const [dbBranches, setDbBranches] = useState([]);
   const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
   const [isVipRegistrationOpen, setIsVipRegistrationOpen] = useState(false);
   const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
@@ -138,6 +139,17 @@ export default function CustomerApp() {
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [generatedTicket, setGeneratedTicket] = useState(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  useEffect(() => {
+    if (dbBranches.length > 0) {
+       const saved = localStorage.getItem('defaultBranch');
+       if (!saved || !dbBranches.find(b => b.name === saved)) {
+           const firstBranch = dbBranches[0].name;
+           localStorage.setItem('defaultBranch', firstBranch);
+           setBookingForm(prev => ({...prev, branch: firstBranch}));
+       }
+    }
+  }, [dbBranches]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -475,6 +487,11 @@ export default function CustomerApp() {
       setDbOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => console.error("Orders fetch error:", err));
 
+    // 2.8 ดึงข้อมูลสาขา
+    const unsubBranches = onSnapshot(getAppCollection('branches'), (snapshot) => {
+      setDbBranches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Branches fetch error:", err));
+
     return () => { 
       unsubCourses(); 
       unsubCustomers(); 
@@ -486,6 +503,7 @@ export default function CustomerApp() {
       unsubRedeemTiers(); 
       unsubLuckyPrizes(); 
       unsubOrders(); 
+      unsubBranches();
     };
   }, [user]);
 
@@ -771,8 +789,13 @@ export default function CustomerApp() {
                     }}
                     className="text-[10px] font-bold text-gray-600 bg-transparent outline-none focus:outline-none appearance-none cursor-pointer"
                   >
-                    <option value="สาขาเฉวง">สาขาเฉวง</option>
-                    <option value="สาขาละไม">สาขาละไม</option>
+                    {dbBranches.length > 0 ? (
+                        dbBranches.map(b => (
+                            <option key={b.id} value={b.name}>{b.name}</option>
+                        ))
+                    ) : (
+                        <option value="สาขาเฉวง">สาขาเฉวง</option>
+                    )}
                   </select>
                   <ChevronRight size={12} className="text-gray-400" />
                 </div>
@@ -816,7 +839,7 @@ export default function CustomerApp() {
             handleBookingSubmit={handleBookingSubmit}
             handleRescheduleSubmit={handleRescheduleSubmit}
             bookingError={bookingError}
-            availableBranches={["สาขาเฉวง", "สาขาหน้าทอน"]}
+            availableBranches={dbBranches.length > 0 ? dbBranches.map(b => b.name) : ["สาขาเฉวง"]}
             bookingDateList={bookingDateList}
             formatShortDate={formatShortDate}
             getLocalDateString={getLocalDateString}
@@ -1344,6 +1367,7 @@ export default function CustomerApp() {
              customerData={customerData}
              lineProfile={lineProfile}
              MOCK_COUPONS={MOCK_COUPONS}
+             dbBranches={dbBranches}
              onConfirmOrder={async (orderData) => {
                 try {
                   console.log('Order submitted:', orderData);
@@ -1611,7 +1635,7 @@ export default function CustomerApp() {
           setIsOpen={setIsWalletTopUpOpen}
           customerData={customerData}
           selectedBranch="สาขาเฉวง"
-          availableBranches={["สาขาเฉวง", "สาขาหน้าทอน"]}
+          availableBranches={dbBranches.length > 0 ? dbBranches.map(b => b.name) : ["สาขาเฉวง"]}
           PROMPTPAY_CONFIG={{
               "สาขาเฉวง": { id: "0811111111", name: "บจก. ไอริส คลินิก" },
               "สาขาหน้าทอน": { id: "0822222222", name: "บจก. ไอริส คลินิก" }
@@ -1829,7 +1853,7 @@ export default function CustomerApp() {
             handleBookingSubmit={handleBookingSubmit}
             handleRescheduleSubmit={handleRescheduleSubmit}
             bookingError={bookingError}
-            availableBranches={["สาขาเฉวง", "สาขาหน้าทอน"]}
+            availableBranches={dbBranches.length > 0 ? dbBranches.map(b => b.name) : ["สาขาเฉวง"]}
             bookingDateList={bookingDateList}
             formatShortDate={formatShortDate}
             getLocalDateString={getLocalDateString}

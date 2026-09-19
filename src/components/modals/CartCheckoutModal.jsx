@@ -12,7 +12,8 @@ export default function CartCheckoutModal({
     customerData,
     lineProfile,
     onConfirmOrder,
-    MOCK_COUPONS = []
+    MOCK_COUPONS = [],
+    dbBranches = []
 }) {
     const [paymentMethod, setPaymentMethod] = useState('promptpay');
     
@@ -20,8 +21,8 @@ export default function CartCheckoutModal({
     const activeCourses = (customerData?.courses || []).filter(c => c.status === 'ยังคงเหลือ');
     const totalCreditValue = activeCourses.reduce((sum, c) => sum + (c.computedRemainCredit || 0), 0);
     const [deliveryInfo, setDeliveryInfo] = useState({ name: '', phone: '', address: '' });
-    const [selectedBranch, setSelectedBranch] = useState(customerData?.defaultBranch || 'สาขาเฉวง');
-    const availableBranches = ["สาขาเฉวง", "สาขาหน้าทอน"];
+    const availableBranches = dbBranches.length > 0 ? dbBranches.map(b => b.name) : ["สาขาเฉวง", "สาขาหน้าทอน"];
+    const [selectedBranch, setSelectedBranch] = useState(customerData?.defaultBranch || availableBranches[0]);
     const [isEditingAddress, setIsEditingAddress] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');

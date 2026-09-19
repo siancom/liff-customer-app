@@ -31,7 +31,8 @@ export default function BookingModal({
     showCancelConfirm,
     isActionLoading,
     handleCancelBooking,
-    openReschedule
+    openReschedule,
+    customerData
 }) {
     const getStatusUI = (status) => {
         const s = status || '';
@@ -141,6 +142,33 @@ export default function BookingModal({
                         <span className="text-[10px] font-bold text-gray-500 uppercase">สาขาที่จอง</span>
                         <span className="text-xs font-black text-teal-600">{bookingForm.branch || ''}</span>
                     </div>
+
+                    {/* ข้อมูลลูกค้า (Guest) */}
+                    {!customerData && (
+                        <div className="space-y-3 mb-2 p-4 bg-orange-50 border border-orange-100 rounded-xl">
+                            <p className="text-[10px] font-bold text-orange-600 uppercase mb-2">ข้อมูลผู้จอง (เนื่องจากยังไม่ได้เข้าสู่ระบบ)</p>
+                            <div>
+                                <input
+                                    type="text"
+                                    required
+                                    placeholder="ชื่อผู้จอง"
+                                    value={bookingForm.guestName || ''}
+                                    onChange={e => setBookingForm({...bookingForm, guestName: e.target.value})}
+                                    className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-teal-500/20 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <input
+                                    type="tel"
+                                    required
+                                    placeholder="เบอร์โทรศัพท์ติดต่อ"
+                                    value={bookingForm.guestPhone || ''}
+                                    onChange={e => setBookingForm({...bookingForm, guestPhone: e.target.value})}
+                                    className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-teal-500/20 outline-none"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {/* วันที่ Banner */}
                     <div>

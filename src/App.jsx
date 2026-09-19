@@ -3,7 +3,7 @@ import {
   QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
   AlertCircle, Info, Ticket, Phone, Loader2, ArrowRight, Tag, 
   LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse,
-  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, Gift, HelpCircle
+  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, CalendarPlus, Gift, HelpCircle
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -19,6 +19,7 @@ import BookingModal from './components/modals/BookingModal';
 import CartCheckoutModal from './components/modals/CartCheckoutModal';
 import ProductDetailModal from './components/modals/ProductDetailModal';
 import OrderDetailModal from './components/modals/OrderDetailModal';
+import PromotionModal from './components/modals/PromotionModal';
 import { fetchWithProxy, WOO_CFG } from './utils/wooProxy';
 import { MOCK_COUPONS } from './data/mockData';
 import { getFullPrice, computeFinalPrice } from './utils/priceUtils';
@@ -113,6 +114,7 @@ export default function CustomerApp() {
   const [toast, setToast] = useState(null);
   const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
   const [isVipRegistrationOpen, setIsVipRegistrationOpen] = useState(false);
+  const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
   
   // 🌟 WALLET STATE 🌟
   const [isWalletTopUpOpen, setIsWalletTopUpOpen] = useState(false);
@@ -124,7 +126,14 @@ export default function CustomerApp() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState(1);
   const [bookingCourse, setBookingCourse] = useState(null);
-  const [bookingForm, setBookingForm] = useState({ branch: 'สาขาเฉวง', date: '', time: '', serviceName: '' });
+  const [bookingForm, setBookingForm] = useState({ 
+    branch: localStorage.getItem('defaultBranch') || 'สาขาเฉวง', 
+    date: '', 
+    time: '', 
+    serviceName: '',
+    guestName: '',
+    guestPhone: ''
+  });
   const [bookingError, setBookingError] = useState('');
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [generatedTicket, setGeneratedTicket] = useState(null);
@@ -591,7 +600,52 @@ export default function CustomerApp() {
               </button>
             </form>
 
-            <div className="mt-auto w-full flex flex-col space-y-2 pt-10">
+            <div className="w-full mt-8">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <span className="text-sm font-black text-gray-800">บริการสำหรับคุณ</span>
+                <div className="flex items-center space-x-1.5 bg-white border border-gray-200 py-1.5 px-3 rounded-full shadow-sm">
+                  <MapPin size={12} className="text-teal-600" />
+                  <select 
+                    value={bookingForm.branch} 
+                    onChange={(e) => {
+                      setBookingForm({...bookingForm, branch: e.target.value});
+                      localStorage.setItem('defaultBranch', e.target.value);
+                    }}
+                    className="text-[10px] font-bold text-gray-600 bg-transparent outline-none focus:outline-none appearance-none cursor-pointer"
+                  >
+                    <option value="สาขาเฉวง">สาขาเฉวง</option>
+                    <option value="สาขาละไม">สาขาละไม</option>
+                  </select>
+                  <ChevronRight size={12} className="text-gray-400" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <button onClick={() => setIsBookingModalOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-teal-300">
+                   <div className="w-12 h-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center mb-2 group-hover:bg-teal-500 group-hover:text-white transition-colors">
+                     <CalendarPlus size={22} />
+                   </div>
+                   <span className="text-[11px] font-bold text-gray-700">จองคิว</span>
+                </button>
+
+                <button onClick={() => setIsPromotionModalOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-pink-300 relative">
+                   <div className="absolute top-0 right-0 w-2 h-2 bg-pink-500 rounded-full mt-2 mr-2 animate-pulse"></div>
+                   <div className="w-12 h-12 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2 group-hover:bg-pink-500 group-hover:text-white transition-colors">
+                     <Gift size={22} />
+                   </div>
+                   <span className="text-[11px] font-bold text-gray-700">โปรโมชัน</span>
+                </button>
+
+                <button onClick={() => setIsHelpCenterOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-blue-300">
+                   <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-2 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                     <HelpCircle size={22} />
+                   </div>
+                   <span className="text-[11px] font-bold text-gray-700">ช่วยเหลือ</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-8 w-full flex flex-col space-y-2 pt-6 border-t border-gray-100">
                <p className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-widest mb-1">MOCKUP ACCOUNTS (ทดสอบ)</p>
                <button onClick={() => setPhoneNumber('0878523749')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0878523749 (ยังไม่อนุมัติ VIP)</button>
                <button onClick={() => setPhoneNumber('0811112222')} className="text-xs bg-gray-50 text-gray-600 py-2 rounded-xl font-medium border border-gray-200">เบอร์: 0811112222 (ผ่อนชำระ & VIP)</button>
@@ -684,8 +738,9 @@ export default function CustomerApp() {
         
         const bookingData = {
             ticketNo,
-            cleanPhone: customerData.cleanPhone,
-            customerName: getFuzzyKey(customerData, "ชื่อ"),
+            cleanPhone: customerData ? customerData.cleanPhone : bookingForm.guestPhone,
+            customerName: customerData ? getFuzzyKey(customerData, "ชื่อ") : bookingForm.guestName,
+            isGuest: !customerData,
             branch: bookingForm.branch,
             date: bookingForm.date,
             time: bookingForm.time,
@@ -1475,6 +1530,11 @@ export default function CustomerApp() {
            showToast={showToast}
         />
 
+        <PromotionModal
+           isOpen={isPromotionModalOpen}
+           onClose={() => setIsPromotionModalOpen(false)}
+        />
+
         <WalletTopUpModal
           isOpen={isWalletTopUpOpen}
           setIsOpen={setIsWalletTopUpOpen}
@@ -1693,6 +1753,7 @@ export default function CustomerApp() {
             bookingStep={bookingStep}
             bookingCourse={bookingCourse}
             bookingForm={bookingForm}
+            customerData={customerData}
             setBookingForm={setBookingForm}
             handleBookingSubmit={handleBookingSubmit}
             handleRescheduleSubmit={handleRescheduleSubmit}

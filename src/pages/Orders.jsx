@@ -37,9 +37,9 @@ export default function Orders({
             trackingNo: od.trackingNo || null,
             trackingInfo: od.trackingInfo || null,
             fulfillment: od.fulfillment || null,
-            price: parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),
-            itemPrice: parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),
-            originalPrice: parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),
+            price: od._groupedAmount !== undefined ? od._groupedAmount : parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),
+            itemPrice: od._groupedAmount !== undefined ? od._groupedAmount : parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),
+            originalPrice: od._groupedAmount !== undefined ? od._groupedAmount : parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),
             discountAmount: 0,
             itemType: String(getFuzzyKey(od, ["ประเภท", "col_4"])).includes("สินค้า") ? 'product' : 'course',
             cartItems: od.cartItems || [{

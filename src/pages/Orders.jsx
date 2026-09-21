@@ -153,7 +153,7 @@ export default function Orders({
                     <div className="flex flex-col">
                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-[10px] font-mono text-gray-500 font-bold">#{od.orderNo}</span>
-                          {od.itemType === 'product' && (
+                          {(od.itemType === 'product' && od.trackingNo) && (
                              <span className="flex items-center text-[9px] text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
                                 <Truck size={9} className="mr-1" /> จัดส่งถึงบ้าน
                              </span>

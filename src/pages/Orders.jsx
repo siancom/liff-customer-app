@@ -175,7 +175,12 @@ export default function Orders({
                          return (
                            <div key={idx} className="shrink-0 w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 p-1 flex items-center justify-center relative">
                              {imageUrl ? (
-                               <img src={imageUrl} alt={item.name} className="w-full h-full object-cover rounded-md" />
+                               <img 
+                                 src={imageUrl} 
+                                 alt="" 
+                                 className="w-full h-full object-cover rounded-md text-[0px]" 
+                                 onError={(e) => { e.target.style.display = 'none'; }} 
+                               />
                              ) : (
                                <Package size={16} className="text-gray-300" />
                              )}

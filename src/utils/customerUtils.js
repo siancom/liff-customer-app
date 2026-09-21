@@ -65,6 +65,10 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
      if (hRef && dbOrders.length > 0) {
          const matchingOrder = dbOrders.find(o => String(o.orderNo) === String(hRef) || String(o.id) === String(hRef));
          if (matchingOrder) {
+             if (matchingOrder.status) {
+                 h.status = matchingOrder.status;
+                 h["สถานะ"] = matchingOrder.status;
+             }
              if (matchingOrder.trackingNo) h.trackingNo = matchingOrder.trackingNo;
              if (matchingOrder.trackingInfo) h.trackingInfo = matchingOrder.trackingInfo;
              if (matchingOrder.fulfillment) h.fulfillment = matchingOrder.fulfillment;

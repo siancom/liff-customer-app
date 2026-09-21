@@ -146,34 +146,44 @@ export default function Orders({
               else { statusColor = "bg-gray-400"; statusBg = "bg-gray-50 text-gray-600 border-gray-100"; }
 
               return (
-              <div key={i} onClick={() => { setSelectedOrder(od); setConfirmCancelOrder(false); }} className="bg-white rounded-[20px] p-4 shadow-sm border border-gray-200 relative overflow-hidden cursor-pointer hover:shadow-md transition-all active:scale-[0.98]">
+              <div key={i} onClick={() => { setSelectedOrder(od); setConfirmCancelOrder(false); }} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer hover:shadow-md transition-all active:scale-[0.98]">
                  <div className={`absolute top-0 left-0 w-1.5 h-full ${statusColor}`}></div>
-                 <div className="flex justify-between items-start mb-2 pl-2">
-                    <span className="text-[10px] font-mono text-gray-500 font-bold">#{od.orderNo}</span>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${statusBg}`}>{status}</span>
-                 </div>
-                 <h4 className="font-black text-gray-900 text-sm mb-1 pl-2 line-clamp-1">{od.itemName}</h4>
-                 <div className="flex justify-between items-end pl-2 mt-2">
-                    <div>
-                       <span className="text-[10px] text-gray-500 flex items-center mb-1"><CreditCard size={10} className="mr-1"/>{od.paymentMethodStr}</span>
-                       <span className="text-[10px] text-gray-400 flex items-center"><Clock size={10} className="mr-1"/>{od.createdAtStr}</span>
+                 
+                 <div className="flex justify-between items-start mb-1.5 pl-2">
+                    <div className="flex flex-col">
+                       <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-mono text-gray-500 font-bold">#{od.orderNo}</span>
+                          {od.itemType === 'product' && (
+                             <span className="flex items-center text-[9px] text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                <Truck size={9} className="mr-1" /> จัดส่งถึงบ้าน
+                             </span>
+                          )}
+                       </div>
+                       <span className="text-[9px] text-gray-400 flex items-center mt-1"><Clock size={9} className="mr-1"/>{od.createdAtStr}</span>
                     </div>
-                    <div className="text-right">
-                       {od.discountAmount > 0 && <p className="text-[9px] text-rose-500 line-through">฿{(od.price + od.discountAmount).toLocaleString()}</p>}
-                       <span className="font-black text-teal-600 text-base">฿{(od.price).toLocaleString()}</span>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider shrink-0 ml-1 mt-0.5 ${statusBg}`}>{status}</span>
+                 </div>
+                 
+                 <h4 className="font-black text-gray-900 text-[13px] mb-1.5 pl-2 line-clamp-1">{od.itemName}</h4>
+                 
+                 <div className="flex justify-between items-end pl-2">
+                    <span className="text-[10px] text-gray-500 flex items-center"><CreditCard size={10} className="mr-1"/>{od.paymentMethodStr}</span>
+                    <div className="text-right flex flex-col justify-end">
+                       {od.discountAmount > 0 && <span className="text-[9px] text-rose-500 line-through">฿{(od.price + od.discountAmount).toLocaleString()}</span>}
+                       <span className="font-black text-teal-600 text-[15px] leading-none mt-0.5">฿{(od.price).toLocaleString()}</span>
                     </div>
                  </div>
 
                  {/* 🌟 รูปภาพสินค้าในออเดอร์ (รองรับหลายชิ้น เลื่อนได้) 🌟 */}
                  {od.cartItems && od.cartItems.length > 0 && (
-                    <div className="mt-3 pl-2 flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+                    <div className="mt-2 pl-2 flex items-center gap-1.5 overflow-x-auto hide-scrollbar">
                       {od.cartItems.map((item, idx) => {
                          const foundProduct = dbProducts.find(p => String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').trim() === item.name) ||
                                               dbMasterCourses.find(c => String(getFuzzyKey(c, ["ชื่อคอส", "ชื่อคอร์ส", "col_2"]) || '').trim() === item.name);
                          const imageUrl = foundProduct ? (getFuzzyKey(foundProduct, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || foundProduct.image) : null;
                          
                          return (
-                           <div key={idx} className="shrink-0 w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 p-1 flex items-center justify-center relative">
+                           <div key={idx} className="shrink-0 w-10 h-10 bg-gray-50 rounded-lg border border-gray-100 p-0.5 flex items-center justify-center relative">
                              {imageUrl ? (
                                <img 
                                  src={imageUrl} 
@@ -182,22 +192,16 @@ export default function Orders({
                                  onError={(e) => { e.target.style.display = 'none'; }} 
                                />
                              ) : (
-                               <Package size={16} className="text-gray-300" />
+                               <Package size={14} className="text-gray-300" />
                              )}
                              {item.qty > 1 && (
-                               <span className="absolute -top-1.5 -right-1.5 bg-teal-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-white shadow-sm">
-                                 x{item.qty}
+                               <span className="absolute -top-1 -right-1 bg-teal-500 text-white text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white shadow-sm">
+                                 {item.qty}
                                </span>
                              )}
                            </div>
                          );
                       })}
-                    </div>
-                 )}
-
-                 {od.itemType === 'product' && (
-                    <div className="mt-3 pl-2 pt-2 border-t border-gray-50 flex items-center text-[10px] text-blue-600 font-bold">
-                       <Truck size={12} className="mr-1.5" /> จัดส่งถึงบ้าน
                     </div>
                  )}
                  {(status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) && handleBuyAgain && (

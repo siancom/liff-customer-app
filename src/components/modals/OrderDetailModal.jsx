@@ -349,7 +349,7 @@ export default function OrderDetailModal({
                                 );
                             })()}
 
-                            {(selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') && (
+                            {(selectedOrder.status === 'ชำระเงินแล้ว' || selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') && (
                                 <button 
                                     onClick={handleDownloadReceipt}
                                     disabled={isDownloading}

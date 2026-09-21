@@ -37,8 +37,8 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
              uniqueMyHistories.push(newObj);
          } else {
              const existing = map.get(ref);
-             if (currentAmt > 0 && existing._groupedAmount === 0) {
-                 existing._groupedAmount = currentAmt;
+             if (currentAmt > 0) {
+                 existing._groupedAmount = (existing._groupedAmount || 0) + currentAmt;
              }
              const existingStatus = getFuzzyKey(existing, ["สถานะ", "col_22"]) || '';
              const newStatus = getFuzzyKey(h, ["สถานะ", "col_22"]) || '';
@@ -63,11 +63,13 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
   uniqueMyHistories.forEach(h => {
      const hRef = getFuzzyKey(h, ["หมายเลขคำสั่งซื้อ", "เลขที่คำสั่งซื้อ", "รหัสคำสั่งซื้อ", "หมายเลขเอกสาร", "เลขที่บิล", "Order", "Ref"]);
      if (hRef && dbOrders.length > 0) {
-         const matchingOrder = dbOrders.find(o => String(o.orderNo) === String(hRef));
-         if (matchingOrder && matchingOrder.trackingNo) {
-             h.trackingNo = matchingOrder.trackingNo;
-             h.trackingInfo = matchingOrder.trackingInfo || null;
-             h.fulfillment = matchingOrder.fulfillment || null;
+         const matchingOrder = dbOrders.find(o => String(o.orderNo) === String(hRef) || String(o.id) === String(hRef));
+         if (matchingOrder) {
+             if (matchingOrder.trackingNo) h.trackingNo = matchingOrder.trackingNo;
+             if (matchingOrder.trackingInfo) h.trackingInfo = matchingOrder.trackingInfo;
+             if (matchingOrder.fulfillment) h.fulfillment = matchingOrder.fulfillment;
+             if (matchingOrder.cartItems) h.cartItems = matchingOrder.cartItems;
+             if (matchingOrder.price) h._groupedAmount = parseNumber(matchingOrder.price); // Use total order price
          }
      }
   });

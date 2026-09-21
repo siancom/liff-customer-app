@@ -62,9 +62,9 @@ export default function Orders({
       const status = od.status;
       if (orderFilter === 'all') return true;
       if (orderFilter === 'to_pay') return status.includes('รอชำระเงิน');
-      if (orderFilter === 'to_ship') return status.includes('รอตรวจสอบ') || status.includes('รอจัดส่ง') || status.includes('รอดำเนินการ');
+      if (orderFilter === 'to_ship') return status.includes('รอตรวจสอบ') || status.includes('รอจัดส่ง') || status.includes('รอดำเนินการ') || status.includes('ชำระเงินแล้ว') || (od.itemType === 'product' && (status.includes('ชำระแล้ว') || status.includes('อนุมัติ')));
       if (orderFilter === 'to_receive') return status.includes('กำลังจัดส่ง');
-      if (orderFilter === 'completed') return status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ');
+      if (orderFilter === 'completed') return status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ') || (od.itemType !== 'product' && (status.includes('ชำระแล้ว') || status.includes('อนุมัติ')));
       if (orderFilter === 'cancelled') return status.includes('ยกเลิก');
       return true;
   });
@@ -72,9 +72,9 @@ export default function Orders({
   const counts = {
       all: mappedOrders.length,
       to_pay: mappedOrders.filter(od => od.status.includes('รอชำระเงิน')).length,
-      to_ship: mappedOrders.filter(od => od.status.includes('รอตรวจสอบ') || od.status.includes('รอจัดส่ง') || od.status.includes('รอดำเนินการ')).length,
+      to_ship: mappedOrders.filter(od => od.status.includes('รอตรวจสอบ') || od.status.includes('รอจัดส่ง') || od.status.includes('รอดำเนินการ') || od.status.includes('ชำระเงินแล้ว') || (od.itemType === 'product' && (od.status.includes('ชำระแล้ว') || od.status.includes('อนุมัติ')))).length,
       to_receive: mappedOrders.filter(od => od.status.includes('กำลังจัดส่ง')).length,
-      completed: mappedOrders.filter(od => od.status.includes('สำเร็จ') || od.status.includes('เรียบร้อย') || od.status.includes('ชำระแล้ว') || od.status.includes('อนุมัติ') || od.status.includes('จัดส่งแล้ว') || od.status.includes('ได้รับ')).length,
+      completed: mappedOrders.filter(od => od.status.includes('สำเร็จ') || od.status.includes('เรียบร้อย') || od.status.includes('จัดส่งแล้ว') || od.status.includes('ได้รับ') || (od.itemType !== 'product' && (od.status.includes('ชำระแล้ว') || od.status.includes('อนุมัติ')))).length,
       cancelled: mappedOrders.filter(od => od.status.includes('ยกเลิก')).length,
   };
 
@@ -138,9 +138,9 @@ export default function Orders({
               let statusBg = "bg-teal-50 text-teal-600 border-teal-100";
               const status = od.status;
               
-              if (status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) { statusColor = "bg-emerald-500"; statusBg = "bg-emerald-50 text-emerald-600 border-emerald-100"; }
+              if (status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ') || (od.itemType !== 'product' && (status.includes('ชำระแล้ว') || status.includes('อนุมัติ')))) { statusColor = "bg-emerald-500"; statusBg = "bg-emerald-50 text-emerald-600 border-emerald-100"; }
               else if (status.includes('รอชำระ')) { statusColor = "bg-orange-400"; statusBg = "bg-orange-50 text-orange-600 border-orange-100"; }
-              else if (status.includes('รอตรวจสอบ') || status.includes('รอจัดส่ง') || status.includes('รอดำเนินการ')) { statusColor = "bg-blue-400"; statusBg = "bg-blue-50 text-blue-600 border-blue-100"; }
+              else if (status.includes('รอตรวจสอบ') || status.includes('รอจัดส่ง') || status.includes('รอดำเนินการ') || status.includes('ชำระเงินแล้ว') || (od.itemType === 'product' && (status.includes('ชำระแล้ว') || status.includes('อนุมัติ')))) { statusColor = "bg-blue-400"; statusBg = "bg-blue-50 text-blue-600 border-blue-100"; }
               else if (status.includes('กำลังจัดส่ง')) { statusColor = "bg-indigo-400"; statusBg = "bg-indigo-50 text-indigo-600 border-indigo-100"; }
               else if (status.includes('ยกเลิก')) { statusColor = "bg-red-400"; statusBg = "bg-red-50 text-red-600 border-red-100"; }
               else { statusColor = "bg-gray-400"; statusBg = "bg-gray-50 text-gray-600 border-gray-100"; }

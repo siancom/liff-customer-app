@@ -9,7 +9,9 @@ export default function Orders({
   setSelectedOrder,
   setConfirmCancelOrder,
   parseNumber,
-  handleBuyAgain
+  handleBuyAgain,
+  dbProducts = [],
+  dbMasterCourses = []
 }) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -40,7 +42,7 @@ export default function Orders({
             originalPrice: parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"])),
             discountAmount: 0,
             itemType: String(getFuzzyKey(od, ["ประเภท", "col_4"])).includes("สินค้า") ? 'product' : 'course',
-            cartItems: [{
+            cartItems: od.cartItems || [{
                 name: String(getFuzzyKey(od, ["สินค้า", "ชื่อคอส", "คอสที่ซื้อ", "รายการ", "col_18", "col_16"]) || 'รายการสั่งซื้อ'),
                 qty: Number(getFuzzyKey(od, ["จำนวน"])) || 1,
                 price: parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"]))
@@ -161,6 +163,33 @@ export default function Orders({
                        <span className="font-black text-teal-600 text-base">฿{(od.price).toLocaleString()}</span>
                     </div>
                  </div>
+
+                 {/* 🌟 รูปภาพสินค้าในออเดอร์ (รองรับหลายชิ้น เลื่อนได้) 🌟 */}
+                 {od.cartItems && od.cartItems.length > 0 && (
+                    <div className="mt-3 pl-2 flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+                      {od.cartItems.map((item, idx) => {
+                         const foundProduct = dbProducts.find(p => String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').trim() === item.name) ||
+                                              dbMasterCourses.find(c => String(getFuzzyKey(c, ["ชื่อคอส", "ชื่อคอร์ส", "col_2"]) || '').trim() === item.name);
+                         const imageUrl = foundProduct ? (getFuzzyKey(foundProduct, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || foundProduct.image) : null;
+                         
+                         return (
+                           <div key={idx} className="shrink-0 w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 p-1 flex items-center justify-center relative">
+                             {imageUrl ? (
+                               <img src={imageUrl} alt={item.name} className="w-full h-full object-cover rounded-md" />
+                             ) : (
+                               <Package size={16} className="text-gray-300" />
+                             )}
+                             {item.qty > 1 && (
+                               <span className="absolute -top-1.5 -right-1.5 bg-teal-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-white shadow-sm">
+                                 x{item.qty}
+                               </span>
+                             )}
+                           </div>
+                         );
+                      })}
+                    </div>
+                 )}
+
                  {od.itemType === 'product' && (
                     <div className="mt-3 pl-2 pt-2 border-t border-gray-50 flex items-center text-[10px] text-blue-600 font-bold">
                        <Truck size={12} className="mr-1.5" /> จัดส่งถึงบ้าน

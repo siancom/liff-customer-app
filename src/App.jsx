@@ -1198,6 +1198,8 @@ export default function CustomerApp() {
                 setSelectedOrder={setSelectedOrder}
                 setConfirmCancelOrder={setConfirmCancelOrder}
                 parseNumber={parseNumber}
+                dbProducts={dbProducts}
+                dbMasterCourses={dbMasterCourses}
                 handleBuyAgain={(itemName) => {
                     const product = buyAgainItems.find(p => {
                         const pName = p.name.toLowerCase();

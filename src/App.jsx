@@ -84,6 +84,9 @@ export default function CustomerApp() {
   // 🌟 NEW STATE FOR SHOP & CART 🌟
   const [dbProducts, setDbProducts] = useState([]);
   const [dbOrders, setDbOrders] = useState([]);
+  const [isHistoryDetailModalOpen, setIsHistoryDetailModalOpen] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState(null);
+  const [promptpayQRData, setPromptpayQRData] = useState(null);
   const [dbMasterCourses, setDbMasterCourses] = useState([]);
   const [shopTab, setShopTab] = useState('products');
   const [cart, setCart] = useState([]);
@@ -108,6 +111,12 @@ export default function CustomerApp() {
   const [showSkinProgress, setShowSkinProgress] = useState(false);
   const [showSurvey, setShowSurvey] = useState(false);
   const [featureFlags, setFeatureFlags] = useState({});
+  const [omiseConfig, setOmiseConfig] = useState({
+    enabled: false, publicKey: '', installmentMinAmount: 2000,
+    enable_promptpay: true, enable_cash: true, enable_credit: true,
+    enable_omise_promptpay: true, enable_omise_mobile: true, enable_omise_creditcard: true, enable_omise_installment: true, enable_omise_shopeepay: true
+  });
+
   const [dbCoupons, setDbCoupons] = useState([]);
   const [dbRedeemTiers, setDbRedeemTiers] = useState([]);
   const [dbLuckyPrizes, setDbLuckyPrizes] = useState([]);
@@ -150,6 +159,30 @@ export default function CustomerApp() {
        }
     }
   }, [dbBranches]);
+
+  // 🌟 Listen for PromptPay success automatically
+  useEffect(() => {
+      if (!promptpayQRData?.orderId) return;
+      let unsubscribe;
+      try {
+          const q = query(getAppCollection('histories'), where('หมายเลขคำสั่งซื้อ', '==', promptpayQRData.orderId));
+          unsubscribe = onSnapshot(q, (snapshot) => {
+              if (!snapshot.empty) {
+                  const docData = snapshot.docs[0].data();
+                  const status = docData['สถานะ'] || docData['col_22'];
+                  if (status === 'สำเร็จ' || status === 'ชำระแล้ว' || status === 'เรียบร้อย') {
+                      setPromptpayQRData(null);
+                      showToast('ชำระเงินสำเร็จ! ขอบคุณค่ะ ✨');
+                  }
+              }
+          });
+      } catch (err) {
+          console.error('Error listening to PromptPay order:', err);
+      }
+      return () => {
+          if (unsubscribe) unsubscribe();
+      };
+  }, [promptpayQRData?.orderId]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -214,14 +247,28 @@ export default function CustomerApp() {
           if (!isMounted) return;
           const list = Array.isArray(data) ? data : [];
           // 🌟 แนบราคาสมาชิก
-          setSubItems(list.map(s => ({ ...s, memberPrice: parseNumber(s.regular_price || s.price || 0) })));
-          if (list.length > 0) setSelectedVariation({ ...list[0], memberPrice: parseNumber(list[0].regular_price || list[0].price || 0) });
+          const getMemberPrice = (s) => {
+            if (s.meta_data && Array.isArray(s.meta_data)) {
+              const meta = s.meta_data.find(m => ["ราคาสมาชิก", "col_10", "col_11", "_member_price"].includes(m.key));
+              if (meta && parseNumber(meta.value) > 0) return parseNumber(meta.value);
+            }
+            return parseNumber(s.regular_price || s.price || 0);
+          };
+          setSubItems(list.map(s => ({ ...s, memberPrice: getMemberPrice(s) })));
+          if (list.length > 0) setSelectedVariation({ ...list[0], memberPrice: getMemberPrice(list[0]) });
         } else if (isGroupedType) {
           const data = await fetchWithProxy(`${baseUrl}/wp-json/wc/v3/products?include=${selectedProduct.groupedIds.join(',')}&per_page=100`);
           if (!isMounted) return;
           const list = Array.isArray(data) ? data : [];
           // 🌟 แนบราคาสมาชิก
-          setSubItems(list.map(s => ({ ...s, memberPrice: parseNumber(s.regular_price || s.price || 0) })));
+          const getMemberPrice = (s) => {
+            if (s.meta_data && Array.isArray(s.meta_data)) {
+              const meta = s.meta_data.find(m => ["ราคาสมาชิก", "col_10", "col_11", "_member_price"].includes(m.key));
+              if (meta && parseNumber(meta.value) > 0) return parseNumber(meta.value);
+            }
+            return parseNumber(s.regular_price || s.price || 0);
+          };
+          setSubItems(list.map(s => ({ ...s, memberPrice: getMemberPrice(s) })));
           const initial = {};
           list.forEach(item => { initial[item.id] = 1; });
           setGroupedSelections(initial);
@@ -470,6 +517,25 @@ export default function CustomerApp() {
       if (snap.exists()) setFeatureFlags(snap.data());
     }, (err) => console.error("Feature flags fetch error:", err));
 
+    const unsubOmise = onSnapshot(getAppDoc('config', 'payment'), (snap) => {
+      if (snap.exists()) {
+        setOmiseConfig({
+          enabled: snap.data().omiseEnabled || false,
+          publicKey: snap.data().omisePublicKey || '',
+          installmentMinAmount: snap.data().omiseInstallmentMinAmount || 2000,
+          enable_promptpay: snap.data().enable_promptpay !== false,
+          enable_cash: snap.data().enable_cash !== false,
+          enable_credit: snap.data().enable_credit !== false,
+          enable_omise_promptpay: snap.data().enable_omise_promptpay !== false,
+          enable_omise_mobile: snap.data().enable_omise_mobile !== false,
+          enable_omise_creditcard: snap.data().enable_omise_creditcard !== false,
+          enable_omise_installment: snap.data().enable_omise_installment !== false,
+          enable_omise_shopeepay: snap.data().enable_omise_shopeepay !== false,
+        });
+      }
+    }, (err) => console.error("Omise config fetch error:", err));
+
+
     const unsubCoupons = onSnapshot(getAppCollection('coupons'), (snapshot) => {
       setDbCoupons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => console.error("Coupons fetch error:", err));
@@ -499,6 +565,7 @@ export default function CustomerApp() {
       unsubProducts(); 
       unsubMasterCourses(); 
       unsubFlags(); 
+      unsubOmise();
       unsubCoupons(); 
       unsubRedeemTiers(); 
       unsubLuckyPrizes(); 
@@ -1095,6 +1162,8 @@ export default function CustomerApp() {
           {/* NAV 3: SHOP (ร้านค้า) */}
           {activeNav === 'shop' && (
              <Shop
+                setActiveNav={setActiveNav}
+                setOrderFilter={setOrderFilter}
                 shopTab={shopTab}
                 setShopTab={setShopTab}
                 dbProducts={dbProducts}
@@ -1129,6 +1198,35 @@ export default function CustomerApp() {
                 setSelectedOrder={setSelectedOrder}
                 setConfirmCancelOrder={setConfirmCancelOrder}
                 parseNumber={parseNumber}
+                handleBuyAgain={(itemName) => {
+                    const product = buyAgainItems.find(p => {
+                        const pName = p.name.toLowerCase();
+                        return itemName.toLowerCase().includes(pName) || pName.includes(itemName.toLowerCase());
+                    });
+                    if (product) {
+                        setSelectedProduct(product);
+                        setActiveNav('shop');
+                        window.scrollTo(0,0);
+                    } else {
+                        const fallbackProd = dbProducts.find(p => {
+                            const pName = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').toLowerCase();
+                            return itemName.toLowerCase().includes(pName) || pName.includes(itemName.toLowerCase());
+                        });
+                        if (fallbackProd) {
+                            setSelectedProduct({
+                                ...fallbackProd,
+                                name: String(getFuzzyKey(fallbackProd, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || fallbackProd.name).trim(),
+                                price: parseNumber(getFuzzyKey(fallbackProd, ["ราคาขายเต็ม", "ราคา", "col_6"])),
+                                image: getFuzzyKey(fallbackProd, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || fallbackProd.image,
+                                type: 'product'
+                            });
+                            setActiveNav('shop');
+                            window.scrollTo(0,0);
+                        } else {
+                            alert("ขออภัย ไม่พบสินค้านี้ในระบบแล้ว");
+                        }
+                    }
+                }}
              />
           )}
 
@@ -1368,6 +1466,7 @@ export default function CustomerApp() {
              lineProfile={lineProfile}
              MOCK_COUPONS={MOCK_COUPONS}
              dbBranches={dbBranches}
+             omiseConfig={omiseConfig}
              onConfirmOrder={async (orderData) => {
                 try {
                   console.log('Order submitted:', orderData);
@@ -1380,11 +1479,11 @@ export default function CustomerApp() {
                   const dateStr = customDateObj.toLocaleDateString('th-TH');
                   const timeStr = customDateObj.toLocaleTimeString('th-TH', { hour12: false, hour: '2-digit', minute: '2-digit' });
 
-                  if (orderData.paymentMethod === 'credit') {
+                  if ((orderData.paymentMethod === 'credit' || orderData.paymentMethod === 'omise') && !orderData.isPending) {
                       const batch = writeBatch(db);
 
                       // Deduct credit by creating a history record
-                      if (orderData.finalPrice > 0) {
+                      if (orderData.paymentMethod === 'credit' && orderData.finalPrice > 0) {
                           const activeCourses = (customerData?.courses || []).filter(c => c.status === 'ยังคงเหลือ');
                           let remainingToDeduct = orderData.finalPrice;
                           for (const c of activeCourses) {
@@ -1448,7 +1547,7 @@ export default function CustomerApp() {
                                       "ครั้งที่ใช้": "0",
                                       "ครั้งที่เหลือดิบ": courseTotalQty,
                                       "สถานะ": "ยังคงเหลือ",
-                                      "ประเภทการชำระ": "จ่ายเต็มผ่านเครดิต (LIFF)",
+                                      "ประเภทการชำระ": orderData.paymentMethod === 'omise' ? "บัตรเครดิต (Omise)" : "จ่ายเต็มผ่านเครดิต (LIFF)",
                                       "รายการที่ได้รับ": String(getFuzzyKey(item.originalItem, ["รายการที่ได้รับ", "col_11"]) || ''),
                                       "ฟรีบัตรสมาชิก": String(getFuzzyKey(item.originalItem, ["ฟรีบัตรสมาชิก"]) || 'ไม่'),
                                       "claimedItems": []
@@ -1493,7 +1592,11 @@ export default function CustomerApp() {
                       await batch.commit();
                       setIsCartModalOpen(false);
                       setCart([]);
-                      showToast('ชำระเงินและเพิ่มคอร์สเรียบร้อยแล้วค่ะ! ✨');
+                      if (orderData.qrCodeUri) {
+                          setPromptpayQRData({ url: orderData.qrCodeUri, orderId: orderNo, chargeId: orderData.chargeId });
+                      } else {
+                          showToast('ชำระเงินและเพิ่มคอร์สเรียบร้อยแล้วค่ะ! ✨');
+                      }
                       return { success: true, orderId: orderNo };
                   } else {
                       const batch = writeBatch(db);
@@ -1507,6 +1610,7 @@ export default function CustomerApp() {
 
                       // 1. Create order for Admin Dashboard to verify
                       const orderRef = doc(getAppCollection('orders'));
+                      const orderStatus = orderData.isPending ? 'รอชำระเงิน' : 'รอตรวจสอบ';
                       batch.set(orderRef, {
                           orderNo: orderNo,
                           customerName: cName,
@@ -1516,7 +1620,8 @@ export default function CustomerApp() {
                           totalPrice: orderData.finalPrice,
                           paymentMethod: orderData.paymentMethod,
                           slipImage: orderData.slipImage || '',
-                          status: 'รอตรวจสอบ',
+                          status: orderStatus,
+                          chargeId: orderData.chargeId || '',
                           shippingAddress: orderData.deliveryInfo || '',
                           createdAt: customDateObj.toISOString(),
                           updatedAt: customDateObj.toISOString()
@@ -1534,19 +1639,24 @@ export default function CustomerApp() {
                           "cleanPhone": custCleanPhone,
                           "หมายเลขคำสั่งซื้อ": orderNo,
                           "ประเภท": orderData.cart.some(i => i.type === 'product') ? "สั่งซื้อสินค้า" : "สั่งซื้อคอร์ส",
-                          "สถานะ": "รอตรวจสอบ",
+                          "สถานะ": orderStatus,
                           "สินค้า": mainItemName,
                           "ยอดเงิน": String(orderData.finalPrice),
                           "สาขา": "ซื้อผ่านแอป",
                           "cartItems": cleanCart,
                           "slipImage": orderData.slipImage || '',
+                          "chargeId": orderData.chargeId || '',
                           "shippingAddress": orderData.deliveryInfo || ''
                       });
 
                       await batch.commit();
                       setIsCartModalOpen(false);
                       setCart([]);
-                      showToast('ส่งคำสั่งซื้อเรียบร้อยแล้วค่ะ รอแอดมินตรวจสอบสักครู่นะคะ ✨');
+                      if (orderData.qrCodeUri) {
+                          setPromptpayQRData({ url: orderData.qrCodeUri, orderId: orderNo, chargeId: orderData.chargeId });
+                      } else {
+                          showToast('ส่งคำสั่งซื้อเรียบร้อยแล้วค่ะ รอแอดมินตรวจสอบสักครู่นะคะ ✨');
+                      }
                       return { success: true, orderId: orderNo };
                   }
                 } catch(e) {
@@ -1874,6 +1984,36 @@ export default function CustomerApp() {
             handleCancelBooking={handleCancelBooking}
             openReschedule={openReschedule}
         />
+
+        {/* --- PROMPTPAY QR MODAL --- */}
+        {promptpayQRData && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-xl relative animate-in zoom-in-95 duration-200">
+                    <button onClick={() => setPromptpayQRData(null)} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors">
+                        <X size={20} />
+                    </button>
+                    <div className="text-center">
+                        <div className="w-16 h-16 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <QrCode size={32} />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">สแกนเพื่อชำระเงิน</h3>
+                        <p className="text-xs text-gray-500 mb-6">กรุณาบันทึกภาพหรือสแกน QR Code นี้ผ่านแอปธนาคาร</p>
+                        
+                        <div className="bg-white p-4 rounded-xl border-2 border-gray-100 shadow-sm inline-block mx-auto mb-6">
+                            <img src={promptpayQRData.url} alt="PromptPay QR Code" className="w-48 h-48 object-contain" />
+                        </div>
+                        
+                        <p className="text-[10px] text-teal-600 font-bold bg-teal-50 p-2 rounded-lg mb-6 leading-relaxed">
+                            ระบบจะตรวจสอบการชำระเงินและอัปเดตสถานะอัตโนมัติเมื่อทำรายการสำเร็จ
+                        </p>
+                        
+                        <button onClick={() => { setPromptpayQRData(null); showToast('บันทึกคำสั่งซื้อเรียบร้อยแล้วค่ะ'); }} className="w-full py-3 bg-teal-500 text-white rounded-xl font-bold shadow-md shadow-teal-200 active:scale-95 transition-all">
+                            ปิดหน้าต่างนี้
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
       </div>
     </div>

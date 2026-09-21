@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, BookOpen, Star, CalendarDays, HelpCircle, ChevronRight, MessageCircle, AlertCircle } from 'lucide-react';
+import { X, BookOpen, Star, CalendarDays, HelpCircle, ChevronRight, MessageCircle, AlertCircle, ShoppingBag, Wallet, Package, Truck, CheckCircle2, XCircle } from 'lucide-react';
 
 export default function HelpCenterModal({ isOpen, onClose }) {
   const [activeTopic, setActiveTopic] = useState(null);
@@ -21,6 +21,53 @@ export default function HelpCenterModal({ isOpen, onClose }) {
             <li><strong className="text-gray-800">สิทธิพิเศษ:</strong> เช็คคะแนนสะสม แลกของรางวัล และร่วมสนุกกับกิจกรรม</li>
             <li><strong className="text-gray-800">บัญชี:</strong> ตรวจสอบประวัติยอดสะสมและตั้งค่าบัญชี</li>
           </ul>
+        </div>
+      )
+    },
+    {
+      id: 'order_status',
+      icon: <ShoppingBag className="text-purple-500" />,
+      title: 'ความหมายของสถานะคำสั่งซื้อ',
+      content: (
+        <div className="space-y-4 text-sm text-gray-600">
+          <p>ระบบของเรามีสถานะคำสั่งซื้อ 5 สถานะหลัก ดังนี้:</p>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 bg-orange-50 p-3 rounded-xl border border-orange-100">
+              <div className="p-2 bg-white rounded-full text-orange-500 shadow-sm shrink-0"><Wallet size={18} strokeWidth={2.5}/></div>
+              <div>
+                <strong className="text-orange-700 block mb-0.5">ที่ต้องชำระ (รอชำระเงิน)</strong>
+                <span className="text-xs text-orange-800/80">คำสั่งซื้อได้รับการบันทึกแล้ว แต่ยังไม่ได้รับการยืนยันการชำระเงิน กรุณาชำระเงินและแจ้งสลิปเพื่อให้แอดมินดำเนินการต่อ</span>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 bg-blue-50 p-3 rounded-xl border border-blue-100">
+              <div className="p-2 bg-white rounded-full text-blue-500 shadow-sm shrink-0"><Package size={18} strokeWidth={2.5}/></div>
+              <div>
+                <strong className="text-blue-700 block mb-0.5">ที่ต้องจัดส่ง (รอดำเนินการ)</strong>
+                <span className="text-xs text-blue-800/80">แอดมินได้รับยอดเงินและยืนยันคำสั่งซื้อแล้ว กำลังอยู่ในขั้นตอนการจัดเตรียมสินค้าหรือบรรจุลงกล่อง</span>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 bg-indigo-50 p-3 rounded-xl border border-indigo-100">
+              <div className="p-2 bg-white rounded-full text-indigo-500 shadow-sm shrink-0"><Truck size={18} strokeWidth={2.5}/></div>
+              <div>
+                <strong className="text-indigo-700 block mb-0.5">ที่ต้องได้รับ (กำลังจัดส่ง)</strong>
+                <span className="text-xs text-indigo-800/80">พัสดุถูกส่งมอบให้บริษัทขนส่งแล้ว คุณสามารถติดตามสถานะการจัดส่งได้จากรายละเอียดคำสั่งซื้อ</span>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+              <div className="p-2 bg-white rounded-full text-emerald-500 shadow-sm shrink-0"><CheckCircle2 size={18} strokeWidth={2.5}/></div>
+              <div>
+                <strong className="text-emerald-700 block mb-0.5">สำเร็จแล้ว</strong>
+                <span className="text-xs text-emerald-800/80">คำสั่งซื้อเสร็จสมบูรณ์ สินค้าถูกจัดส่งถึงมือผู้รับเรียบร้อยแล้ว หรือกรณีเป็นคอร์ส ระบบได้เพิ่มเข้าบัญชีของคุณแล้ว</span>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 bg-red-50 p-3 rounded-xl border border-red-100">
+              <div className="p-2 bg-white rounded-full text-red-500 shadow-sm shrink-0"><XCircle size={18} strokeWidth={2.5}/></div>
+              <div>
+                <strong className="text-red-700 block mb-0.5">ยกเลิกรายการ</strong>
+                <span className="text-xs text-red-800/80">คำสั่งซื้อถูกยกเลิก หากมีการชำระเงินแล้ว กรุณาติดต่อแอดมินเพื่อตรวจสอบการคืนเงินหรือเปลี่ยนแปลงรายการ</span>
+              </div>
+            </div>
+          </div>
         </div>
       )
     },

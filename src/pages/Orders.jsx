@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ReceiptText, CreditCard, Clock, Truck, Search, X } from 'lucide-react';
-import { getFuzzyKey } from '../utils/helpers';
+import { ReceiptText, CreditCard, Clock, Truck, Search, X, Wallet, Package, CheckCircle2, XCircle, ClipboardList } from 'lucide-react';
+import { getFuzzyKey, parseThaiDate } from '../utils/helpers';
 
 export default function Orders({
   orderFilter,
@@ -8,7 +8,8 @@ export default function Orders({
   myOrders,
   setSelectedOrder,
   setConfirmCancelOrder,
-  parseNumber
+  parseNumber,
+  handleBuyAgain
 }) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -19,14 +20,18 @@ export default function Orders({
         return type.includes("ซื้อ");
     })
     .map(od => {
+        const createdAtStr = String(getFuzzyKey(od, ["วันที่", "col_3", "col_1"]) || '');
+        const parsedDate = parseThaiDate(createdAtStr);
+        
         return {
             original: od,
             orderNo: String(getFuzzyKey(od, ["หมายเลขคำสั่งซื้อ", "อ้างอิง", "เลขที่ใบเสร็จ", "col_21", "col_5"]) || od.id || ''),
             status: String(getFuzzyKey(od, ["สถานะ", "col_22"]) || "เรียบร้อย"),
             itemName: String(getFuzzyKey(od, ["สินค้า", "ชื่อคอส", "คอสที่ซื้อ", "รายการ", "col_18", "col_16"]) || 'รายการสั่งซื้อ'),
             paymentMethodStr: String(getFuzzyKey(od, ["ช่องทาง", "การชำระเงิน", "ประเภท", "col_4"]) || 'ชำระแล้วผ่านแอป'),
-            createdAtStr: String(getFuzzyKey(od, ["วันที่", "col_3", "col_1"]) || ''),
-            createdAt: new Date().toISOString(), // Fallback for Modal
+            createdAtStr: createdAtStr,
+            createdAt: parsedDate ? parsedDate.toISOString() : (od.createdAt ? new Date(od.createdAt).toISOString() : new Date().toISOString()), 
+            _parsedTimestamp: parsedDate ? parsedDate.getTime() : (od.createdAt ? new Date(od.createdAt).getTime() : 0),
             trackingNo: od.trackingNo || null,
             trackingInfo: od.trackingInfo || null,
             fulfillment: od.fulfillment || null,
@@ -41,7 +46,8 @@ export default function Orders({
                 price: parseNumber(getFuzzyKey(od, ["ยอดเงิน", "ยอดสินค้า", "ยอด", "ราคา", "col_19"]))
             }]
         };
-    });
+    })
+    .sort((a, b) => b._parsedTimestamp - a._parsedTimestamp);
 
   const filteredOrders = mappedOrders.filter(od => {
       if (searchQuery) {
@@ -53,21 +59,74 @@ export default function Orders({
       
       const status = od.status;
       if (orderFilter === 'all') return true;
-      if (orderFilter === 'pending') return status.includes('รอ');
-      if (orderFilter === 'completed') return status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว');
+      if (orderFilter === 'to_pay') return status.includes('รอชำระเงิน');
+      if (orderFilter === 'to_ship') return status.includes('รอตรวจสอบ') || status.includes('รอจัดส่ง') || status.includes('รอดำเนินการ');
+      if (orderFilter === 'to_receive') return status.includes('กำลังจัดส่ง');
+      if (orderFilter === 'completed') return status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ');
       if (orderFilter === 'cancelled') return status.includes('ยกเลิก');
       return true;
   });
+
+  const counts = {
+      all: mappedOrders.length,
+      to_pay: mappedOrders.filter(od => od.status.includes('รอชำระเงิน')).length,
+      to_ship: mappedOrders.filter(od => od.status.includes('รอตรวจสอบ') || od.status.includes('รอจัดส่ง') || od.status.includes('รอดำเนินการ')).length,
+      to_receive: mappedOrders.filter(od => od.status.includes('กำลังจัดส่ง')).length,
+      completed: mappedOrders.filter(od => od.status.includes('สำเร็จ') || od.status.includes('เรียบร้อย') || od.status.includes('ชำระแล้ว') || od.status.includes('อนุมัติ') || od.status.includes('จัดส่งแล้ว') || od.status.includes('ได้รับ')).length,
+      cancelled: mappedOrders.filter(od => od.status.includes('ยกเลิก')).length,
+  };
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
        <h2 className="text-sm font-black text-gray-800 flex items-center mb-2"><ReceiptText size={18} className="mr-2 text-teal-500"/> สถานะคำสั่งซื้อของฉัน</h2>
        
-       <div className="flex bg-gray-100/80 rounded-xl p-1 mb-2 overflow-x-auto hide-scrollbar">
-          <button onClick={() => setOrderFilter('all')} className={`text-[11px] font-bold px-4 py-2 rounded-lg transition-all shrink-0 ${orderFilter === 'all' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>ทั้งหมด</button>
-          <button onClick={() => setOrderFilter('pending')} className={`text-[11px] font-bold px-4 py-2 rounded-lg transition-all shrink-0 ${orderFilter === 'pending' ? 'bg-white shadow-sm text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>รอดำเนินการ</button>
-          <button onClick={() => setOrderFilter('completed')} className={`text-[11px] font-bold px-4 py-2 rounded-lg transition-all shrink-0 ${orderFilter === 'completed' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>สำเร็จแล้ว</button>
-          <button onClick={() => setOrderFilter('cancelled')} className={`text-[11px] font-bold px-4 py-2 rounded-lg transition-all shrink-0 ${orderFilter === 'cancelled' ? 'bg-white shadow-sm text-red-600' : 'text-gray-500 hover:text-gray-700'}`}>ยกเลิก</button>
+       <div className="flex bg-white rounded-2xl p-2 mb-2 overflow-x-auto hide-scrollbar border border-gray-100 shadow-sm gap-2">
+          <button onClick={() => setOrderFilter('all')} className={`relative flex flex-col items-center justify-center p-2 min-w-[64px] transition-all rounded-xl flex-shrink-0 ${orderFilter === 'all' ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <div className="relative mb-1">
+                <ClipboardList size={24} strokeWidth={orderFilter === 'all' ? 2.5 : 2} />
+            </div>
+            <span className={`text-[10px] font-bold ${orderFilter === 'all' ? 'text-gray-900' : ''}`}>ทั้งหมด</span>
+          </button>
+
+          <button onClick={() => setOrderFilter('to_pay')} className={`relative flex flex-col items-center justify-center p-2 min-w-[64px] transition-all rounded-xl flex-shrink-0 ${orderFilter === 'to_pay' ? 'bg-orange-50 text-orange-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <div className="relative mb-1">
+                <Wallet size={24} strokeWidth={orderFilter === 'to_pay' ? 2.5 : 2} />
+                {counts.to_pay > 0 && <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[9px] font-black px-1.5 py-[1px] rounded-full min-w-[16px] text-center border-2 border-white shadow-sm">{counts.to_pay > 99 ? '99+' : counts.to_pay}</span>}
+            </div>
+            <span className={`text-[10px] font-bold ${orderFilter === 'to_pay' ? 'text-orange-700' : ''}`}>ที่ต้องชำระ</span>
+          </button>
+          
+          <button onClick={() => setOrderFilter('to_ship')} className={`relative flex flex-col items-center justify-center p-2 min-w-[64px] transition-all rounded-xl flex-shrink-0 ${orderFilter === 'to_ship' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <div className="relative mb-1">
+                <Package size={24} strokeWidth={orderFilter === 'to_ship' ? 2.5 : 2} />
+                {counts.to_ship > 0 && <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[9px] font-black px-1.5 py-[1px] rounded-full min-w-[16px] text-center border-2 border-white shadow-sm">{counts.to_ship > 99 ? '99+' : counts.to_ship}</span>}
+            </div>
+            <span className={`text-[10px] font-bold ${orderFilter === 'to_ship' ? 'text-blue-700' : ''}`}>ที่ต้องจัดส่ง</span>
+          </button>
+
+          <button onClick={() => setOrderFilter('to_receive')} className={`relative flex flex-col items-center justify-center p-2 min-w-[64px] transition-all rounded-xl flex-shrink-0 ${orderFilter === 'to_receive' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <div className="relative mb-1">
+                <Truck size={24} strokeWidth={orderFilter === 'to_receive' ? 2.5 : 2} />
+                {counts.to_receive > 0 && <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[9px] font-black px-1.5 py-[1px] rounded-full min-w-[16px] text-center border-2 border-white shadow-sm">{counts.to_receive > 99 ? '99+' : counts.to_receive}</span>}
+            </div>
+            <span className={`text-[10px] font-bold ${orderFilter === 'to_receive' ? 'text-indigo-700' : ''}`}>ที่ต้องได้รับ</span>
+          </button>
+
+          <div className="w-px bg-gray-100 my-2 mx-1 flex-shrink-0"></div>
+
+          <button onClick={() => setOrderFilter('completed')} className={`relative flex flex-col items-center justify-center p-2 min-w-[64px] transition-all rounded-xl flex-shrink-0 ${orderFilter === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <div className="relative mb-1">
+                <CheckCircle2 size={24} strokeWidth={orderFilter === 'completed' ? 2.5 : 2} />
+            </div>
+            <span className={`text-[10px] font-bold ${orderFilter === 'completed' ? 'text-emerald-700' : ''}`}>สำเร็จแล้ว</span>
+          </button>
+
+          <button onClick={() => setOrderFilter('cancelled')} className={`relative flex flex-col items-center justify-center p-2 min-w-[64px] transition-all rounded-xl flex-shrink-0 ${orderFilter === 'cancelled' ? 'bg-red-50 text-red-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <div className="relative mb-1">
+                <XCircle size={24} strokeWidth={orderFilter === 'cancelled' ? 2.5 : 2} />
+            </div>
+            <span className={`text-[10px] font-bold ${orderFilter === 'cancelled' ? 'text-red-700' : ''}`}>ยกเลิก</span>
+          </button>
        </div>
        
        {filteredOrders.length > 0 ? (
@@ -77,9 +136,12 @@ export default function Orders({
               let statusBg = "bg-teal-50 text-teal-600 border-teal-100";
               const status = od.status;
               
-              if (status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว')) { statusColor = "bg-emerald-500"; statusBg = "bg-emerald-50 text-emerald-600 border-emerald-100"; }
-              else if (status.includes('รอ')) { statusColor = "bg-orange-400"; statusBg = "bg-orange-50 text-orange-600 border-orange-100"; }
+              if (status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) { statusColor = "bg-emerald-500"; statusBg = "bg-emerald-50 text-emerald-600 border-emerald-100"; }
+              else if (status.includes('รอชำระ')) { statusColor = "bg-orange-400"; statusBg = "bg-orange-50 text-orange-600 border-orange-100"; }
+              else if (status.includes('รอตรวจสอบ') || status.includes('รอจัดส่ง') || status.includes('รอดำเนินการ')) { statusColor = "bg-blue-400"; statusBg = "bg-blue-50 text-blue-600 border-blue-100"; }
+              else if (status.includes('กำลังจัดส่ง')) { statusColor = "bg-indigo-400"; statusBg = "bg-indigo-50 text-indigo-600 border-indigo-100"; }
               else if (status.includes('ยกเลิก')) { statusColor = "bg-red-400"; statusBg = "bg-red-50 text-red-600 border-red-100"; }
+              else { statusColor = "bg-gray-400"; statusBg = "bg-gray-50 text-gray-600 border-gray-100"; }
 
               return (
               <div key={i} onClick={() => { setSelectedOrder(od); setConfirmCancelOrder(false); }} className="bg-white rounded-[20px] p-4 shadow-sm border border-gray-200 relative overflow-hidden cursor-pointer hover:shadow-md transition-all active:scale-[0.98]">
@@ -102,6 +164,16 @@ export default function Orders({
                  {od.itemType === 'product' && (
                     <div className="mt-3 pl-2 pt-2 border-t border-gray-50 flex items-center text-[10px] text-blue-600 font-bold">
                        <Truck size={12} className="mr-1.5" /> จัดส่งถึงบ้าน
+                    </div>
+                 )}
+                 {(status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) && handleBuyAgain && (
+                    <div className="mt-3 flex justify-end">
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); handleBuyAgain(od.itemName); }}
+                         className="px-3 py-1.5 bg-[#EE4D2D] text-white text-[10px] font-bold rounded-lg shadow-sm hover:bg-[#d64124] transition-colors active:scale-95 flex items-center"
+                       >
+                         ซื้อซ้ำ
+                       </button>
                     </div>
                  )}
               </div>

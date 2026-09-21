@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Image as ImageIcon, ArrowRight, Sparkles, ShoppingCart, Ticket, HeartPulse, ShoppingBag, Loader2, HistoryIcon, Star, Truck, Percent, Search, X, Gift, ShieldCheck, MessageCircle, CheckCircle2, Zap, LayoutGrid } from 'lucide-react';
+import { Image as ImageIcon, ArrowRight, Sparkles, ShoppingCart, Ticket, HeartPulse, ShoppingBag, Loader2, HistoryIcon, Star, Truck, Percent, Search, X, Gift, ShieldCheck, MessageCircle, CheckCircle2, Zap, LayoutGrid, Wallet, Package, ClipboardList, XCircle, ChevronRight } from 'lucide-react';
 import { getFuzzyKey, parseNumber } from '../utils/helpers';
 import { computeFinalPrice } from '../utils/priceUtils';
 import PriceCompareModal from '../components/modals/PriceCompareModal';
@@ -21,6 +21,8 @@ const PRODUCT_FALLBACKS = [
 ];
 
 const Shop = ({
+    setActiveNav,
+    setOrderFilter,
     setIsCustomOrderOpen,
     shopTab,
     setShopTab,
@@ -318,10 +320,77 @@ const Shop = ({
         return filtered;
     }, [shopTab, dbProducts, dbFirestoreProducts, dbMasterCourses, searchTerm, activeCourseCategory, activeProductCategory, wooImagesMap]);
 
+    // Compute Order Counts for Widget
+    const orderCounts = useMemo(() => {
+        if (!customerData?.history) return { all: 0, to_pay: 0, to_ship: 0, to_receive: 0, completed: 0, cancelled: 0 };
+        
+        const myOrders = customerData.history.filter(od => String(getFuzzyKey(od, ["ประเภท", "col_4"])).toLowerCase().includes("ซื้อ"));
+        const counts = { all: myOrders.length, to_pay: 0, to_ship: 0, to_receive: 0, completed: 0, cancelled: 0 };
+        
+        myOrders.forEach(od => {
+            const status = String(getFuzzyKey(od, ["สถานะ", "col_22"]) || "เรียบร้อย");
+            if (status.includes('รอชำระเงิน')) counts.to_pay++;
+            else if (status.includes('รอตรวจสอบ') || status.includes('รอจัดส่ง') || status.includes('รอดำเนินการ')) counts.to_ship++;
+            else if (status.includes('กำลังจัดส่ง')) counts.to_receive++;
+            else if (status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) counts.completed++;
+            else if (status.includes('ยกเลิก')) counts.cancelled++;
+        });
+        return counts;
+    }, [customerData?.history]);
 
+    const handleOrderNav = (filter) => {
+        if (setOrderFilter && setActiveNav) {
+            setOrderFilter(filter);
+            setActiveNav('orders');
+        }
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300 relative">
+            
+            {/* Order Status Widget */}
+            <div className="px-1 mt-2">
+                <div className="flex justify-between items-center mb-3">
+                    <h2 className="text-sm font-black text-gray-800 flex items-center"><ShoppingBag size={16} className="mr-1.5 text-rose-500"/> คำสั่งซื้อของฉัน</h2>
+                    <button onClick={() => handleOrderNav('all')} className="text-[10px] text-gray-500 flex items-center hover:text-rose-500 transition-colors font-bold">ดูประวัติทั้งหมด <ChevronRight size={14}/></button>
+                </div>
+                
+                <div className="flex bg-white rounded-2xl p-3 shadow-sm border border-gray-100 justify-between items-center relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-rose-50 to-orange-50 rounded-full blur-xl -mr-10 -mt-10 pointer-events-none"></div>
+                    
+                    <button onClick={() => handleOrderNav('to_pay')} className="relative flex flex-col items-center justify-center min-w-[56px] transition-all group z-10">
+                        <div className="relative mb-1.5 w-10 h-10 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Wallet size={20} strokeWidth={2} />
+                            {orderCounts.to_pay > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1 py-0.5 rounded-full min-w-[16px] text-center border border-white shadow-sm">{orderCounts.to_pay > 99 ? '99+' : orderCounts.to_pay}</span>}
+                        </div>
+                        <span className="text-[9px] font-bold text-gray-600">ที่ต้องชำระ</span>
+                    </button>
+                    
+                    <button onClick={() => handleOrderNav('to_ship')} className="relative flex flex-col items-center justify-center min-w-[56px] transition-all group z-10">
+                        <div className="relative mb-1.5 w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Package size={20} strokeWidth={2} />
+                            {orderCounts.to_ship > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1 py-0.5 rounded-full min-w-[16px] text-center border border-white shadow-sm">{orderCounts.to_ship > 99 ? '99+' : orderCounts.to_ship}</span>}
+                        </div>
+                        <span className="text-[9px] font-bold text-gray-600">ที่ต้องจัดส่ง</span>
+                    </button>
+
+                    <button onClick={() => handleOrderNav('to_receive')} className="relative flex flex-col items-center justify-center min-w-[56px] transition-all group z-10">
+                        <div className="relative mb-1.5 w-10 h-10 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Truck size={20} strokeWidth={2} />
+                            {orderCounts.to_receive > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1 py-0.5 rounded-full min-w-[16px] text-center border border-white shadow-sm">{orderCounts.to_receive > 99 ? '99+' : orderCounts.to_receive}</span>}
+                        </div>
+                        <span className="text-[9px] font-bold text-gray-600">ที่ต้องได้รับ</span>
+                    </button>
+
+                    <button onClick={() => handleOrderNav('completed')} className="relative flex flex-col items-center justify-center min-w-[56px] transition-all group z-10">
+                        <div className="relative mb-1.5 w-10 h-10 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <CheckCircle2 size={20} strokeWidth={2} />
+                        </div>
+                        <span className="text-[9px] font-bold text-gray-600">สำเร็จแล้ว</span>
+                    </button>
+                </div>
+            </div>
+
             {/* Tab Switcher */}
             <div className="px-1 flex bg-gray-100 rounded-xl p-1 mb-2">
                 <button 
@@ -772,9 +841,12 @@ const Shop = ({
                                             )}
                                         </div>
 
-                                        <div className="flex items-center gap-1 mt-1.5">
+                                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
                                             <span className="bg-amber-50 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-amber-200">
                                                 <Star size={8} className="fill-amber-400 text-amber-500" /> +{Math.floor((Number(item.price) || 0) / 100)} แต้ม
+                                            </span>
+                                            <span className="bg-[#EE4D2D]/10 text-[#EE4D2D] text-[8px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-[#EE4D2D]/20 shadow-sm">
+                                                <ShoppingBag size={8} className="text-[#EE4D2D]" /> ผ่อน SPayLater ฿{Math.ceil((Number(item.price) || 0) / 3).toLocaleString()}/ด.
                                             </span>
                                         </div>
 

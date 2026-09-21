@@ -1,6 +1,31 @@
 import React, { useState } from 'react';
-import { X, ShoppingCart, MapPin, Trash2, Minus, Plus, CreditCard, Store, Banknote, QrCode, AlertCircle, Loader2, Tag, Percent } from 'lucide-react';
+import { X, ShoppingCart, MapPin, Trash2, Minus, Plus, CreditCard, Store, Banknote, QrCode, AlertCircle, Loader2, Tag, Percent, Ticket, Check, Copy, Search, Wallet, ChevronDown, CheckCircle2, ShoppingBag } from 'lucide-react';
 import CouponSelectorModal from './CouponSelectorModal';
+
+const DELIVERY_FEES = {
+    standard: 50,
+    express: 100,
+    free_threshold: 1500
+};
+
+const INSTALLMENT_BANKS = [
+    { id: 'installment_kbank', name: 'กสิกรไทย (KBank)', shortName: 'KBANK', color: 'bg-[#138f2d] text-white' },
+    { id: 'installment_ktc', name: 'เคทีซี (KTC)', shortName: 'KTC', color: 'bg-[#00a9e0] text-white' },
+    { id: 'installment_bay', name: 'กรุงศรี (Krungsri)', shortName: 'BAY', color: 'bg-[#fec43b] text-[#4e4e4e]' },
+    { id: 'installment_first_choice', name: 'เฟิร์สช้อยส์ (First Choice)', shortName: 'FC', color: 'bg-[#00519e] text-white' },
+    { id: 'installment_scb', name: 'ไทยพาณิชย์ (SCB)', shortName: 'SCB', color: 'bg-[#4e2e7f] text-white' },
+    { id: 'installment_bbl', name: 'กรุงเทพ (BBL)', shortName: 'BBL', color: 'bg-[#1e4598] text-white' },
+];
+
+const MOBILE_BANKS = [
+    { id: 'mobile_banking_kbank', name: 'กสิกรไทย (K PLUS)', shortName: 'K PLUS', color: 'bg-[#138f2d] text-white' },
+    { id: 'mobile_banking_scb', name: 'ไทยพาณิชย์ (SCB EASY)', shortName: 'SCB', color: 'bg-[#4e2e7f] text-white' },
+    { id: 'mobile_banking_bay', name: 'กรุงศรี (KMA)', shortName: 'KMA', color: 'bg-[#fec43b] text-[#4e4e4e]' },
+    { id: 'mobile_banking_bbl', name: 'กรุงเทพ (Bualuang)', shortName: 'BBL', color: 'bg-[#1e4598] text-white' },
+    { id: 'mobile_banking_ktb', name: 'กรุงไทย (Krungthai)', shortName: 'KTB', color: 'bg-[#00a3e0] text-white' },
+];
+
+const INSTALLMENT_TERMS = [3, 4, 6, 10];
 
 export default function CartCheckoutModal({
     isOpen,
@@ -13,7 +38,8 @@ export default function CartCheckoutModal({
     lineProfile,
     onConfirmOrder,
     MOCK_COUPONS = [],
-    dbBranches = []
+    dbBranches = [],
+    omiseConfig = {}
 }) {
     const [paymentMethod, setPaymentMethod] = useState('promptpay');
     
@@ -30,6 +56,9 @@ export default function CartCheckoutModal({
     const [showCouponSelector, setShowCouponSelector] = useState(false);
     const [slipImage, setSlipImage] = useState(null);
     const [orderNote, setOrderNote] = useState('');
+    const [installmentBank, setInstallmentBank] = useState('');
+    const [installmentTerm, setInstallmentTerm] = useState('');
+    const [mobileBank, setMobileBank] = useState('');
 
     React.useEffect(() => {
         if (customerData) {
@@ -80,25 +109,232 @@ export default function CartCheckoutModal({
             return;
         }
 
-        setIsSubmitting(true);
-        const orderData = {
-            cart,
-            deliveryInfo,
-            paymentMethod,
-            slipImage,
-            appliedCoupon,
-            baseTotal,
-            discountAmount,
-            finalPrice,
-            orderNote,
-            selectedBranch
+        const processOrder = async (omiseToken = null, chargeId = null, isPending = false, authorizeUri = null, qrCodeUri = null) => {
+            setIsSubmitting(true);
+            const orderData = {
+                cart,
+                deliveryInfo,
+                paymentMethod,
+                slipImage,
+                appliedCoupon,
+                baseTotal,
+                discountAmount,
+                finalPrice,
+                orderNote,
+                selectedBranch,
+                omiseToken,
+                chargeId,
+                isPending,
+                authorizeUri,
+                qrCodeUri
+            };
+
+            const result = await onConfirmOrder(orderData);
+            if (!result.success) {
+                setErrorMsg(result.message || 'เกิดข้อผิดพลาดในการสั่งซื้อ');
+                setIsSubmitting(false);
+            } else if (orderData.isPending && orderData.authorizeUri && !orderData.qrCodeUri) {
+                // Redirect user to bank's authorization page ONLY if there's no inline QR code to show
+                window.location.href = orderData.authorizeUri;
+            }
         };
 
-        const result = await onConfirmOrder(orderData);
-        if (!result.success) {
-            setErrorMsg(result.message || 'เกิดข้อผิดพลาดในการสั่งซื้อ');
-            setIsSubmitting(false);
+        if (paymentMethod === 'omise_mobile') {
+            if (!mobileBank) {
+                setErrorMsg('กรุณาเลือกแอปพลิเคชันธนาคาร');
+                return;
+            }
+            setIsSubmitting(true);
+            try {
+                const res = await fetch('https://asia-southeast1-iris-clinic-app.cloudfunctions.net/omiseCharge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: '',
+                        sourceType: mobileBank,
+                        amount: finalPrice,
+                        description: `Order from ${customerData?.name || 'Customer'}`,
+                        returnUri: window.location.href
+                    })
+                });
+                const data = await res.json();
+                
+                if (res.ok && (data.status === 'successful' || data.status === 'pending')) {
+                    if (data.status === 'pending' && data.authorize_uri) {
+                        await processOrder(null, data.id, true, data.authorize_uri);
+                    } else {
+                        await processOrder(null, data.id, false, null);
+                    }
+                } else {
+                    setErrorMsg(data.message || data.error || 'การสร้างรายการล้มเหลว');
+                    setIsSubmitting(false);
+                }
+            } catch (err) {
+                setErrorMsg('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ชำระเงินได้');
+                setIsSubmitting(false);
+            }
+            return;
         }
+
+        if (paymentMethod === 'omise_shopeepay') {
+            setIsSubmitting(true);
+            try {
+                const res = await fetch('https://asia-southeast1-iris-clinic-app.cloudfunctions.net/omiseCharge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: '',
+                        sourceType: 'shopeepay',
+                        amount: finalPrice,
+                        description: `Order from ${customerData?.name || 'Customer'}`,
+                        returnUri: window.location.href
+                    })
+                });
+                const data = await res.json();
+                
+                if (res.ok && (data.status === 'successful' || data.status === 'pending')) {
+                    if (data.status === 'pending' && data.authorize_uri) {
+                        await processOrder(null, data.id, true, data.authorize_uri);
+                    } else {
+                        await processOrder(null, data.id, false, null);
+                    }
+                } else {
+                    setErrorMsg(data.message || data.error || 'การสร้างรายการ ShopeePay ล้มเหลว');
+                    setIsSubmitting(false);
+                }
+            } catch (err) {
+                setErrorMsg('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ชำระเงินได้');
+                setIsSubmitting(false);
+            }
+            return;
+        }
+
+        if (paymentMethod === 'omise_promptpay') {
+            setIsSubmitting(true);
+            try {
+                const res = await fetch('https://asia-southeast1-iris-clinic-app.cloudfunctions.net/omiseCharge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: '',
+                        sourceType: 'promptpay',
+                        amount: finalPrice,
+                        description: `Order from ${customerData?.name || 'Customer'}`,
+                        returnUri: window.location.href
+                    })
+                });
+                const data = await res.json();
+                
+                if (res.ok && (data.status === 'successful' || data.status === 'pending')) {
+                    const qrCodeUri = data.source?.scannable_code?.image?.download_uri;
+                    if (data.status === 'pending' && data.authorize_uri) {
+                        await processOrder(null, data.id, true, data.authorize_uri, qrCodeUri);
+                    } else {
+                        await processOrder(null, data.id, false, null, qrCodeUri);
+                    }
+                } else {
+                    setErrorMsg(data.message || data.error || 'การสร้างรายการ PromptPay ล้มเหลว');
+                    setIsSubmitting(false);
+                }
+            } catch (err) {
+                setErrorMsg('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ชำระเงินได้');
+                setIsSubmitting(false);
+            }
+            return;
+        }
+
+        if (paymentMethod === 'omise_installment') {
+            const minAmount = omiseConfig?.installmentMinAmount || 2000;
+            if (finalPrice < minAmount) {
+                setErrorMsg(`ยอดชำระขั้นต่ำสำหรับการผ่อนชำระคือ ${minAmount.toLocaleString()} บาท`);
+                return;
+            }
+            if (!installmentBank || !installmentTerm) {
+                setErrorMsg('กรุณาเลือกธนาคารและจำนวนเดือนที่ต้องการผ่อนชำระ');
+                return;
+            }
+            setIsSubmitting(true);
+            try {
+                const res = await fetch('https://asia-southeast1-iris-clinic-app.cloudfunctions.net/omiseCharge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: '',
+                        sourceType: installmentBank,
+                        installmentTerm: parseInt(installmentTerm),
+                        amount: finalPrice,
+                        description: `Order from ${customerData?.name || 'Customer'}`,
+                        returnUri: window.location.href
+                    })
+                });
+                const data = await res.json();
+                
+                if (res.ok && (data.status === 'successful' || data.status === 'pending')) {
+                    if (data.status === 'pending' && data.authorize_uri) {
+                        await processOrder(null, data.id, true, data.authorize_uri);
+                    } else {
+                        await processOrder(null, data.id, false, null);
+                    }
+                } else {
+                    setErrorMsg(data.message || data.error || 'การสร้างรายการผ่อนชำระล้มเหลว');
+                    setIsSubmitting(false);
+                }
+            } catch (err) {
+                setErrorMsg('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ชำระเงินได้');
+                setIsSubmitting(false);
+            }
+            return;
+        }
+
+        if (paymentMethod === 'omise') {
+            if (!window.OmiseCard) {
+                setErrorMsg('ระบบชำระเงินยังไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง');
+                return;
+            }
+            window.OmiseCard.configure({
+                publicKey: omiseConfig.publicKey,
+                frameLabel: 'IRIS Clinic',
+                submitLabel: 'ชำระเงิน',
+                currency: 'THB'
+            });
+            window.OmiseCard.open({
+                amount: finalPrice * 100, // satang
+                onCreateTokenSuccess: async (nonce) => {
+                    setIsSubmitting(true);
+                    try {
+                        const res = await fetch('https://asia-southeast1-iris-clinic-app.cloudfunctions.net/omiseCharge', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                token: nonce,
+                                amount: finalPrice,
+                                description: `Order from ${customerData?.name || 'Customer'}`,
+                                returnUri: window.location.href
+                            })
+                        });
+                        const data = await res.json();
+                        
+                        if (res.ok && (data.status === 'successful' || data.status === 'pending')) {
+                            // If it's pending with an authorize_uri (Installment, Internet Banking, etc)
+                            if (data.status === 'pending' && data.authorize_uri) {
+                                await processOrder(nonce, data.id, true, data.authorize_uri);
+                            } else {
+                                await processOrder(nonce, data.id, false, null);
+                            }
+                        } else {
+                            setErrorMsg(data.message || data.error || 'การชำระเงินล้มเหลว');
+                            setIsSubmitting(false);
+                        }
+                    } catch (err) {
+                        setErrorMsg('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ชำระเงินได้');
+                        setIsSubmitting(false);
+                    }
+                }
+            });
+            return;
+        }
+
+        await processOrder();
     };
 
     return (
@@ -227,26 +463,161 @@ export default function CartCheckoutModal({
                             {/* Payment Method */}
                             <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                                 <h3 className="text-xs font-black text-gray-800 flex items-center mb-3"><CreditCard size={16} className="mr-1.5 text-teal-600"/> เลือกวิธีชำระเงิน</h3>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <button type="button" onClick={() => setPaymentMethod('promptpay')} className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === 'promptpay' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}>
-                                        <QrCode size={24} className={paymentMethod === 'promptpay' ? 'text-teal-600' : 'text-gray-400'} />
-                                        <span className="text-[10px] font-bold text-center">โอนเงิน<br/>สแกนจ่าย</span>
+                                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                    {omiseConfig?.enable_promptpay !== false && (
+                                    <button type="button" onClick={() => setPaymentMethod('promptpay')} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'promptpay' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}>
+                                        <QrCode size={20} className={paymentMethod === 'promptpay' ? 'text-teal-600' : 'text-gray-400'} />
+                                        <span className="text-[9px] font-bold text-center leading-tight">โอนเงิน<br/>(แนบสลิป)</span>
                                     </button>
-                                    <button type="button" onClick={() => setPaymentMethod('cash')} className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === 'cash' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}>
-                                        <Store size={24} className={paymentMethod === 'cash' ? 'text-teal-600' : 'text-gray-400'} />
-                                        <span className="text-[10px] font-bold text-center">จ่ายหน้า<br/>คลินิก</span>
+                                    )}
+                                    {omiseConfig?.enable_cash !== false && (
+                                    <button type="button" onClick={() => setPaymentMethod('cash')} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'cash' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}>
+                                        <Store size={20} className={paymentMethod === 'cash' ? 'text-teal-600' : 'text-gray-400'} />
+                                        <span className="text-[9px] font-bold text-center leading-tight">จ่ายหน้า<br/>คลินิก</span>
                                     </button>
+                                    )}
+                                    {omiseConfig?.enable_credit !== false && (
                                     <button 
                                         type="button" 
                                         onClick={() => {
                                             if (isCreditSufficient) setPaymentMethod('credit');
                                         }} 
-                                        className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === 'credit' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'} ${!isCreditSufficient ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'credit' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'} ${!isCreditSufficient ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
-                                        <Banknote size={24} className={paymentMethod === 'credit' ? 'text-teal-600' : 'text-gray-400'} />
-                                        <span className="text-[10px] font-bold text-center">หักวงเงิน<br/>เครดิต</span>
+                                        <Banknote size={20} className={paymentMethod === 'credit' ? 'text-teal-600' : 'text-gray-400'} />
+                                        <span className="text-[9px] font-bold text-center leading-tight">หักวงเงิน<br/>เครดิต</span>
                                     </button>
+                                    )}
+                                    {omiseConfig?.enabled && omiseConfig?.publicKey && (
+                                        <>
+                                            {omiseConfig?.enable_omise_promptpay !== false && (
+                                            <button type="button" onClick={() => setPaymentMethod('omise_promptpay')} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'omise_promptpay' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}>
+                                                <QrCode size={20} className={paymentMethod === 'omise_promptpay' ? 'text-teal-600' : 'text-gray-400'} />
+                                                <span className="text-[9px] font-bold text-center leading-tight">PromptPay</span>
+                                            </button>
+                                            )}
+                                            {omiseConfig?.enable_omise_mobile !== false && (
+                                            <button type="button" onClick={() => setPaymentMethod('omise_mobile')} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'omise_mobile' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}>
+                                                <Store size={20} className={paymentMethod === 'omise_mobile' ? 'text-teal-600' : 'text-gray-400'} />
+                                                <span className="text-[9px] font-bold text-center leading-tight">แอปธนาคาร</span>
+                                            </button>
+                                            )}
+                                            {omiseConfig?.enable_omise_creditcard !== false && (
+                                            <button type="button" onClick={() => setPaymentMethod('omise')} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'omise' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}>
+                                                <CreditCard size={20} className={paymentMethod === 'omise' ? 'text-teal-600' : 'text-gray-400'} />
+                                                <span className="text-[9px] font-bold text-center leading-tight">บัตรเครดิต</span>
+                                            </button>
+                                            )}
+                                            {omiseConfig?.enable_omise_installment !== false && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => {
+                                                    const minAmount = omiseConfig?.installmentMinAmount || 2000;
+                                                    if (finalPrice >= minAmount) setPaymentMethod('omise_installment');
+                                                }} 
+                                                className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'omise_installment' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'} ${finalPrice < (omiseConfig?.installmentMinAmount || 2000) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            >
+                                                <CreditCard size={20} className={paymentMethod === 'omise_installment' ? 'text-teal-600' : 'text-gray-400'} />
+                                                <span className="text-[9px] font-bold text-center leading-tight">ผ่อนชำระ</span>
+                                            </button>
+                                            )}
+                                            {omiseConfig?.enable_omise_shopeepay !== false && (
+                                            <button type="button" onClick={() => setPaymentMethod('omise_shopeepay')} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'omise_shopeepay' ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm scale-[1.02]' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}>
+                                                <ShoppingBag size={20} className={paymentMethod === 'omise_shopeepay' ? 'text-teal-600' : 'text-gray-400'} />
+                                                <span className="text-[9px] font-bold text-center leading-tight">ShopeePay</span>
+                                            </button>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
+
+                                {paymentMethod === 'omise_mobile' && (
+                                    <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2">
+                                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                                            <h4 className="text-xs font-bold text-gray-800 mb-3 flex items-center"><Store size={16} className="mr-1.5 text-teal-600"/> เลือกแอปพลิเคชันธนาคาร</h4>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {MOBILE_BANKS.map((bank) => (
+                                                    <button
+                                                        key={bank.id}
+                                                        type="button"
+                                                        onClick={() => setMobileBank(bank.id)}
+                                                        className={`p-2 rounded-lg border text-left flex items-center gap-2 transition-all ${mobileBank === bank.id ? 'bg-white border-teal-500 shadow-sm ring-1 ring-teal-500' : 'bg-white border-gray-200 hover:border-teal-300'}`}
+                                                    >
+                                                        {bank.shortName ? (
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm border border-gray-100 ${bank.color}`}>
+                                                                <span className="text-[9px] font-black">{bank.shortName}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                                                <Store size={14} className="text-gray-500" />
+                                                            </div>
+                                                        )}
+                                                        <span className="text-[10px] font-bold text-gray-700 leading-tight">{bank.name}</span>
+                                                        {mobileBank === bank.id && <CheckCircle2 size={14} className="text-teal-500 ml-auto shrink-0" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {paymentMethod === 'omise_promptpay' && (
+                                    <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2">
+                                        <div className="bg-teal-50 rounded-xl p-4 flex flex-col items-center justify-center text-center border border-teal-200">
+                                            <QrCode size={32} className="text-teal-500 mb-2" />
+                                            <p className="text-xs font-bold text-teal-800">ชำระผ่าน PromptPay QR Code</p>
+                                            <p className="text-[10px] text-teal-600 mt-1">ระบบจะแสดง QR Code อัตโนมัติหลังจากกดยืนยันสั่งซื้อ</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {paymentMethod === 'omise_installment' && (
+                                    <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2">
+                                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                                            <h4 className="text-xs font-bold text-gray-800 mb-3 flex items-center"><Banknote size={16} className="mr-1.5 text-teal-600"/> 1. เลือกธนาคาร</h4>
+                                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                                {INSTALLMENT_BANKS.map((bank) => (
+                                                    <button
+                                                        key={bank.id}
+                                                        type="button"
+                                                        onClick={() => setInstallmentBank(bank.id)}
+                                                        className={`p-2 rounded-lg border text-left flex items-center gap-2 transition-all ${installmentBank === bank.id ? 'bg-white border-teal-500 shadow-sm ring-1 ring-teal-500' : 'bg-white border-gray-200 hover:border-teal-300'}`}
+                                                    >
+                                                        {bank.shortName ? (
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm border border-gray-100 ${bank.color}`}>
+                                                                <span className="text-[9px] font-black">{bank.shortName}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                                                <Banknote size={14} className="text-gray-500" />
+                                                            </div>
+                                                        )}
+                                                        <span className="text-[10px] font-bold text-gray-700 leading-tight">{bank.name}</span>
+                                                        {installmentBank === bank.id && <CheckCircle2 size={14} className="text-teal-500 ml-auto shrink-0" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            <h4 className="text-xs font-bold text-gray-800 mb-3 flex items-center mt-4"><Check size={16} className="mr-1.5 text-teal-600"/> 2. เลือกระยะเวลาผ่อนชำระ</h4>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                {INSTALLMENT_TERMS.map((term) => {
+                                                    const monthlyAmount = finalPrice / term;
+                                                    return (
+                                                        <button
+                                                            key={term}
+                                                            type="button"
+                                                            onClick={() => setInstallmentTerm(term)}
+                                                            className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${installmentTerm === term ? 'bg-white border-teal-500 shadow-sm ring-1 ring-teal-500' : 'bg-white border-gray-200 hover:border-teal-300'}`}
+                                                        >
+                                                            <span className="text-sm font-black text-gray-800">{term} <span className="text-[10px] font-normal text-gray-500">เดือน</span></span>
+                                                            <span className="text-[9px] font-bold text-teal-600">฿{monthlyAmount.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0})}/ด.</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 
                                 {paymentMethod === 'credit' && (
                                     <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2">

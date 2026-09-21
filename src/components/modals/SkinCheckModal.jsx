@@ -778,7 +778,26 @@ export default function SkinCheckModal({ isOpen, onClose, course, app, shopItems
 
             // 🌟 บันทึกผลสแกนเข้าประวัติ (Skin Progress / Before-After) — เฉพาะโหมดวิเคราะห์ผิว 🌟
             if (onScanComplete && scanMode === 'skin') {
-                try { onScanComplete(data, image); } catch (e) { console.error('save scan history error:', e); }
+                try {
+                    const createThumb = (src) => new Promise(resolve => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const MAX_SIZE = 256;
+                            let w = img.width, h = img.height;
+                            if (w > h && w > MAX_SIZE) { h *= MAX_SIZE / w; w = MAX_SIZE; }
+                            else if (h > MAX_SIZE) { w *= MAX_SIZE / h; h = MAX_SIZE; }
+                            canvas.width = w; canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, w, h);
+                            resolve(canvas.toDataURL('image/jpeg', 0.8));
+                        };
+                        img.onerror = () => resolve(src);
+                        img.src = src;
+                    });
+                    const thumb = await createThumb(image);
+                    onScanComplete(data, thumb);
+                } catch (e) { console.error('save scan history error:', e); }
             }
         } catch (err) {
             console.error('AI Scan Error:', err);

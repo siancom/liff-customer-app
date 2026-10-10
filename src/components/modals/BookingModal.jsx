@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle } from 'lucide-react';
+import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function BookingModal({
@@ -137,16 +137,38 @@ export default function BookingModal({
                         </div>
                     )}
 
-                    {/* สาขา (Global) */}
-                    <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 flex justify-between items-center mb-2">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase">สาขาที่จอง</span>
-                        <span className="text-xs font-black text-teal-600">{bookingForm.branch || ''}</span>
+                    {/* สาขา (Global / Interactive) */}
+                    <div className="mb-4">
+                        <label className="flex items-center text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">
+                            <MapPin size={14} className="mr-1 text-teal-500" />
+                            เลือกสาขาที่ต้องการจอง
+                        </label>
+                        <div className="flex gap-2">
+                            {availableBranches?.map(b => (
+                                <button 
+                                    key={b} 
+                                    type="button" 
+                                    onClick={() => {
+                                        setBookingForm({...bookingForm, branch: b});
+                                        // Update the default branch in local storage to keep it consistent with the user's latest choice
+                                        localStorage.setItem('defaultBranch', b);
+                                    }}
+                                    className={`flex-1 py-3.5 rounded-2xl text-[13px] font-bold transition-all border-2 ${
+                                        bookingForm.branch === b 
+                                            ? 'bg-teal-500 border-teal-600 text-white shadow-md shadow-teal-500/20' 
+                                            : 'bg-white border-gray-100 text-gray-600 hover:border-teal-300 hover:text-teal-600'
+                                    }`}
+                                >
+                                    {b.replace('สาขา', '')}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* ข้อมูลลูกค้า (Guest) */}
                     {!customerData && (
-                        <div className="space-y-3 mb-2 p-4 bg-orange-50 border border-orange-100 rounded-xl">
-                            <p className="text-[10px] font-bold text-orange-600 uppercase mb-2">ข้อมูลผู้จอง (เนื่องจากยังไม่ได้เข้าสู่ระบบ)</p>
+                        <div className="space-y-4 mb-4 p-5 bg-orange-50 border-2 border-orange-100 rounded-3xl">
+                            <p className="text-[11px] font-bold text-orange-600 uppercase tracking-wider mb-2 ml-1">ข้อมูลผู้จอง (เนื่องจากยังไม่ได้เข้าสู่ระบบ)</p>
                             <div>
                                 <input
                                     type="text"
@@ -154,7 +176,7 @@ export default function BookingModal({
                                     placeholder="ชื่อผู้จอง"
                                     value={bookingForm.guestName || ''}
                                     onChange={e => setBookingForm({...bookingForm, guestName: e.target.value})}
-                                    className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-teal-500/20 outline-none"
+                                    className="w-full px-4 py-3 border-2 border-white bg-white rounded-xl outline-none focus:border-teal-400 transition-all font-medium text-gray-800 text-sm shadow-sm"
                                 />
                             </div>
                             <div>
@@ -164,7 +186,7 @@ export default function BookingModal({
                                     placeholder="เบอร์โทรศัพท์ติดต่อ"
                                     value={bookingForm.guestPhone || ''}
                                     onChange={e => setBookingForm({...bookingForm, guestPhone: e.target.value})}
-                                    className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-teal-500/20 outline-none"
+                                    className="w-full px-4 py-3 border-2 border-white bg-white rounded-xl outline-none focus:border-teal-400 transition-all font-medium text-gray-800 text-sm shadow-sm"
                                 />
                             </div>
                         </div>
@@ -172,7 +194,7 @@ export default function BookingModal({
 
                     {/* วันที่ Banner */}
                     <div>
-                       <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">วันที่ต้องการจอง</label>
+                       <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">วันที่ต้องการจอง</label>
                        <div className="flex gap-2 overflow-x-auto hide-scrollbar snap-x pb-2 items-center">
                            {bookingDateList.map((d, i) => {
                                const shortDate = formatShortDate(d);
@@ -191,28 +213,26 @@ export default function BookingModal({
                                       type="button" 
                                       disabled={isHoliday}
                                       onClick={() => setBookingForm({...bookingForm, date: shortDate.fullValue, time: ''})} 
-                                      className={`snap-start shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-xl border transition-all ${
+                                      className={`snap-start shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-2xl border-2 transition-all ${
                                           isHoliday 
                                               ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' 
                                               : isSelected 
                                                   ? 'bg-teal-500 border-teal-600 text-white shadow-md scale-105' 
-                                                  : 'bg-white border-gray-200 text-gray-600 hover:border-teal-300'
+                                                  : 'bg-white border-gray-100 text-gray-600 hover:border-teal-300'
                                       }`}
                                    >
-                                       <span className="text-[10px] font-bold opacity-80">{i === 0 ? 'วันนี้' : i === 1 ? 'พรุ่งนี้' : shortDate.dayName}</span>
-                                       <span className="text-lg font-black">{shortDate.dateNum}</span>
-                                       <span className="text-[9px] font-medium">{shortDate.monthName}</span>
-                                       {isHoliday && <span className="text-[8px] font-bold text-red-500 mt-0.5">หยุด</span>}
+                                       <span className="text-[10px] font-bold opacity-90">{i === 0 ? 'วันนี้' : i === 1 ? 'พรุ่งนี้' : shortDate.dayName}</span>
+                                       <span className="text-2xl font-black">{shortDate.dateNum}</span>
+                                       <span className="text-[10px] font-medium">{shortDate.monthName}</span>
+                                       {isHoliday && <span className="text-[9px] font-bold text-red-500 mt-1">หยุด</span>}
                                    </button>
                                )
                            })}
                            {/* Calendar Picker Fallback */}
-                           <div className="snap-start shrink-0 relative">
+                           <div className="snap-start shrink-0 relative flex flex-col items-center justify-center w-16 h-20 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 transition-all">
                                <input type="date" value={bookingForm.date} min={getLocalDateString(new Date())} onChange={e => setBookingForm({...bookingForm, date: e.target.value, time: ''})} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                               <div className="flex flex-col items-center justify-center w-14 h-16 rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-500 hover:bg-gray-100">
-                                   <CalendarDays size={20} />
-                                   <span className="text-[9px] font-bold mt-1">ปฏิทิน</span>
-                               </div>
+                               <CalendarDays size={20} className="mb-1" />
+                               <span className="text-[9px] font-bold mt-1">ปฏิทิน</span>
                            </div>
                        </div>
                     </div>
@@ -220,15 +240,8 @@ export default function BookingModal({
                     {/* บริการ */}
                     {!bookingCourse && bookingStep === 1 && (
                        <div>
-                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">บริการที่ต้องการ</label>
-                          <input
-                             type="text"
-                             value={bookingForm.serviceName}
-                             onChange={e => setBookingForm({...bookingForm, serviceName: e.target.value})}
-                             placeholder="เช่น ทำหน้า, กดสิว"
-                             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-teal-500/20 outline-none mb-2"
-                          />
-                          <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+                          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">บริการที่ต้องการ</label>
+                          <div className="grid grid-cols-3 gap-2 mb-3">
                              {[
                                 { text: 'ทำหน้า', icon: Sparkles },
                                 { text: 'กดสิว', icon: Droplets },
@@ -236,25 +249,44 @@ export default function BookingModal({
                                 { text: 'จี้ไฝ', icon: Crosshair },
                                 { text: 'ปรึกษา', icon: MessageCircle },
                                 { text: 'ใช้คอส', icon: Package }
-                             ].map(svc => (
-                                 <button
-                                     key={svc.text}
-                                     type="button"
-                                     onClick={() => setBookingForm({...bookingForm, serviceName: svc.text})}
-                                     className="px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-100 rounded-lg text-[10px] font-bold shrink-0 hover:bg-orange-100 active:scale-95 transition-all flex items-center justify-center gap-1"
-                                 >
-                                     <svc.icon size={12} />
-                                     {svc.text}
-                                 </button>
-                             ))}
+                             ].map(svc => {
+                                 const currentServices = (bookingForm.serviceName || '').split(',').map(s => s.trim()).filter(Boolean);
+                                 const isSelected = currentServices.includes(svc.text);
+                                 return (
+                                     <button
+                                         key={svc.text}
+                                         type="button"
+                                         onClick={() => {
+                                             let newServices;
+                                             if (isSelected) {
+                                                 newServices = currentServices.filter(s => s !== svc.text);
+                                             } else {
+                                                 newServices = [...currentServices, svc.text];
+                                             }
+                                             setBookingForm({...bookingForm, serviceName: newServices.join(', ')});
+                                         }}
+                                         className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border text-[11px] font-black transition-all active:scale-95 ${isSelected ? 'bg-gradient-to-br from-teal-500 to-emerald-500 text-white border-teal-500 shadow-md shadow-teal-500/30' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700'}`}
+                                     >
+                                         <svc.icon size={20} className={isSelected ? 'text-white' : 'text-teal-500'} />
+                                         {svc.text}
+                                     </button>
+                                 );
+                             })}
                           </div>
+                          <input
+                             type="text"
+                             value={bookingForm.serviceName}
+                             onChange={e => setBookingForm({...bookingForm, serviceName: e.target.value})}
+                             placeholder="เช่น ทำหน้า, กดสิว"
+                             className="w-full px-4 py-3 border-2 border-gray-100 bg-gray-50/50 rounded-2xl outline-none focus:border-teal-400 focus:bg-white focus:ring-4 focus:ring-teal-400/10 transition-all font-medium text-gray-800"
+                          />
                        </div>
                     )}
 
                     {/* เวลา */}
                     <div>
-                       <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">เวลา (เลือกเวลาที่ว่าง)</label>
-                       <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto pr-1">
+                       <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">เวลา (เลือกเวลาที่ว่าง)</label>
+                       <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1">
                           {timeSlots.map(time => {
                               const slotStart = timeToMins(time);
                               const isBooked = bookedTimeRanges.some(b => Math.max(slotStart, b.start) < Math.min(slotStart + 60, b.end));
@@ -274,12 +306,12 @@ export default function BookingModal({
                                       type="button"
                                       disabled={disabled}
                                       onClick={() => setBookingForm({...bookingForm, time})}
-                                      className={`py-2 rounded-lg text-[11px] font-mono font-black border transition-all ${
+                                      className={`py-2.5 rounded-xl text-xs font-mono font-black border-2 transition-all ${
                                           bookingForm.time === time
                                               ? 'bg-teal-500 border-teal-600 text-white shadow-md'
                                               : disabled
-                                                  ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-50'
-                                                  : 'bg-white border-gray-200 text-gray-700 hover:border-teal-300 hover:text-teal-600'
+                                                  ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-not-allowed opacity-60'
+                                                  : 'bg-white border-gray-100 text-gray-700 hover:border-teal-300 hover:text-teal-600'
                                       }`}
                                   >
                                       {time}
@@ -289,14 +321,16 @@ export default function BookingModal({
                        </div>
                     </div>
 
-                    <button
-                       type="submit"
-                       disabled={isSubmittingBooking}
-                       className="w-full py-4 mt-2 bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-sm rounded-xl shadow-lg hover:opacity-90 active:scale-95 flex justify-center items-center"
-                    >
-                       {isSubmittingBooking ? <Loader2 size={18} className="animate-spin mr-2"/> : <CalendarPlus size={18} className="mr-2"/>}
-                       ยืนยันการจองคิว
-                    </button>
+                    <div className="pt-2">
+                       <button
+                          type="submit"
+                          disabled={isSubmittingBooking}
+                          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-teal-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 text-base"
+                       >
+                          {isSubmittingBooking ? <Loader2 size={20} className="animate-spin" /> : <CalendarPlus size={20} />}
+                          ยืนยันการจองคิว
+                       </button>
+                    </div>
                  </form>
               )}
 

@@ -3,7 +3,7 @@ import {
   QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
   AlertCircle, Info, Ticket, Phone, Loader2, ArrowRight, Tag, 
   LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse,
-  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, CalendarPlus, Gift, HelpCircle
+  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, CalendarPlus, Gift, HelpCircle, UserPlus
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -133,6 +133,7 @@ export default function CustomerApp() {
 
   // 🌟 BOOKING STATE 🌟
   const [dbBookings, setDbBookings] = useState([]);
+  const [allFutureBookings, setAllFutureBookings] = useState([]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState(1);
   const [bookingCourse, setBookingCourse] = useState(null);
@@ -151,14 +152,22 @@ export default function CustomerApp() {
 
   useEffect(() => {
     if (dbBranches.length > 0) {
+       const activeBranches = dbBranches.filter(b => !b.isMaintenance);
+       const validBranches = activeBranches.length > 0 ? activeBranches : dbBranches;
        const saved = localStorage.getItem('defaultBranch');
-       if (!saved || !dbBranches.find(b => b.name === saved)) {
-           const firstBranch = dbBranches[0].name;
+       if (!saved || !validBranches.find(b => b.name === saved)) {
+           const firstBranch = validBranches[0].name;
            localStorage.setItem('defaultBranch', firstBranch);
            setBookingForm(prev => ({...prev, branch: firstBranch}));
        }
     }
   }, [dbBranches]);
+
+  const getAvailableBranches = () => {
+    if (dbBranches.length === 0) return ["สาขาเฉวง"];
+    const active = dbBranches.filter(b => !b.isMaintenance).map(b => b.name);
+    return active.length > 0 ? active : dbBranches.map(b => b.name);
+  };
 
   // 🌟 Listen for PromptPay success automatically
   useEffect(() => {
@@ -558,6 +567,16 @@ export default function CustomerApp() {
       setDbBranches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => console.error("Branches fetch error:", err));
 
+    // 2.9 ดึงข้อมูลคิวจองทั้งหมดเพื่อใช้เช็คคิวว่าง (ดึงข้อมูลทั้งหมด หรือเฉพาะที่ >= วันนี้)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const unsubAllBookings = onSnapshot(
+      query(getAppCollection('bookings'), where('date', '>=', todayStr)), 
+      (snapshot) => {
+         setAllFutureBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }, 
+      (err) => console.error("All Bookings fetch error:", err)
+    );
+
     return () => { 
       unsubCourses(); 
       unsubCustomers(); 
@@ -571,6 +590,7 @@ export default function CustomerApp() {
       unsubLuckyPrizes(); 
       unsubOrders(); 
       unsubBranches();
+      unsubAllBookings();
     };
   }, [user]);
 
@@ -668,7 +688,7 @@ export default function CustomerApp() {
     return d;
   });
 
-  const bookedTimeRanges = dbBookings
+  const bookedTimeRanges = allFutureBookings
     .filter(b => b.date === bookingForm.date && b.branch === bookingForm.branch && b.status !== 'ยกเลิก' && b.status !== 'ยกเลิกโดยลูกค้า' && b.status !== 'ยกเลิกฉุกเฉิน' && b.status !== 'ไม่มาตามนัด')
     .map(b => {
         const start = timeToMins(b.time);
@@ -868,27 +888,34 @@ export default function CustomerApp() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <button onClick={() => setIsBookingModalOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-teal-300">
-                   <div className="w-12 h-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center mb-2 group-hover:bg-teal-500 group-hover:text-white transition-colors">
-                     <CalendarPlus size={22} />
+              <div className="grid grid-cols-4 gap-2">
+                <button onClick={() => setIsVipRegistrationOpen(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-amber-300">
+                   <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mb-2 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                     <UserPlus size={20} />
                    </div>
-                   <span className="text-[11px] font-bold text-gray-700">จองคิว</span>
+                   <span className="text-[10px] font-bold text-gray-700">ลงทะเบียน</span>
                 </button>
 
-                <button onClick={() => setIsPromotionModalOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-pink-300 relative">
+                <button onClick={() => setIsBookingModalOpen(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-teal-300">
+                   <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center mb-2 group-hover:bg-teal-500 group-hover:text-white transition-colors">
+                     <CalendarPlus size={20} />
+                   </div>
+                   <span className="text-[10px] font-bold text-gray-700">จองคิว</span>
+                </button>
+
+                <button onClick={() => setIsPromotionModalOpen(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-pink-300 relative">
                    <div className="absolute top-0 right-0 w-2 h-2 bg-pink-500 rounded-full mt-2 mr-2 animate-pulse"></div>
-                   <div className="w-12 h-12 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2 group-hover:bg-pink-500 group-hover:text-white transition-colors">
-                     <Gift size={22} />
+                   <div className="w-10 h-10 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2 group-hover:bg-pink-500 group-hover:text-white transition-colors">
+                     <Gift size={20} />
                    </div>
-                   <span className="text-[11px] font-bold text-gray-700">โปรโมชัน</span>
+                   <span className="text-[10px] font-bold text-gray-700">โปรโมชัน</span>
                 </button>
 
-                <button onClick={() => setIsHelpCenterOpen(true)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-blue-300">
-                   <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-2 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                     <HelpCircle size={22} />
+                <button onClick={() => setIsHelpCenterOpen(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-blue-300">
+                   <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-2 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                     <HelpCircle size={20} />
                    </div>
-                   <span className="text-[11px] font-bold text-gray-700">ช่วยเหลือ</span>
+                   <span className="text-[10px] font-bold text-gray-700">ช่วยเหลือ</span>
                 </button>
               </div>
             </div>
@@ -906,7 +933,7 @@ export default function CustomerApp() {
             handleBookingSubmit={handleBookingSubmit}
             handleRescheduleSubmit={handleRescheduleSubmit}
             bookingError={bookingError}
-            availableBranches={dbBranches.length > 0 ? dbBranches.map(b => b.name) : ["สาขาเฉวง"]}
+            availableBranches={getAvailableBranches()}
             bookingDateList={bookingDateList}
             formatShortDate={formatShortDate}
             getLocalDateString={getLocalDateString}
@@ -1747,7 +1774,7 @@ export default function CustomerApp() {
           setIsOpen={setIsWalletTopUpOpen}
           customerData={customerData}
           selectedBranch="สาขาเฉวง"
-          availableBranches={dbBranches.length > 0 ? dbBranches.map(b => b.name) : ["สาขาเฉวง"]}
+          availableBranches={getAvailableBranches()}
           PROMPTPAY_CONFIG={{
               "สาขาเฉวง": { id: "0811111111", name: "บจก. ไอริส คลินิก" },
               "สาขาหน้าทอน": { id: "0822222222", name: "บจก. ไอริส คลินิก" }
@@ -1965,7 +1992,7 @@ export default function CustomerApp() {
             handleBookingSubmit={handleBookingSubmit}
             handleRescheduleSubmit={handleRescheduleSubmit}
             bookingError={bookingError}
-            availableBranches={dbBranches.length > 0 ? dbBranches.map(b => b.name) : ["สาขาเฉวง"]}
+            availableBranches={getAvailableBranches()}
             bookingDateList={bookingDateList}
             formatShortDate={formatShortDate}
             getLocalDateString={getLocalDateString}

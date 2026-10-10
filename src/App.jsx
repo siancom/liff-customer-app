@@ -921,6 +921,12 @@ export default function CustomerApp() {
             </div>
           </div>
         </div>
+        <VipRegistrationModal 
+           isOpen={isVipRegistrationOpen} 
+           onClose={() => setIsVipRegistrationOpen(false)} 
+           customerData={null}
+           showToast={showToast}
+        />
 
         <BookingModal
             isBookingModalOpen={isBookingModalOpen}
@@ -962,6 +968,15 @@ export default function CustomerApp() {
           isOpen={isHelpCenterOpen}
           onClose={() => setIsHelpCenterOpen(false)}
         />
+        {/* --- TOAST --- */}
+        {toast && (
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] animate-in fade-in slide-in-from-bottom-4 duration-300 px-4 w-full max-w-md pointer-events-none">
+            <div className={`mx-auto px-5 py-3.5 rounded-2xl shadow-2xl flex items-center text-white font-bold text-xs ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
+              {toast.type === 'error' ? <AlertCircle size={16} className="mr-2 shrink-0"/> : <CheckCircle size={16} className="mr-2 shrink-0"/>}
+              <span className="leading-relaxed">{toast.msg || toast.message}</span>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

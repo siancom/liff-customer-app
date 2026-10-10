@@ -134,26 +134,59 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
 
     setIsSubmitting(true);
     try {
-      // 1. Upload Images to Storage
+      // 1. Determine if new customer or VIP upgrade
+      const isNewCustomer = !customerData;
+      let targetCustomerId = customerData?.id;
+
+      const computedName = `${formData.firstName} ${formData.lastName}`.trim();
+
+      // 2. Create customer record first if new
+      if (isNewCustomer) {
+         const newDocRef = await addDoc(getAppCollection('customers'), {
+            "ชื่อ": computedName,
+            "เบอร์โทร": formData.phone,
+            computedName: computedName,
+            computedPhone: formData.phone,
+            nickname: formData.nickname,
+            idCard: formData.idCard,
+            dob: formData.dob,
+            age: formData.age,
+            gender: formData.gender,
+            addressNo: formData.addressNo,
+            village: formData.village,
+            soi: formData.soi,
+            road: formData.road,
+            subDistrict: formData.subDistrict,
+            district: formData.district,
+            province: formData.province,
+            zipcode: formData.zipcode,
+            email: formData.email,
+            createdAt: new Date(),
+            updatedAt: new Date()
+         });
+         targetCustomerId = newDocRef.id;
+      }
+
+      // 3. Upload Images to Storage
       let cardUrl = '';
       let sigUrl = '';
       
       if (cardImage) {
-        const cardRef = ref(storage, `customer_documents/${customerData.id}/vip_card_${Date.now()}.jpg`);
+        const cardRef = ref(storage, `customer_documents/${targetCustomerId}/vip_card_${Date.now()}.jpg`);
         await uploadString(cardRef, cardImage, 'data_url');
         cardUrl = await getDownloadURL(cardRef);
       }
       
       if (signatureImage) {
-        const sigRef = ref(storage, `customer_documents/${customerData.id}/vip_sig_${Date.now()}.png`);
+        const sigRef = ref(storage, `customer_documents/${targetCustomerId}/vip_sig_${Date.now()}.png`);
         await uploadString(sigRef, signatureImage, 'data_url');
         sigUrl = await getDownloadURL(sigRef);
       }
 
-      // 2. Save document records
+      // 4. Save document records
       if (cardUrl) {
         await addDoc(getAppCollection('customer_documents'), {
-          customerId: customerData.id,
+          customerId: targetCustomerId,
           title: 'รูปถ่ายบัตรสมาชิก (จากแอป)',
           fileUrl: cardUrl,
           createdAt: new Date(),
@@ -162,7 +195,7 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
       }
       if (sigUrl) {
         await addDoc(getAppCollection('customer_documents'), {
-          customerId: customerData.id,
+          customerId: targetCustomerId,
           title: 'ลายเซ็น (จากแอป)',
           fileUrl: sigUrl,
           createdAt: new Date(),
@@ -170,44 +203,45 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
         });
       }
 
-      // 3. Update customer details in customers collection
-      const customerRef = getAppDoc('customers', customerData.id);
-      const computedName = `${formData.firstName} ${formData.lastName}`.trim();
-      
-      await updateDoc(customerRef, {
-        "ชื่อ": computedName, // Maintain backward compatibility
-        "เบอร์โทร": formData.phone,
-        computedName: computedName,
-        computedPhone: formData.phone,
-        nickname: formData.nickname,
-        idCard: formData.idCard,
-        dob: formData.dob,
-        age: formData.age,
-        gender: formData.gender,
-        addressNo: formData.addressNo,
-        village: formData.village,
-        soi: formData.soi,
-        road: formData.road,
-        subDistrict: formData.subDistrict,
-        district: formData.district,
-        province: formData.province,
-        zipcode: formData.zipcode,
-        email: formData.email,
-        updatedAt: new Date()
-      });
+      // 5. Update customer details in customers collection (ONLY if existing)
+      if (!isNewCustomer) {
+        const customerRef = getAppDoc('customers', targetCustomerId);
+        await updateDoc(customerRef, {
+          "ชื่อ": computedName, // Maintain backward compatibility
+          "เบอร์โทร": formData.phone,
+          computedName: computedName,
+          computedPhone: formData.phone,
+          nickname: formData.nickname,
+          idCard: formData.idCard,
+          dob: formData.dob,
+          age: formData.age,
+          gender: formData.gender,
+          addressNo: formData.addressNo,
+          village: formData.village,
+          soi: formData.soi,
+          road: formData.road,
+          subDistrict: formData.subDistrict,
+          district: formData.district,
+          province: formData.province,
+          zipcode: formData.zipcode,
+          email: formData.email,
+          updatedAt: new Date()
+        });
+      }
 
-      // 4. Create VIP Upgrade Request
+      // 6. Create VIP Upgrade Request / New Registration Request
       await addDoc(getAppCollection('vip_upgrade_requests'), {
         customerPhone: formData.phone,
         customerName: computedName,
-        customerId: customerData.id,
+        customerId: targetCustomerId,
         currentPoints: customerData?.totalEarnedPoints || 0,
         requestDate: new Date().toISOString(),
         status: 'pending',
-        hasDocuments: true
+        hasDocuments: true,
+        isNewCustomer: isNewCustomer
       });
 
-      showToast('ส่งคำขออัปเกรด VIP เรียบร้อยแล้ว แอดมินจะตรวจสอบข้อมูลเร็วๆ นี้', 'success');
+      showToast(isNewCustomer ? 'ลงทะเบียนเรียบร้อยแล้ว แอดมินจะตรวจสอบข้อมูลเร็วๆ นี้' : 'ส่งคำขออัปเกรด VIP เรียบร้อยแล้ว แอดมินจะตรวจสอบข้อมูลเร็วๆ นี้', 'success');
       onClose();
     } catch (err) {
       console.error("Submission error:", err);
@@ -228,8 +262,8 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
               <CheckCircle size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-black text-slate-800">ข้อมูลผู้สมัคร VIP</h2>
-              <p className="text-xs text-slate-500">อัปเกรดระดับสมาชิก</p>
+              <h2 className="text-lg font-black text-slate-800">{customerData ? "ข้อมูลผู้สมัคร VIP" : "ลงทะเบียนลูกค้าใหม่"}</h2>
+              <p className="text-xs text-slate-500">{customerData ? "อัปเกรดระดับสมาชิก" : "กรอกประวัติเพื่อรับสิทธิพิเศษ"}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-full transition-colors">
@@ -248,7 +282,7 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
           )}
 
           <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 text-orange-800 text-xs mb-4 leading-relaxed">
-            กรุณากรอกข้อมูลส่วนตัวให้ครบถ้วน ถ่ายรูปบัตรสมาชิก และเซ็นชื่อเพื่อใช้ประกอบการพิจารณาอัปเกรดเป็น VIP
+            {customerData ? "กรุณากรอกข้อมูลส่วนตัวให้ครบถ้วน ถ่ายรูปบัตรสมาชิก และเซ็นชื่อเพื่อใช้ประกอบการพิจารณาอัปเกรดเป็น VIP" : "กรุณากรอกข้อมูลส่วนตัวให้ครบถ้วนเพื่อลงทะเบียน ถ่ายรูปบัตรประชาชนหรือบัตรอื่นๆ และเซ็นชื่อยืนยัน"}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -323,7 +357,7 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
             {isSubmitting ? (
               <>กำลังส่งข้อมูล...</>
             ) : (
-              <><Save size={20} /> ยืนยันการส่งข้อมูลอัปเกรด VIP</>
+              <><Save size={20} /> {customerData ? "ยืนยันการส่งข้อมูลอัปเกรด VIP" : "ยืนยันการลงทะเบียน"}</>
             )}
           </button>
         </div>

@@ -8,7 +8,7 @@ import {
 
 // --- FIREBASE IMPORTS ---
 import { auth, app, getAppCollection, getAppDoc, db } from './config/firebase';
-import { signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { signInAnonymously, onAuthStateChanged, signInWithCustomToken, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { onSnapshot, addDoc, writeBatch, doc, query, where, updateDoc } from 'firebase/firestore';
 
 import Shop from './pages/Shop';
@@ -80,6 +80,11 @@ export default function CustomerApp() {
   const [dashboardTab, setDashboardTab] = useState('courses');
   const [showQR, setShowQR] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // 🌟 OTP STATE 🌟
+  const [otpCode, setOtpCode] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
   // 🌟 NEW STATE FOR SHOP & CART 🌟
   const [dbProducts, setDbProducts] = useState([]);
@@ -598,48 +603,94 @@ export default function CustomerApp() {
   useEffect(() => {
      if (appState === 'auto_login') {
          if (dbCustomersRaw.length > 0) {
-             handleLogin();
+             const cleanPhone = phoneNumber.trim();
+             const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
+             if (rawCustomer) {
+                 const builtData = buildCustomerData(rawCustomer, cleanPhone, dbHistories, dbCourses, dbOrders);
+                 setCustomerData({
+                     ...builtData,
+                     lineDisplayName: lineProfile?.displayName,
+                     lineProfilePic: lineProfile?.pictureUrl
+                 });
+                 setAppState('dashboard');
+                 setActiveNav('home');
+             } else {
+                 setAppState('login');
+             }
          }
      }
   }, [appState, dbCustomersRaw]);
 
 
-  // 3. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ (Login ด้วยข้อมูลจาก Firebase)
-  const handleLogin = (e) => {
+  // 3. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ และส่ง OTP
+  const handleLogin = async (e) => {
     if (e) e.preventDefault();
     setAppState('loading');
     setErrorMsg('');
 
-    setTimeout(() => {
-      const cleanPhone = phoneNumber.trim();
-      
-      // ค้นหาลูกค้าจากฐานข้อมูล Firebase
-      const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
-      
-      if (rawCustomer) {
-        // Use central utility to build consistent customer data
-        const builtData = buildCustomerData(rawCustomer, cleanPhone, dbHistories, dbCourses, dbOrders);
-        
-        setCustomerData({
-          ...builtData,
-          lineDisplayName: lineProfile?.displayName,
-          lineProfilePic: lineProfile?.pictureUrl
-        });
-        
-        if (lineProfile?.userId) {
-            localStorage.setItem(`liff_phone_${lineProfile.userId}`, cleanPhone);
+    const cleanPhone = phoneNumber.trim();
+    const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
+    
+    if (rawCustomer) {
+      try {
+        if (!window.recaptchaVerifier) {
+          window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+            'size': 'invisible'
+          });
         }
         
-        setAppState('dashboard');
-        setActiveNav('home');
-      } else {
-        setErrorMsg('ไม่พบข้อมูลสำหรับเบอร์โทรศัพท์นี้ กรุณาลองใหม่อีกครั้งค่ะ');
-        if (lineProfile?.userId) {
-            localStorage.removeItem(`liff_phone_${lineProfile.userId}`);
+        let formattedPhone = cleanPhone;
+        if (formattedPhone.startsWith('0')) {
+           formattedPhone = '+66' + formattedPhone.substring(1);
+        } else if (!formattedPhone.startsWith('+')) {
+           formattedPhone = '+66' + formattedPhone;
         }
+
+        const confirmation = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
+        setConfirmationResult(confirmation);
+        setAppState('otp');
+      } catch (error) {
+        console.error("SMS OTP Error:", error);
+        setErrorMsg('ไม่สามารถส่ง SMS ได้ กรุณาตรวจสอบเบอร์ หรือลองใหม่อีกครั้ง');
         setAppState('login');
       }
-    }, 1000);
+    } else {
+      setErrorMsg('ไม่พบข้อมูลสำหรับเบอร์โทรศัพท์นี้ กรุณาลองใหม่อีกครั้งค่ะ');
+      if (lineProfile?.userId) {
+          localStorage.removeItem(`liff_phone_${lineProfile.userId}`);
+      }
+      setAppState('login');
+    }
+  };
+
+  const verifyOtp = async (e) => {
+    if (e) e.preventDefault();
+    setIsVerifyingOtp(true);
+    setErrorMsg('');
+    try {
+      await confirmationResult.confirm(otpCode);
+      const cleanPhone = phoneNumber.trim();
+      const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
+      
+      const builtData = buildCustomerData(rawCustomer, cleanPhone, dbHistories, dbCourses, dbOrders);
+      setCustomerData({
+        ...builtData,
+        lineDisplayName: lineProfile?.displayName,
+        lineProfilePic: lineProfile?.pictureUrl
+      });
+      
+      if (lineProfile?.userId) {
+          localStorage.setItem(`liff_phone_${lineProfile.userId}`, cleanPhone);
+      }
+      
+      setAppState('dashboard');
+      setActiveNav('home');
+    } catch (error) {
+      console.error("OTP Error:", error);
+      setErrorMsg('รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
   };
 
   // 4. Update customerData in real-time if database changes
@@ -859,10 +910,11 @@ export default function CustomerApp() {
                 />
               </div>
               <button type="submit" className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-base py-4 rounded-[20px] hover:opacity-90 shadow-lg shadow-teal-500/30 flex items-center justify-center space-x-2 active:scale-95 transition-all">
-                <span>เข้าสู่ระบบด้วยเบอร์โทร</span>
+                <span>รับรหัสผ่านทาง SMS (OTP)</span>
                 <ArrowRight size={18} />
               </button>
             </form>
+            <div id="recaptcha-container"></div>
 
             <div className="w-full mt-8">
               <div className="flex items-center justify-between mb-4 px-2">
@@ -979,6 +1031,68 @@ export default function CustomerApp() {
             </div>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // --- SCREEN 2.5: OTP VERIFICATION ---
+  if (appState === 'otp') {
+    return (
+      <div className="bg-gray-50 min-h-screen flex justify-center font-sans relative overflow-hidden">
+        <div className="w-full max-w-md bg-white min-h-screen shadow-2xl flex flex-col relative z-10">
+          <div className="h-64 bg-gradient-to-br from-teal-500 via-emerald-500 to-teal-700 relative overflow-hidden rounded-b-[48px] shadow-lg">
+             <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 text-white pt-8">
+                <Sparkles size={36} className="mb-2 opacity-90"/>
+                <h1 className="text-2xl font-black tracking-widest uppercase">ยืนยัน OTP</h1>
+             </div>
+          </div>
+          
+          <div className="flex-1 px-8 pt-8 pb-12 flex flex-col items-center -mt-10 z-20">
+            <div className="w-24 h-24 rounded-[32px] bg-white p-6 shadow-xl mb-6 text-teal-600 flex items-center justify-center">
+              <Phone size={40} />
+            </div>
+            
+            <p className="text-sm text-gray-500 text-center mb-8 leading-relaxed px-4">
+              กรุณากรอกรหัส OTP 6 หลักที่ส่งไปยังเบอร์<br/>
+              <span className="font-bold text-gray-800 text-base">{phoneNumber}</span>
+            </p>
+
+            {errorMsg && (
+              <div className="w-full bg-red-50 border border-red-100 text-red-600 text-xs font-bold p-3 rounded-2xl mb-6 flex items-start shadow-sm animate-in fade-in">
+                 <AlertCircle size={16} className="mr-2 shrink-0 mt-0.5" />
+                 <p>{errorMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={verifyOtp} className="w-full space-y-5">
+              <input 
+                type="number" 
+                placeholder="กรอกรหัส 6 หลัก"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value)}
+                maxLength={6}
+                className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-4 focus:ring-teal-500/20 focus:bg-white focus:border-teal-500 text-center text-2xl transition-all font-mono font-black text-teal-700 tracking-[0.5em] shadow-inner"
+                required
+              />
+              <button 
+                type="submit" 
+                disabled={isVerifyingOtp || otpCode.length !== 6}
+                className={`w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-base py-4 rounded-[20px] hover:opacity-90 shadow-lg shadow-teal-500/30 flex items-center justify-center space-x-2 transition-all ${isVerifyingOtp || otpCode.length !== 6 ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
+              >
+                {isVerifyingOtp ? <Loader2 size={18} className="animate-spin" /> : <span>ยืนยันตัวตน</span>}
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={() => setAppState('login')}
+                className="w-full py-3 text-sm font-bold text-gray-500 hover:text-teal-600 transition-colors"
+              >
+                ย้อนกลับ / แก้ไขเบอร์โทร
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
     );
   }

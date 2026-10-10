@@ -665,7 +665,7 @@ export default function CustomerApp() {
   }, [appState, phoneNumber, dbCustomersRaw, dbHistories, dbCourses, dbOrders, lineProfile]);
 
   // 🌟 BOOKING HANDLERS 🌟
-  const timeSlots = ['10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30'];
+  const timeSlots = ['11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'];
   const timeToMins = (t) => {
     const [h, m] = String(t || '0:0').split(':').map(Number);
     return h * 60 + m;
@@ -785,7 +785,8 @@ export default function CustomerApp() {
 
   const openBookingModal = (course = null) => {
       setBookingCourse(course);
-      setBookingForm({ ...bookingForm, serviceName: course ? getFuzzyKey(course, "ชื่อคอส") : '', date: '', time: '' });
+      const todayString = getLocalDateString(Date.now());
+      setBookingForm({ ...bookingForm, serviceName: course ? getFuzzyKey(course, "ชื่อคอส") : '', date: todayString, time: '' });
       setBookingStep(1);
       setBookingError('');
       setIsBookingModalOpen(true);

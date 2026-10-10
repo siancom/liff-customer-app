@@ -163,8 +163,8 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
 
   const handleSubmit = async () => {
     setErrorMsg('');
-    if (!formData.firstName || !formData.lastName || !formData.phone) {
-      setErrorMsg('กรุณากรอกชื่อ นามสกุล และเบอร์โทรศัพท์');
+    if (!formData.firstName || !formData.lastName || !formData.nickname || !formData.phone) {
+      setErrorMsg('กรุณากรอกชื่อ นามสกุล ชื่อเล่น และเบอร์โทรศัพท์');
       return;
     }
     if (phoneWarning) {
@@ -325,18 +325,14 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
             {customerData ? "กรุณากรอกข้อมูลส่วนตัวให้ครบถ้วน ถ่ายรูปบัตรสมาชิก และเซ็นชื่อเพื่อใช้ประกอบการพิจารณาอัปเกรดเป็น VIP" : "กรุณากรอกข้อมูลส่วนตัวให้ครบถ้วนเพื่อลงทะเบียน ถ่ายรูปบัตรประชาชนหรือบัตรอื่นๆ และเซ็นชื่อยืนยัน"}
           </div>
 
-          <div className="mb-4">
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="ชื่อ" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} required />
+            <InputField label="นามสกุล" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} required />
+            <InputField label="ชื่อเล่น" value={formData.nickname} onChange={e => setFormData({...formData, nickname: e.target.value})} required />
             <InputField label="เบอร์โทร" value={formData.phone} onChange={e => {
               const val = e.target.value.replace(/\D/g, '');
               if (val.length <= 10) setFormData({...formData, phone: val});
             }} required error={phoneWarning} success={isPhoneValid} maxLength={10} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <InputField label="ชื่อ" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} required />
-            <InputField label="นามสกุล" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} required />
-            <InputField label="ชื่อเล่น" value={formData.nickname} onChange={e => setFormData({...formData, nickname: e.target.value})} />
-            <InputField label="เลขบัตรประชาชน" value={formData.idCard} onChange={e => setFormData({...formData, idCard: e.target.value})} maxLength={13} />
             <InputField label="วัน/เดือน/ปีเกิด" value={formData.dob} onChange={handleDobChange} placeholder="วว/ดด/ปปปป (พ.ศ.)" />
             <div className="grid grid-cols-2 gap-2">
               <InputField label="อายุ" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} type="number" />
@@ -362,10 +358,7 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
               <InputField label="เขต/อำเภอ" value={formData.district} onChange={e => setFormData({...formData, district: e.target.value})} />
               <InputField label="จังหวัด" value={formData.province} onChange={e => setFormData({...formData, province: e.target.value})} />
               <InputField label="รหัสไปรษณีย์" value={formData.zipcode} onChange={e => setFormData({...formData, zipcode: e.target.value})} />
-              <InputField label="เบอร์โทร" value={formData.phone} onChange={e => {
-                const val = e.target.value.replace(/\D/g, '');
-                if (val.length <= 10) setFormData({...formData, phone: val});
-              }} required error={phoneWarning} success={isPhoneValid} maxLength={10} />
+              <InputField label="เลขบัตรประชาชน" value={formData.idCard} onChange={e => setFormData({...formData, idCard: e.target.value})} maxLength={13} />
               <InputField label="E-mail" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
             </div>
           </div>

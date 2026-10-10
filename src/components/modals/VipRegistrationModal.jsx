@@ -6,20 +6,27 @@ import { getAppCollection, getAppDoc, storage } from '../../config/firebase';
 import SignaturePad from '../SignaturePad';
 
 // Reusable Input Field Component
-const InputField = ({ label, type = "text", value, onChange, placeholder, required, maxLength, error }) => (
+const InputField = ({ label, type = "text", value, onChange, placeholder, required, maxLength, error, success }) => (
   <div>
     <label className="block text-xs font-bold text-gray-500 mb-1">
       {label} {required && <span className="text-red-500">*</span>}
     </label>
-    <input
-      type={type}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      required={required}
-      maxLength={maxLength}
-      className={`w-full bg-slate-50 border ${error ? 'border-red-400' : 'border-slate-200'} rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500`}
-    />
+    <div className="relative">
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        maxLength={maxLength}
+        className={`w-full bg-slate-50 border ${error ? 'border-red-400' : success ? 'border-green-400' : 'border-slate-200'} rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${success ? 'pr-10' : ''}`}
+      />
+      {success && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+          <CheckCircle size={18} />
+        </div>
+      )}
+    </div>
     {error && <p className="text-red-500 text-[10px] mt-1 font-bold">{error}</p>}
   </div>
 );
@@ -50,6 +57,7 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [phoneWarning, setPhoneWarning] = useState('');
+  const [isPhoneValid, setIsPhoneValid] = useState(false);
 
   useEffect(() => {
     if (isOpen && customerData) {
@@ -63,19 +71,36 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
   }, [isOpen, customerData]);
 
   useEffect(() => {
-    if (!customerData && formData.phone && formData.phone.length >= 9 && dbCustomersRaw) {
-      const cleanPhone = formData.phone.replace(/\D/g, '');
+    const phone = formData.phone || '';
+    const cleanPhone = phone.replace(/\D/g, '');
+
+    if (!cleanPhone) {
+      setPhoneWarning('');
+      setIsPhoneValid(false);
+      return;
+    }
+
+    if (cleanPhone.length < 10) {
+      setPhoneWarning('เบอร์โทรศัพท์ไม่ครบ 10 หลัก');
+      setIsPhoneValid(false);
+      return;
+    }
+
+    if (!customerData && dbCustomersRaw) {
       const exists = dbCustomersRaw.some(c => {
         const p = c.เบอร์โทร || c.computedPhone || c.phone || c.cleanPhone || '';
         return p.replace(/\D/g, '') === cleanPhone;
       });
       if (exists) {
         setPhoneWarning('เบอร์โทรศัพท์นี้มีในระบบแล้ว กรุณาเข้าสู่ระบบแทน');
+        setIsPhoneValid(false);
       } else {
         setPhoneWarning('');
+        setIsPhoneValid(true);
       }
     } else {
       setPhoneWarning('');
+      setIsPhoneValid(true);
     }
   }, [formData.phone, customerData, dbCustomersRaw]);
 
@@ -330,7 +355,10 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
               <InputField label="เขต/อำเภอ" value={formData.district} onChange={e => setFormData({...formData, district: e.target.value})} />
               <InputField label="จังหวัด" value={formData.province} onChange={e => setFormData({...formData, province: e.target.value})} />
               <InputField label="รหัสไปรษณีย์" value={formData.zipcode} onChange={e => setFormData({...formData, zipcode: e.target.value})} />
-              <InputField label="เบอร์โทร" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} required error={phoneWarning} />
+              <InputField label="เบอร์โทร" value={formData.phone} onChange={e => {
+                const val = e.target.value.replace(/\D/g, '');
+                if (val.length <= 10) setFormData({...formData, phone: val});
+              }} required error={phoneWarning} success={isPhoneValid} maxLength={10} />
               <InputField label="E-mail" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
             </div>
           </div>

@@ -927,6 +927,7 @@ export default function CustomerApp() {
            onClose={() => setIsVipRegistrationOpen(false)} 
            customerData={null}
            showToast={showToast}
+           dbCustomersRaw={dbCustomersRaw}
         />
 
         <BookingModal
@@ -1778,6 +1779,7 @@ export default function CustomerApp() {
            onClose={() => setIsVipRegistrationOpen(false)} 
            customerData={customerData}
            showToast={showToast}
+           dbCustomersRaw={dbCustomersRaw}
         />
 
         <PromotionModal

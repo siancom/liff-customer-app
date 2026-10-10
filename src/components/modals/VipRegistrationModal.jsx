@@ -6,7 +6,7 @@ import { getAppCollection, getAppDoc, storage } from '../../config/firebase';
 import SignaturePad from '../SignaturePad';
 
 // Reusable Input Field Component
-const InputField = ({ label, type = "text", value, onChange, placeholder, required, maxLength }) => (
+const InputField = ({ label, type = "text", value, onChange, placeholder, required, maxLength, error }) => (
   <div>
     <label className="block text-xs font-bold text-gray-500 mb-1">
       {label} {required && <span className="text-red-500">*</span>}
@@ -18,12 +18,13 @@ const InputField = ({ label, type = "text", value, onChange, placeholder, requir
       placeholder={placeholder}
       required={required}
       maxLength={maxLength}
-      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+      className={`w-full bg-slate-50 border ${error ? 'border-red-400' : 'border-slate-200'} rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500`}
     />
+    {error && <p className="text-red-500 text-[10px] mt-1 font-bold">{error}</p>}
   </div>
 );
 
-export default function VipRegistrationModal({ isOpen, onClose, customerData, showToast }) {
+export default function VipRegistrationModal({ isOpen, onClose, customerData, showToast, dbCustomersRaw }) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -48,6 +49,7 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
   const [signatureImage, setSignatureImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [phoneWarning, setPhoneWarning] = useState('');
 
   useEffect(() => {
     if (isOpen && customerData) {
@@ -59,6 +61,23 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
       }));
     }
   }, [isOpen, customerData]);
+
+  useEffect(() => {
+    if (!customerData && formData.phone && formData.phone.length >= 9 && dbCustomersRaw) {
+      const cleanPhone = formData.phone.replace(/\D/g, '');
+      const exists = dbCustomersRaw.some(c => {
+        const p = c.เบอร์โทร || c.computedPhone || c.phone || c.cleanPhone || '';
+        return p.replace(/\D/g, '') === cleanPhone;
+      });
+      if (exists) {
+        setPhoneWarning('เบอร์โทรศัพท์นี้มีในระบบแล้ว กรุณาเข้าสู่ระบบแทน');
+      } else {
+        setPhoneWarning('');
+      }
+    } else {
+      setPhoneWarning('');
+    }
+  }, [formData.phone, customerData, dbCustomersRaw]);
 
   if (!isOpen) return null;
 
@@ -123,12 +142,8 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
       setErrorMsg('กรุณากรอกชื่อ นามสกุล และเบอร์โทรศัพท์');
       return;
     }
-    if (!cardImage) {
-      setErrorMsg('กรุณาถ่ายรูปหรืออัปโหลดรูปบัตรสมาชิก');
-      return;
-    }
-    if (!signatureImage) {
-      setErrorMsg('กรุณาเซ็นชื่อรับรอง');
+    if (phoneWarning) {
+      setErrorMsg('กรุณาแก้ไขเบอร์โทรศัพท์ เนื่องจากมีในระบบแล้ว');
       return;
     }
 
@@ -315,7 +330,7 @@ export default function VipRegistrationModal({ isOpen, onClose, customerData, sh
               <InputField label="เขต/อำเภอ" value={formData.district} onChange={e => setFormData({...formData, district: e.target.value})} />
               <InputField label="จังหวัด" value={formData.province} onChange={e => setFormData({...formData, province: e.target.value})} />
               <InputField label="รหัสไปรษณีย์" value={formData.zipcode} onChange={e => setFormData({...formData, zipcode: e.target.value})} />
-              <InputField label="เบอร์โทร" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} required />
+              <InputField label="เบอร์โทร" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} required error={phoneWarning} />
               <InputField label="E-mail" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
             </div>
           </div>

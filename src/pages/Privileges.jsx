@@ -274,6 +274,39 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
 
       {activeSubTab === 'rewards' && (
       <>
+      {/* Promos Banner Carousel */}
+      <div className="mb-6 mt-4">
+         <h3 className="text-sm font-black text-gray-800 flex items-center mb-3 px-1">
+             <Sparkles size={18} className="mr-2 text-teal-600"/> แบนเนอร์โปรโมชั่น & สิทธิพิเศษ
+         </h3>
+         <div className="flex overflow-x-auto pb-3 gap-3.5 scrollbar-hide px-1 snap-x">
+             {activePromos && activePromos.length > 0 ? (
+                 activePromos.map(promo => (
+                     <div key={promo.id} className="w-[280px] sm:w-[320px] shrink-0 bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden relative group snap-start transition-all hover:shadow-md">
+                         <div className="h-36 w-full overflow-hidden relative bg-slate-100">
+                             <img src={promo.image} alt={promo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                             {promo.badge && (
+                                 <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-teal-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-white/60 shadow-sm flex items-center gap-1">
+                                     <Sparkles size={11} className="text-teal-600" />
+                                     {promo.badge}
+                                 </div>
+                             )}
+                         </div>
+                         <div className="p-3.5">
+                             <h4 className="font-black text-gray-900 text-sm mb-1 line-clamp-1">{promo.title}</h4>
+                             {promo.desc && (
+                                 <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed">{promo.desc}</p>
+                             )}
+                         </div>
+                     </div>
+                 ))
+             ) : (
+                 <div className="w-full py-8 text-center text-xs text-gray-400 font-bold bg-white rounded-2xl border border-dashed border-gray-200">
+                     ยังไม่มีแบนเนอร์โปรโมชั่นในขณะนี้
+                 </div>
+             )}
+         </div>
+      </div>
       {/* Coupons Section */}
       <div>
          <div className="flex justify-between items-center mb-3 px-1 mt-6">
@@ -352,34 +385,7 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
          </div>
       </div>
 
-      {/* Promos */}
-      <div>
-         <h3 className="text-sm font-black text-gray-800 flex items-center mb-4 px-1">
-             <Sparkles size={18} className="mr-2 text-teal-600"/> โปรโมชั่นพิเศษสำหรับคุณ
-         </h3>
-         <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide px-1 snap-x">
-             {activePromos && activePromos.length > 0 ? (
-                 activePromos.map(promo => (
-                     <div key={promo.id} className="w-[280px] shrink-0 bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden relative group snap-start">
-                         <div className="h-32 w-full overflow-hidden relative">
-                             <img src={promo.image} alt={promo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                             <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-teal-600 text-[10px] font-black px-2 py-1 rounded-lg border border-white/50 shadow-sm">
-                                 {promo.badge}
-                             </div>
-                         </div>
-                         <div className="p-4">
-                             <h4 className="font-black text-gray-900 text-sm mb-1 line-clamp-1">{promo.title}</h4>
-                             <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed">{promo.desc}</p>
-                         </div>
-                     </div>
-                 ))
-             ) : (
-                 <div className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 text-center text-gray-400 text-xs">
-                     ยังไม่มีแบนเนอร์โปรโมชั่นในขณะนี้
-                 </div>
-             )}
-         </div>
-      </div>
+
 
       {/* Rewards Catalog */}
       <div>

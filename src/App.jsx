@@ -125,6 +125,7 @@ export default function CustomerApp() {
   const [dbCoupons, setDbCoupons] = useState([]);
   const [dbRedeemTiers, setDbRedeemTiers] = useState([]);
   const [dbLuckyPrizes, setDbLuckyPrizes] = useState([]);
+  const [dbMarketingPromotions, setDbMarketingPromotions] = useState([]);
   const [toast, setToast] = useState(null);
   const [dbBranches, setDbBranches] = useState([]);
   const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
@@ -562,6 +563,10 @@ export default function CustomerApp() {
       setDbLuckyPrizes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => console.error("Lucky prizes fetch error:", err));
 
+    const unsubMarketingPromos = onSnapshot(getAppCollection('marketing_promotions'), (snapshot) => {
+      setDbMarketingPromotions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Marketing promotions fetch error:", err));
+
     // 2.7 ดึงข้อมูลคำสั่งซื้อเพื่อดูสถานะการจัดส่ง
     const unsubOrders = onSnapshot(getAppCollection('orders'), (snapshot) => {
       setDbOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -596,6 +601,7 @@ export default function CustomerApp() {
       unsubOrders(); 
       unsubBranches();
       unsubAllBookings();
+      unsubMarketingPromos();
     };
   }, [user]);
 
@@ -1444,7 +1450,7 @@ export default function CustomerApp() {
                   return { success: true }; 
                 }}
                 MOCK_COUPONS={dbCoupons}
-                marketingPromotions={[]}
+                marketingPromotions={dbMarketingPromotions}
                 handleCollectCoupon={(code) => {
                   showToast('เก็บคูปอง ' + code + ' เรียบร้อยแล้ว!', 'success');
                 }}

@@ -601,25 +601,35 @@ export default function CustomerApp() {
 
 
   useEffect(() => {
-     if (appState === 'auto_login') {
-         if (dbCustomersRaw.length > 0) {
-             const cleanPhone = phoneNumber.trim();
-             const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
-             if (rawCustomer) {
-                 const builtData = buildCustomerData(rawCustomer, cleanPhone, dbHistories, dbCourses, dbOrders);
-                 setCustomerData({
-                     ...builtData,
-                     lineDisplayName: lineProfile?.displayName,
-                     lineProfilePic: lineProfile?.pictureUrl
-                 });
-                 setAppState('dashboard');
-                 setActiveNav('home');
-             } else {
-                 setAppState('login');
+     if (appState === 'auto_login' || appState === 'login') {
+         if (dbCustomersRaw.length > 0 && lineProfile?.userId) {
+             const linkedCustomer = dbCustomersRaw.find(c => c.lineUid === lineProfile.userId);
+             
+             if (linkedCustomer || appState === 'auto_login') {
+                 const targetCustomer = linkedCustomer || dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === phoneNumber.trim());
+                 if (targetCustomer) {
+                     const cleanPhone = getFuzzyKey(targetCustomer, "เบอร์โทร");
+                     setPhoneNumber(cleanPhone);
+                     const builtData = buildCustomerData(targetCustomer, cleanPhone, dbHistories, dbCourses, dbOrders);
+                     
+                     if (!targetCustomer.lineUid) {
+                         try { updateDoc(doc(getAppCollection('customers'), targetCustomer.id), { lineUid: lineProfile.userId }); } catch(e) {}
+                     }
+
+                     setCustomerData({
+                         ...builtData,
+                         lineDisplayName: lineProfile?.displayName,
+                         lineProfilePic: lineProfile?.pictureUrl
+                     });
+                     setAppState('dashboard');
+                     setActiveNav('home');
+                 } else {
+                     if (appState === 'auto_login') setAppState('login');
+                 }
              }
          }
      }
-  }, [appState, dbCustomersRaw]);
+  }, [appState, dbCustomersRaw, lineProfile]);
 
 
   // 3. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ และส่ง OTP
@@ -681,6 +691,12 @@ export default function CustomerApp() {
       
       if (lineProfile?.userId) {
           localStorage.setItem(`liff_phone_${lineProfile.userId}`, cleanPhone);
+          try {
+              const customerRef = doc(getAppCollection('customers'), rawCustomer.id);
+              await updateDoc(customerRef, { lineUid: lineProfile.userId });
+          } catch (e) {
+              console.error("Failed to link LINE UID", e);
+          }
       }
       
       setAppState('dashboard');
@@ -770,14 +786,14 @@ export default function CustomerApp() {
             courseName: courseName,
             courseId: bookingCourse ? bookingCourse.id : null,
             courseRef: bookingCourse ? getFuzzyKey(bookingCourse, "เลขที่ใบคอส") : null,
-            status: 'รอเข้ารับบริการ',
+            status: 'ยืนยันแล้ว',
             createdAt: new Date().toISOString()
         };
         
         await addDoc(getAppCollection('bookings'), bookingData);
         setGeneratedTicket(bookingData);
         setBookingStep(2);
-        showToast('จองคิวสำเร็จแล้ว!');
+        showToast('จองคิวสำเร็จ ได้รับการยืนยันทันที!');
     } catch (err) {
         setBookingError('เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
@@ -798,9 +814,9 @@ export default function CustomerApp() {
           await updateDoc(bookingRef, {
               date: bookingForm.date,
               time: bookingForm.time,
-              status: 'รอเข้ารับบริการ'
+              status: 'ยืนยันแล้ว'
           });
-          setGeneratedTicket({...generatedTicket, date: bookingForm.date, time: bookingForm.time, status: 'รอเข้ารับบริการ'});
+          setGeneratedTicket({...generatedTicket, date: bookingForm.date, time: bookingForm.time, status: 'ยืนยันแล้ว'});
           setBookingStep(2);
           showToast('เลื่อนคิวสำเร็จแล้ว!');
       } catch (err) {
@@ -956,12 +972,12 @@ export default function CustomerApp() {
                    <span className="text-[10px] font-bold text-gray-700">จองคิว</span>
                 </button>
 
-                <button onClick={() => setIsPromotionModalOpen(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-pink-300 relative">
+                <button onClick={() => setShowSkinCheck(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-pink-300 relative">
                    <div className="absolute top-0 right-0 w-2 h-2 bg-pink-500 rounded-full mt-2 mr-2 animate-pulse"></div>
                    <div className="w-10 h-10 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2 group-hover:bg-pink-500 group-hover:text-white transition-colors">
-                     <Gift size={20} />
+                     <Sparkles size={20} />
                    </div>
-                   <span className="text-[10px] font-bold text-gray-700">โปรโมชัน</span>
+                   <span className="text-[10px] font-bold text-gray-700 leading-tight">AI วิเคราะห์ผิว</span>
                 </button>
 
                 <button onClick={() => setIsHelpCenterOpen(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-blue-300">
@@ -1013,6 +1029,35 @@ export default function CustomerApp() {
             isActionLoading={isActionLoading}
             handleCancelBooking={handleCancelBooking}
             openReschedule={openReschedule}
+        />
+        {/* --- 🌟 SKIN AI MODALS (LOGIN SCREEN) 🌟 --- */}
+        <SkinCheckModal
+          isOpen={showSkinCheck}
+          onClose={() => setShowSkinCheck(false)}
+          app={app}
+          shopItems={dbProducts.filter(p => p.id).map(p => ({ id: p.id, name: String(getFuzzyKey(p, ["ชื่อสินค้า", "ชื่อ", "name"]) || ''), price: parseNumber(getFuzzyKey(p, ["ราคาขายเต็ม", "ราคา", "col_6"])), type: 'product', image: getFuzzyKey(p, ["รูปภาพ", "รูป", "image", "img"]) }))}
+          historyEnabled={featureFlags.skinProgress !== false}
+          moleEnabled={featureFlags.moleScan !== false}
+          onScanComplete={handleScanComplete}
+          onOpenHistory={() => setShowSkinProgress(true)}
+          onOpenSurvey={() => setShowSurvey(true)}
+          onBookService={() => { setShowSkinCheck(false); setIsBookingModalOpen(true); }}
+          onAddToCart={(item) => { handleAddToCart({ ...item, price: Number(item.price || 0) }); showToast(`เพิ่ม "${item.name}" ลงตะกร้าแล้ว`); }}
+          onGoToShop={() => { setShowSkinCheck(false); showToast('กรุณาเข้าสู่ระบบก่อนเข้าชมร้านค้าค่ะ'); }}
+        />
+        <SkinProgressModal
+          isOpen={showSkinProgress}
+          onClose={() => setShowSkinProgress(false)}
+          phone={customerData?.cleanPhone || phoneNumber.trim()}
+          getAppCollection={getAppCollection}
+        />
+        <AIFeedbackModal
+          isOpen={showSurvey}
+          onClose={() => setShowSurvey(false)}
+          customerData={customerData}
+          getAppCollection={getAppCollection}
+          getAppDoc={getAppDoc}
+          showToast={showToast}
         />
         <PromotionModal
            isOpen={isPromotionModalOpen}

@@ -106,9 +106,9 @@ const Booking = ({
                                 <QrCode size={20} className={theme.qr} />
                                 </div>
                             </div>
-                            {bk.status === 'รอเข้ารับบริการ' && (
-                                <div className="bg-amber-50 hover:bg-amber-100 cursor-pointer transition-colors text-amber-600 text-[10px] font-bold py-2 text-center border-t border-amber-100 flex items-center justify-center rounded-b-2xl -mt-2 pt-3">
-                                คลิกเพื่อแสดง QR / เลื่อนจอง / ยกเลิกคิว <ChevronRight size={12} className="ml-1" />
+                            {(bk.status === 'รอเข้ารับบริการ' || bk.status === 'รอการยืนยัน' || bk.status === 'ยืนยันแล้ว') && (
+                                <div className={`${bk.status === 'ยืนยันแล้ว' ? 'bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100 hover:bg-amber-100'} cursor-pointer transition-colors text-[10px] font-bold py-2 text-center border-t flex items-center justify-center rounded-b-2xl -mt-2 pt-3`}>
+                                คลิกเพื่อดู E-Ticket / เลื่อนจอง / ยกเลิกคิว <ChevronRight size={12} className="ml-1" />
                                 </div>
                             )}
                         </div>

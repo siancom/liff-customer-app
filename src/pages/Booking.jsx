@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CalendarPlus, CalendarDays, QrCode, ChevronRight, TicketCheck, Ticket, Eye, EyeOff } from 'lucide-react';
 import { getFuzzyKey } from '../utils/helpers';
+import BookingCountdown from '../components/BookingCountdown';
 
 const Booking = ({
     openBookingModal,
@@ -88,9 +89,12 @@ const Booking = ({
                             <div className="flex relative">
                                 <div className={`w-3 ${theme.bar}`}></div>
                                 <div className="p-4 flex-1">
-                                <div className="flex justify-between items-start mb-2">
-                                    <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${theme.badge}`}>{bk.status === 'รอเข้ารับบริการ' ? 'รอการยืนยัน' : bk.status}</span>
-                                    <span className="font-mono text-[10px] text-gray-400 font-bold">{bk.ticketNo}</span>
+                                <div className="flex justify-between items-start mb-2 gap-2">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${theme.badge}`}>{bk.status === 'รอเข้ารับบริการ' ? 'รอการยืนยัน' : bk.status}</span>
+                                        <BookingCountdown booking={bk} />
+                                    </div>
+                                    <span className="font-mono text-[10px] text-gray-400 font-bold shrink-0">{bk.ticketNo}</span>
                                 </div>
                                 <h4 className={`font-black text-sm mb-2 ${theme.text}`}>{bk.courseName}</h4>
                                 <div className="grid grid-cols-2 gap-2 text-xs items-end">

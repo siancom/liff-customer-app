@@ -1,6 +1,7 @@
 import React from 'react';
 import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import BookingCountdown from '../BookingCountdown';
 
 export default function BookingModal({
     isBookingModalOpen,
@@ -365,6 +366,10 @@ export default function BookingModal({
                                  <span className="text-xs font-black text-indigo-600">
                                      {new Date(generatedTicket.date).toLocaleDateString('th-TH')} <span className="mx-1">เวลา</span> {generatedTicket.time} น.
                                  </span>
+                             </div>
+                             <div className="flex justify-between items-center pt-2 mt-1 border-t border-gray-100">
+                                 <span className="text-[10px] text-gray-500 font-bold">เวลานัดหมาย</span>
+                                 <BookingCountdown booking={generatedTicket} />
                              </div>
                              {generatedTicket.status === 'ยกเลิกฉุกเฉิน' && generatedTicket.cancelReason && (
                                  <div className="flex justify-between items-center pt-2 mt-2 border-t border-rose-100">

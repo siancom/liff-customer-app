@@ -33,6 +33,7 @@ import AIFeedbackModal from './components/modals/AIFeedbackModal';
 import WalletTopUpModal from './components/modals/WalletTopUpModal';
 import HelpCenterModal from './components/modals/HelpCenterModal';
 import VipRegistrationModal from './components/modals/VipRegistrationModal';
+import { DEFAULT_BOOKING_CONFIG, calculateBookingDuration } from './utils/bookingConfig';
 
 // --- UTILS ---
 import { buildCustomerData } from './utils/customerUtils';
@@ -121,6 +122,7 @@ export default function CustomerApp() {
     enable_promptpay: true, enable_cash: true, enable_credit: true,
     enable_omise_promptpay: true, enable_omise_mobile: true, enable_omise_creditcard: true, enable_omise_installment: true, enable_omise_shopeepay: true
   });
+  const [bookingConfig, setBookingConfig] = useState(DEFAULT_BOOKING_CONFIG);
 
   const [dbCoupons, setDbCoupons] = useState([]);
   const [dbRedeemTiers, setDbRedeemTiers] = useState([]);
@@ -533,6 +535,20 @@ export default function CustomerApp() {
       if (snap.exists()) setFeatureFlags(snap.data());
     }, (err) => console.error("Feature flags fetch error:", err));
 
+    // 2.6.1 ⏱️ การตั้งค่าเวลาบริการและสล็อตคิว
+    const unsubBookingConfig = onSnapshot(getAppDoc('config', 'booking'), (snap) => {
+      if (snap.exists()) {
+        setBookingConfig(prev => ({
+          ...DEFAULT_BOOKING_CONFIG,
+          ...snap.data(),
+          serviceDurations: {
+            ...DEFAULT_BOOKING_CONFIG.serviceDurations,
+            ...(snap.data().serviceDurations || {})
+          }
+        }));
+      }
+    }, (err) => console.error("Booking config fetch error:", err));
+
     const unsubOmise = onSnapshot(getAppDoc('config', 'payment'), (snap) => {
       if (snap.exists()) {
         setOmiseConfig({
@@ -595,6 +611,7 @@ export default function CustomerApp() {
       unsubProducts(); 
       unsubMasterCourses(); 
       unsubFlags(); 
+      unsubBookingConfig();
       unsubOmise();
       unsubCoupons(); 
       unsubRedeemTiers(); 
@@ -766,7 +783,8 @@ export default function CustomerApp() {
     .filter(b => b.date === bookingForm.date && b.branch === bookingForm.branch && b.status !== 'ยกเลิก' && b.status !== 'ยกเลิกโดยลูกค้า' && b.status !== 'ยกเลิกฉุกเฉิน' && b.status !== 'ไม่มาตามนัด')
     .map(b => {
         const start = timeToMins(b.time);
-        return { start, end: start + (b.duration || 60) };
+        const dur = Number(b.duration || calculateBookingDuration(b.courseName || b.serviceName || b.service || '', b.guestsCount || 1, bookingConfig) || 60);
+        return { start, end: start + dur };
     });
 
   const handleBookingSubmit = async (e) => {
@@ -782,6 +800,7 @@ export default function CustomerApp() {
         const courseName = bookingCourse ? getFuzzyKey(bookingCourse, "ชื่อคอส") : bookingForm.serviceName;
         
         const guestsCount = Math.min(3, Math.max(1, Number(bookingForm.guestsCount || 1)));
+        const calculatedDuration = calculateBookingDuration(courseName, guestsCount, bookingConfig);
         const bookingData = {
             ticketNo,
             cleanPhone: customerData ? customerData.cleanPhone : bookingForm.guestPhone,
@@ -792,6 +811,7 @@ export default function CustomerApp() {
             time: bookingForm.time,
             guestsCount,
             pax: guestsCount,
+            duration: calculatedDuration,
             serviceName: courseName,
             courseName: courseName,
             courseId: bookingCourse ? bookingCourse.id : null,
@@ -1042,6 +1062,7 @@ export default function CustomerApp() {
             isActionLoading={isActionLoading}
             handleCancelBooking={handleCancelBooking}
             openReschedule={openReschedule}
+            bookingConfig={bookingConfig}
         />
         {/* --- 🌟 SKIN AI MODALS (LOGIN SCREEN) 🌟 --- */}
         <SkinCheckModal
@@ -2202,6 +2223,7 @@ export default function CustomerApp() {
             isActionLoading={isActionLoading}
             handleCancelBooking={handleCancelBooking}
             openReschedule={openReschedule}
+            bookingConfig={bookingConfig}
         />
 
         {/* --- PROMPTPAY QR MODAL --- */}

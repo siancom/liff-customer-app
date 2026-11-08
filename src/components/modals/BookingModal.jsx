@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin, Users } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import BookingCountdown from '../BookingCountdown';
+import { getFuzzyKey } from '../../utils/helpers';
+import { DEFAULT_BOOKING_CONFIG, calculateBookingDuration } from '../../utils/bookingConfig';
 
 export default function BookingModal({
     isBookingModalOpen,
@@ -33,8 +35,16 @@ export default function BookingModal({
     isActionLoading,
     handleCancelBooking,
     openReschedule,
-    customerData
+    customerData,
+    bookingConfig = DEFAULT_BOOKING_CONFIG
 }) {
+    const currentServiceName = useMemo(() => {
+        return bookingCourse ? (getFuzzyKey(bookingCourse, "ชื่อคอส") || 'ใช้คอส') : (bookingForm.serviceName || '');
+    }, [bookingCourse, bookingForm.serviceName]);
+
+    const totalDuration = useMemo(() => {
+        return calculateBookingDuration(currentServiceName, bookingForm.guestsCount, bookingConfig);
+    }, [currentServiceName, bookingForm.guestsCount, bookingConfig]);
     const getStatusUI = (status) => {
         const s = status || '';
         switch(s) {
@@ -279,7 +289,15 @@ export default function BookingModal({
                     {/* บริการ */}
                     {!bookingCourse && bookingStep === 1 && (
                        <div>
-                          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">บริการที่ต้องการ</label>
+                          <div className="flex items-center justify-between mb-2 ml-1">
+                             <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider">บริการที่ต้องการ</label>
+                             {bookingForm.serviceName && (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200 animate-in fade-in">
+                                   <Clock size={12} className="text-teal-600" />
+                                   เวลารวม: {totalDuration} นาที {totalDuration >= 60 && `(${Math.floor(totalDuration / 60)} ชม.${totalDuration % 60 > 0 ? ` ${totalDuration % 60} น.` : ''})`}
+                                </span>
+                             )}
+                          </div>
                           <div className="grid grid-cols-3 gap-2 mb-3">
                              {[
                                 { text: 'ทำหน้า', icon: Sparkles },
@@ -322,13 +340,25 @@ export default function BookingModal({
                        </div>
                     )}
 
+                    {/* แสดงระยะเวลาเมื่อจองจากคอร์สเดิม */}
+                    {bookingCourse && (
+                       <div className="flex items-center justify-between p-3 bg-teal-50/60 rounded-2xl border border-teal-200/80 mb-2">
+                          <span className="text-xs font-bold text-teal-800 flex items-center gap-1.5">
+                             <Clock size={14} className="text-teal-600" /> ระยะเวลาบริการโดยประมาณ
+                          </span>
+                          <span className="text-xs font-black text-teal-700 font-mono">
+                             {totalDuration} นาที {totalDuration >= 60 && `(${Math.floor(totalDuration / 60)} ชม.${totalDuration % 60 > 0 ? ` ${totalDuration % 60} น.` : ''})`}
+                          </span>
+                       </div>
+                    )}
+
                     {/* เวลา */}
                     <div>
                        <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">เวลา (เลือกเวลาที่ว่าง)</label>
                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1">
                           {timeSlots.map(time => {
                               const slotStart = timeToMins(time);
-                              const isBooked = bookedTimeRanges.some(b => Math.max(slotStart, b.start) < Math.min(slotStart + 60, b.end));
+                              const isBooked = bookedTimeRanges.some(b => Math.max(slotStart, b.start) < Math.min(slotStart + totalDuration, b.end));
 
                               let isPast = false;
                               if (bookingForm.date === getLocalDateString(new Date())) {

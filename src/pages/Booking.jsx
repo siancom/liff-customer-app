@@ -92,6 +92,11 @@ const Booking = ({
                                 <div className="flex justify-between items-start mb-2 gap-2">
                                     <div className="flex flex-wrap items-center gap-1.5">
                                         <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${theme.badge}`}>{bk.status === 'รอเข้ารับบริการ' ? 'รอการยืนยัน' : bk.status}</span>
+                                        {Number(bk.guestsCount || bk.pax || 1) > 1 && (
+                                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                                                👥 {bk.guestsCount || bk.pax} ท่าน
+                                            </span>
+                                        )}
                                         <BookingCountdown booking={bk} />
                                     </div>
                                     <span className="font-mono text-[10px] text-gray-400 font-bold shrink-0">{bk.ticketNo}</span>

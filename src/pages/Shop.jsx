@@ -470,20 +470,17 @@ const Shop = ({
                 )}
             </div>
 
+            {/* FAST ORDER: สั่งสินค้าจากรูปภาพ */}
             <div className="px-1">
                 <button 
                     onClick={() => setIsCustomOrderOpen(true)}
-                    className="w-full relative bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 rounded-[24px] p-5 shadow-[0_8px_30px_rgb(79,70,229,0.3)] text-white overflow-hidden text-left hover:shadow-[0_8px_30px_rgb(79,70,229,0.5)] hover:-translate-y-1 active:translate-y-0 active:scale-[0.98] transition-all duration-300 flex items-center group"
+                    className="w-full relative rounded-[24px] p-5 shadow-lg text-white overflow-hidden text-left active:scale-[0.98] transition-all duration-300 flex items-center group"
+                    style={{ background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 50%, #7c3aed 100%)' }}
                 >
-                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 transition-transform duration-1000 ease-in-out group-hover:translate-x-[200%] z-0"></div>
-
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none animate-pulse"></div>
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full blur-xl -ml-5 -mb-5 pointer-events-none"></div>
-                    
-                    <div className="bg-white/20 backdrop-blur-md p-3.5 rounded-2xl mr-4 border border-white/30 shadow-[0_0_15px_rgba(255,255,255,0.2)] shrink-0 relative z-10 group-hover:scale-110 transition-transform duration-300">
-                        <ImageIcon size={30} className="text-white drop-shadow-lg" />
-                        <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-rose-500 rounded-full animate-ping"></div>
-                        <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-indigo-600 shadow-sm"></div>
+                    <div className="bg-white/20 p-3 rounded-2xl mr-4 border border-white/30 shrink-0 relative z-10 shadow-sm">
+                        <ImageIcon size={28} className="text-white drop-shadow" />
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-ping"></div>
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-indigo-600 shadow-sm"></div>
                     </div>
 
                     <div className="relative z-10 flex-1">
@@ -492,30 +489,31 @@ const Shop = ({
                                 <Sparkles size={10} className="mr-1 animate-pulse" /> Fast Order
                             </span>
                         </div>
-                        <h2 className="text-[19px] font-black mb-0.5 leading-tight drop-shadow-md text-transparent bg-clip-text bg-gradient-to-r from-white to-blue-100">
+                        <h2 className="text-[19px] font-black mb-0.5 leading-tight text-white drop-shadow-sm">
                             สั่งสินค้าจากรูปภาพ
                         </h2>
-                        <p className="text-[11px] text-blue-50 font-medium leading-snug opacity-90 group-hover:opacity-100 transition-opacity">
+                        <p className="text-[11px] text-blue-100 font-medium leading-snug">
                             ถ่ายรูปใบสั่งแพทย์ หรือขวดเดิม<br/>ส่งให้แอดมินจัดยาให้ได้เลย!
                         </p>
                     </div>
 
-                    <div className="bg-white w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-lg relative z-10 group-hover:bg-blue-50 transition-colors border border-white/50 text-indigo-600">
-                        <ArrowRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
+                    <div className="bg-white w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-md relative z-10 border border-white/50 text-indigo-600">
+                        <ArrowRight size={18} />
                     </div>
                 </button>
             </div>
 
+            {/* THAIMART BANNER */}
             <div className="px-1">
                 <a 
                     href="https://thaimart.com/sellers/%E0%B8%A8%E0%B8%B9%E0%B8%99%E0%B8%A2%E0%B9%8C%E0%B8%84%E0%B8%A7%E0%B8%B2%E0%B8%A1%E0%B8%87%E0%B8%B2%E0%B8%A1%E0%B9%84%E0%B8%AD%E0%B8%A3%E0%B8%B4%E0%B8%AA%E0%B9%80%E0%B8%81%E0%B8%B2%E0%B8%B0%E0%B8%AA%E0%B8%A1%E0%B8%B8%E0%B8%A2-zM0AEw" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between bg-gradient-to-r from-red-50 to-rose-100/40 border border-red-200/60 rounded-[22px] p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] transition-all duration-300"
+                    className="flex items-center justify-between rounded-[22px] p-4 shadow-sm border border-rose-200 active:scale-[0.99] transition-all duration-300"
+                    style={{ background: 'linear-gradient(to right, #fff5f5, #ffe4e6)' }}
                 >
                     <div className="flex items-center space-x-3">
-                        {/* Custom Thaimart Logo SVG */}
-                        <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-[#E11D48] shadow-sm">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center shadow-sm" style={{ backgroundColor: '#E11D48' }}>
                             <svg viewBox="0 0 64 64" className="w-full h-full p-1">
                                 <path 
                                     d="M46,38 C46,26 38,18 28,18 C18,18 14,24 14,32 C14,37 17,41 20,43 C22,44 24,43 24,41 C24,37 19,35 19,32 C19,27 23,22 28,22 C33,22 37,27 37,32 C37,38 31,43 25,43 C22,43 20,41 19,39 C18,37 16,38 16,40 C16,44 20,47 25,47 C34,47 46,38 46,32" 

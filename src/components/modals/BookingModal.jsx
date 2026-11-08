@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin } from 'lucide-react';
+import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin, Users } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import BookingCountdown from '../BookingCountdown';
 
@@ -164,6 +164,44 @@ export default function BookingModal({
                                 </button>
                             ))}
                         </div>
+                    </div>
+
+                    {/* จำนวนผู้เข้ารับบริการ (1 - 3 ท่าน) */}
+                    <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2 ml-1">
+                            <label className="flex items-center text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                                <Users size={14} className="mr-1 text-teal-500" />
+                                จำนวนผู้เข้ารับบริการ
+                            </label>
+                            <span className="text-[10px] text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                                เลือกได้ 1 - 3 ท่าน
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                            {[1, 2, 3].map((num) => {
+                                const isSelected = Number(bookingForm.guestsCount || 1) === num;
+                                return (
+                                    <button
+                                        key={num}
+                                        type="button"
+                                        onClick={() => setBookingForm({ ...bookingForm, guestsCount: num })}
+                                        className={`py-3 rounded-2xl text-[13px] font-black transition-all border-2 flex items-center justify-center gap-1.5 active:scale-95 ${
+                                            isSelected
+                                                ? 'bg-teal-500 border-teal-600 text-white shadow-md shadow-teal-500/20 scale-[1.02]'
+                                                : 'bg-white border-gray-100 text-gray-600 hover:border-teal-300 hover:text-teal-600'
+                                        }`}
+                                    >
+                                        <Users size={15} />
+                                        <span>{num} ท่าน</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {Number(bookingForm.guestsCount || 1) > 1 && (
+                            <p className="text-[11px] text-teal-700 bg-teal-50/80 p-2.5 rounded-xl border border-teal-200/80 mt-2 font-medium flex items-center gap-1.5">
+                                <span>💡</span> จองพร้อมกัน {bookingForm.guestsCount} ท่าน (ทางคลินิกจะจัดเตรียมเตียงและผู้ให้บริการ {bookingForm.guestsCount} ท่านไว้รองรับ)
+                            </p>
+                        )}
                     </div>
 
                     {/* ข้อมูลลูกค้า (Guest) */}
@@ -360,6 +398,12 @@ export default function BookingModal({
                              <div className="flex justify-between items-center pb-1">
                                  <span className="text-[10px] text-gray-500 font-bold">สาขา</span>
                                  <span className="text-xs font-bold text-gray-800">{generatedTicket.branch}</span>
+                             </div>
+                             <div className="flex justify-between items-center pb-1">
+                                 <span className="text-[10px] text-gray-500 font-bold">จำนวนผู้รับบริการ</span>
+                                 <span className="text-xs font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 flex items-center gap-1">
+                                     <Users size={12} /> {Number(generatedTicket.guestsCount || generatedTicket.pax || 1)} ท่าน
+                                 </span>
                              </div>
                              <div className="flex justify-between items-center">
                                  <span className="text-[10px] text-gray-500 font-bold">วัน-เวลา</span>

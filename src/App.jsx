@@ -147,6 +147,7 @@ export default function CustomerApp() {
     branch: localStorage.getItem('defaultBranch') || 'สาขาเฉวง', 
     date: '', 
     time: '', 
+    guestsCount: 1,
     serviceName: '',
     guestName: '',
     guestPhone: ''
@@ -780,6 +781,7 @@ export default function CustomerApp() {
         const ticketNo = `BK${Date.now().toString().slice(-6)}${Math.floor(Math.random()*10)}`;
         const courseName = bookingCourse ? getFuzzyKey(bookingCourse, "ชื่อคอส") : bookingForm.serviceName;
         
+        const guestsCount = Math.min(3, Math.max(1, Number(bookingForm.guestsCount || 1)));
         const bookingData = {
             ticketNo,
             cleanPhone: customerData ? customerData.cleanPhone : bookingForm.guestPhone,
@@ -788,6 +790,8 @@ export default function CustomerApp() {
             branch: bookingForm.branch,
             date: bookingForm.date,
             time: bookingForm.time,
+            guestsCount,
+            pax: guestsCount,
             serviceName: courseName,
             courseName: courseName,
             courseId: bookingCourse ? bookingCourse.id : null,
@@ -817,12 +821,15 @@ export default function CustomerApp() {
       setIsSubmittingBooking(true);
       try {
           const bookingRef = doc(getAppCollection('bookings'), generatedTicket.id);
+          const gCount = Math.min(3, Math.max(1, Number(bookingForm.guestsCount || generatedTicket.guestsCount || 1)));
           await updateDoc(bookingRef, {
               date: bookingForm.date,
               time: bookingForm.time,
+              guestsCount: gCount,
+              pax: gCount,
               status: 'ยืนยันแล้ว'
           });
-          setGeneratedTicket({...generatedTicket, date: bookingForm.date, time: bookingForm.time, status: 'ยืนยันแล้ว'});
+          setGeneratedTicket({...generatedTicket, date: bookingForm.date, time: bookingForm.time, guestsCount: gCount, pax: gCount, status: 'ยืนยันแล้ว'});
           setBookingStep(2);
           showToast('เลื่อนคิวสำเร็จแล้ว!');
       } catch (err) {
@@ -852,14 +859,14 @@ export default function CustomerApp() {
   };
 
   const openReschedule = () => {
-      setBookingForm({ ...bookingForm, date: generatedTicket.date, time: generatedTicket.time });
+      setBookingForm({ ...bookingForm, date: generatedTicket.date, time: generatedTicket.time, guestsCount: generatedTicket.guestsCount || 1 });
       setBookingStep(3);
   };
 
   const openBookingModal = (course = null) => {
       setBookingCourse(course);
       const todayString = getLocalDateString(Date.now());
-      setBookingForm({ ...bookingForm, serviceName: course ? getFuzzyKey(course, "ชื่อคอส") : '', date: todayString, time: '' });
+      setBookingForm({ ...bookingForm, serviceName: course ? getFuzzyKey(course, "ชื่อคอส") : '', date: todayString, time: '', guestsCount: 1 });
       setBookingStep(1);
       setBookingError('');
       setIsBookingModalOpen(true);

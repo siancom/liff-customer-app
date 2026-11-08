@@ -34,6 +34,7 @@ import WalletTopUpModal from './components/modals/WalletTopUpModal';
 import HelpCenterModal from './components/modals/HelpCenterModal';
 import VipRegistrationModal from './components/modals/VipRegistrationModal';
 import { DEFAULT_BOOKING_CONFIG, calculateBookingDuration } from './utils/bookingConfig';
+import { sendBookingLineNotification } from './utils/lineUtils';
 
 // --- UTILS ---
 import { buildCustomerData } from './utils/customerUtils';
@@ -801,10 +802,17 @@ export default function CustomerApp() {
         
         const guestsCount = Math.min(3, Math.max(1, Number(bookingForm.guestsCount || 1)));
         const calculatedDuration = calculateBookingDuration(courseName, guestsCount, bookingConfig);
+        const rawPhone = customerData ? customerData.cleanPhone : bookingForm.guestPhone;
+        const cleanPhone = String(rawPhone || '').replace(/\D/g, '');
+        const userLineUid = lineProfile?.userId || customerData?.lineUid || null;
+
         const bookingData = {
             ticketNo,
-            cleanPhone: customerData ? customerData.cleanPhone : bookingForm.guestPhone,
+            cleanPhone,
+            customerPhone: cleanPhone,
+            phone: cleanPhone,
             customerName: customerData ? getFuzzyKey(customerData, "ชื่อ") : bookingForm.guestName,
+            lineUid: userLineUid,
             isGuest: !customerData,
             branch: bookingForm.branch,
             date: bookingForm.date,
@@ -820,10 +828,17 @@ export default function CustomerApp() {
             createdAt: new Date().toISOString()
         };
         
-        await addDoc(getAppCollection('bookings'), bookingData);
-        setGeneratedTicket(bookingData);
+        const docRef = await addDoc(getAppCollection('bookings'), bookingData);
+        const savedTicket = { id: docRef.id, ...bookingData };
+        setGeneratedTicket(savedTicket);
         setBookingStep(2);
         showToast('จองคิวสำเร็จ ได้รับการยืนยันทันที!');
+
+        // 🔔 ส่งข้อความเตือน E-Ticket เข้า LINE ผู้จองทันที
+        if (userLineUid) {
+            sendBookingLineNotification(savedTicket, 'ยืนยันแล้ว', userLineUid)
+                .catch(err => console.warn('Failed to send LINE booking confirmation:', err));
+        }
     } catch (err) {
         setBookingError('เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
@@ -849,9 +864,17 @@ export default function CustomerApp() {
               pax: gCount,
               status: 'ยืนยันแล้ว'
           });
-          setGeneratedTicket({...generatedTicket, date: bookingForm.date, time: bookingForm.time, guestsCount: gCount, pax: gCount, status: 'ยืนยันแล้ว'});
+          const updatedTicket = { ...generatedTicket, date: bookingForm.date, time: bookingForm.time, guestsCount: gCount, pax: gCount, status: 'ยืนยันแล้ว' };
+          setGeneratedTicket(updatedTicket);
           setBookingStep(2);
           showToast('เลื่อนคิวสำเร็จแล้ว!');
+
+          // 🔔 ส่งแจ้งเตือนการเลื่อนวันเวลานัดเข้า LINE
+          const userLineUid = lineProfile?.userId || customerData?.lineUid || generatedTicket?.lineUid;
+          if (userLineUid) {
+              sendBookingLineNotification(updatedTicket, 'ยืนยันแล้ว', userLineUid)
+                  .catch(err => console.warn('Failed to send LINE reschedule notice:', err));
+          }
       } catch (err) {
           setBookingError('เกิดข้อผิดพลาด กรุณาลองใหม่');
       } finally {
@@ -868,9 +891,17 @@ export default function CustomerApp() {
               cancelReason: 'ลูกค้ายกเลิกผ่านแอป',
               canceledAt: new Date().toISOString()
           });
-          setGeneratedTicket({...generatedTicket, status: 'ยกเลิกโดยลูกค้า'});
+          const updatedTicket = { ...generatedTicket, status: 'ยกเลิกโดยลูกค้า', cancelReason: 'ลูกค้ายกเลิกผ่านแอป' };
+          setGeneratedTicket(updatedTicket);
           setShowCancelConfirm(false);
           showToast('ยกเลิกคิวแล้ว');
+
+          // 🔔 ส่งแจ้งเตือนการยกเลิกเข้า LINE
+          const userLineUid = lineProfile?.userId || customerData?.lineUid || generatedTicket?.lineUid;
+          if (userLineUid) {
+              sendBookingLineNotification(updatedTicket, 'ยกเลิกโดยลูกค้า', userLineUid, 'ลูกค้ายกเลิกผ่านแอป')
+                  .catch(err => console.warn('Failed to send LINE cancel notice:', err));
+          }
       } catch (err) {
           showToast('เกิดข้อผิดพลาดในการยกเลิก', 'error');
       } finally {

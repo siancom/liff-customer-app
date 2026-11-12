@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
   QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
   AlertCircle, Info, Ticket, Phone, Loader2, ArrowRight, Tag, 
@@ -2201,16 +2202,33 @@ export default function CustomerApp() {
             <div className="bg-white w-full max-w-sm rounded-[32px] p-8 flex flex-col items-center shadow-2xl animate-in zoom-in-95 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-teal-400 to-emerald-500"></div>
               <h2 className="text-lg font-black text-gray-900 mb-1 text-center leading-tight mt-2">{getFuzzyKey(showQR, "ชื่อคอส")}</h2>
-              <p className="text-[11px] text-gray-500 mb-6 font-mono tracking-widest bg-gray-100 px-3 py-1 rounded-lg">Ref: {getFuzzyKey(showQR, "เลขที่ใบคอส")}</p>
+              <p className="text-[11px] text-gray-500 mb-6 font-mono tracking-widest bg-gray-100 px-3 py-1 rounded-lg">
+                Ref: {getFuzzyKey(showQR, ["เลขที่ใบคอส", "col_2"]) || showQR.courseRefKey || showQR.id || '-'}
+              </p>
               
               <div className="bg-white p-5 rounded-3xl border-2 border-gray-100 shadow-sm mb-6 flex items-center justify-center relative">
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-teal-500 rounded-tl-xl"></div>
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-teal-500 rounded-tr-xl"></div>
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-teal-500 rounded-bl-xl"></div>
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-teal-500 rounded-br-xl"></div>
-                {getFuzzyKey(showQR, "คิวอาร์โค้ด") && getFuzzyKey(showQR, "คิวอาร์โค้ด").includes("barcode.tec-it.com") ? (
-                  <img src={getFuzzyKey(showQR, "คิวอาร์โค้ด")} alt="QR Code" className="w-40 h-40 object-contain" />
-                ) : (<QrCode size={160} className="text-gray-900" />)}
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-teal-500 rounded-tl-xl z-20"></div>
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-teal-500 rounded-tr-xl z-20"></div>
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-teal-500 rounded-bl-xl z-20"></div>
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-teal-500 rounded-br-xl z-20"></div>
+                {(() => {
+                  const courseRef = String(
+                    getFuzzyKey(showQR, ["เลขที่ใบคอส", "col_2"]) || 
+                    showQR.courseRefKey || 
+                    showQR.id || 
+                    getFuzzyKey(showQR, ["รหัสคอส", "col_1"]) || 
+                    ''
+                  ).trim();
+                  return (
+                    <QRCodeSVG 
+                      value={courseRef} 
+                      size={170} 
+                      level="M" 
+                      includeMargin={false}
+                      className="relative z-10"
+                    />
+                  );
+                })()}
               </div>
               
               <div className="w-full bg-teal-50 rounded-2xl p-4 mb-6 flex justify-between items-center border border-teal-100/50">

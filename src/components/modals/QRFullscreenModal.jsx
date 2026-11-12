@@ -16,10 +16,21 @@ const QRFullscreenModal = ({ showQRFullscreen, setShowQRFullscreen, showQR }) =>
                 <div className="bg-white p-6 rounded-[32px] shadow-2xl border border-gray-100 mb-8 relative">
                     <div className="w-64 h-64 border-4 border-[#12B981] rounded-[24px] flex items-center justify-center p-4 relative overflow-hidden bg-white">
                         <div className="w-full h-full bg-[repeating-linear-gradient(45deg,#12b981,#12b981_10px,transparent_10px,transparent_20px)] opacity-5 absolute rounded-xl inset-0"></div>
-                        <QRCodeSVG value={getFuzzyKey(showQR, "เลขที่ใบคอส") || getFuzzyKey(showQR, "รหัสคอส") || ''} size={180} className="relative z-10" />
+                        <QRCodeSVG 
+                            value={String(
+                                getFuzzyKey(showQR, ["เลขที่ใบคอส", "col_2"]) || 
+                                showQR.courseRefKey || 
+                                showQR.id || 
+                                getFuzzyKey(showQR, ["รหัสคอส", "col_1"]) || 
+                                ''
+                            ).trim()} 
+                            size={180} 
+                            level="M"
+                            className="relative z-10" 
+                        />
                     </div>
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-5 py-1.5 rounded-full border border-gray-200 font-mono text-sm font-bold text-gray-600 shadow-sm whitespace-nowrap">
-                        Ref: {getFuzzyKey(showQR, "เลขที่ใบคอส") || '-'}
+                        Ref: {getFuzzyKey(showQR, ["เลขที่ใบคอส", "col_2"]) || showQR.courseRefKey || showQR.id || '-'}
                     </div>
                 </div>
                 <h3 className="text-xl font-black text-gray-900 mb-3">{getFuzzyKey(showQR, "ชื่อคอส")}</h3>

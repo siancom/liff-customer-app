@@ -55,8 +55,8 @@ const Booking = ({
                     <div className="flex items-center">
                     <div className="bg-white/20 p-2.5 rounded-xl mr-3"><CalendarPlus size={24} /></div>
                     <div className="text-left">
-                        <p className="font-black text-base leading-tight">จองคิวบริการ</p>
-                        <p className="text-[10px] font-medium opacity-90 tracking-wide mt-0.5">ทำหน้า, กดสิว, ซื้อคอร์สใหม่, บริการอื่นๆ</p>
+                        <p className="font-black text-base leading-tight">จองคิวบริการ / ตรวจดูคิวว่าง</p>
+                        <p className="text-[10px] font-medium opacity-90 tracking-wide mt-0.5">เช็คตารางเวลาว่างแบบเรียลไทม์ และจองนัดหมายทันที</p>
                     </div>
                     </div>
                     <ChevronRight size={24} className="opacity-70" />

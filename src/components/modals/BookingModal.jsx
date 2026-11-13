@@ -136,7 +136,7 @@ export default function BookingModal({
 
               <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center">
                  <CalendarPlus size={24} className="mr-2 text-teal-600"/>
-                 {bookingStep === 1 ? 'จองคิวเข้ารับบริการ' : bookingStep === 2 ? 'E-Ticket นัดหมาย' : 'เลื่อนคิวนัดหมาย'}
+                 {bookingStep === 1 ? 'จองคิว / ตรวจสอบคิวว่าง' : bookingStep === 2 ? 'E-Ticket นัดหมาย' : 'เลื่อนคิวนัดหมาย'}
               </h2>
 
               {/* STEP 1 & 3: FORM */}
@@ -354,7 +354,17 @@ export default function BookingModal({
 
                     {/* เวลา */}
                     <div>
-                       <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">เวลา (เลือกเวลาที่ว่าง)</label>
+                       <div className="flex items-center justify-between mb-2 ml-1">
+                          <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">เวลา (เลือกรอบเวลาที่ว่าง)</label>
+                          <div className="flex items-center gap-2.5 text-[10px]">
+                             <span className="flex items-center gap-1 font-semibold text-teal-600">
+                                <span className="w-2 h-2 rounded-full bg-teal-500 inline-block"></span> ว่าง
+                             </span>
+                             <span className="flex items-center gap-1 font-semibold text-gray-400">
+                                <span className="w-2 h-2 rounded-full bg-gray-300 inline-block"></span> เต็ม/ไม่ว่าง
+                             </span>
+                          </div>
+                       </div>
                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1">
                           {timeSlots.map(time => {
                               const slotStart = timeToMins(time);
@@ -375,15 +385,24 @@ export default function BookingModal({
                                       type="button"
                                       disabled={disabled}
                                       onClick={() => setBookingForm({...bookingForm, time})}
-                                      className={`py-2.5 rounded-xl text-xs font-mono font-black border-2 transition-all ${
+                                      className={`py-2 px-1 rounded-xl border-2 transition-all flex flex-col items-center justify-center ${
                                           bookingForm.time === time
                                               ? 'bg-teal-500 border-teal-600 text-white shadow-md'
                                               : disabled
                                                   ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-not-allowed opacity-60'
-                                                  : 'bg-white border-gray-100 text-gray-700 hover:border-teal-300 hover:text-teal-600'
+                                                  : 'bg-white border-teal-100 text-gray-800 hover:border-teal-400 hover:shadow-sm'
                                       }`}
                                   >
-                                      {time}
+                                      <span className="text-xs font-mono font-black">{time}</span>
+                                      <span className={`text-[8.5px] font-bold mt-0.5 ${
+                                          bookingForm.time === time
+                                              ? 'text-teal-100'
+                                              : disabled
+                                                  ? 'text-gray-400'
+                                                  : 'text-teal-600'
+                                      }`}>
+                                          {disabled ? (isPast ? 'เลยเวลา' : 'เต็ม') : 'ว่าง'}
+                                      </span>
                                   </button>
                               );
                           })}

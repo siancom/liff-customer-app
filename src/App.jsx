@@ -62,6 +62,51 @@ function getFuzzyKey(obj, targetKeys) {
   return undefined;
 }
 
+// 🌟 LIFF Deep Link Parser: ตรวจจับพารามิเตอร์การเปิดจาก LINE Rich Menu / Deep Link
+export function getLiffDeepLinkParams() {
+  if (typeof window === 'undefined') return { isBooking: false };
+  
+  const search = window.location.search || '';
+  const hash = window.location.hash || '';
+  const urlParams = new URLSearchParams(search);
+  
+  let liffStateParams = null;
+  const liffState = urlParams.get('liff.state');
+  if (liffState) {
+    try {
+      const decodedState = decodeURIComponent(liffState);
+      const queryIdx = decodedState.indexOf('?');
+      if (queryIdx !== -1) {
+        liffStateParams = new URLSearchParams(decodedState.substring(queryIdx));
+      } else if (decodedState.includes('=')) {
+        liffStateParams = new URLSearchParams(decodedState);
+      } else if (decodedState.toLowerCase().includes('booking')) {
+        return { isBooking: true, branch: '', date: '' };
+      }
+    } catch (e) {
+      console.warn('Error parsing liff.state', e);
+    }
+  }
+
+  const getParam = (key) => urlParams.get(key) || (liffStateParams ? liffStateParams.get(key) : null);
+
+  const page = (getParam('page') || '').toLowerCase();
+  const tab = (getParam('tab') || '').toLowerCase();
+  const action = (getParam('action') || '').toLowerCase();
+  const openBooking = getParam('openBooking') === 'true' || getParam('booking') === 'true';
+  const branch = getParam('branch') || '';
+  const date = getParam('date') || '';
+
+  const isBooking = 
+    page === 'booking' || 
+    tab === 'booking' || 
+    action === 'booking' || 
+    openBooking || 
+    hash.toLowerCase().includes('booking');
+
+  return { isBooking, branch, date, page, tab };
+}
+
 export default function CustomerApp() {
   const [appState, setAppState] = useState('loading'); // loading, login, dashboard
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -79,7 +124,7 @@ export default function CustomerApp() {
   const [dbCustomersRaw, setDbCustomersRaw] = useState([]);
   const [dbHistories, setDbHistories] = useState([]);
 
-  const [activeNav, setActiveNav] = useState('home'); 
+  const [activeNav, setActiveNav] = useState(() => getLiffDeepLinkParams().isBooking ? 'booking' : 'home'); 
   const [dashboardTab, setDashboardTab] = useState('courses');
   const [showQR, setShowQR] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -144,22 +189,40 @@ export default function CustomerApp() {
   // 🌟 BOOKING STATE 🌟
   const [dbBookings, setDbBookings] = useState([]);
   const [allFutureBookings, setAllFutureBookings] = useState([]);
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(() => getLiffDeepLinkParams().isBooking);
   const [bookingStep, setBookingStep] = useState(1);
   const [bookingCourse, setBookingCourse] = useState(null);
-  const [bookingForm, setBookingForm] = useState({ 
-    branch: localStorage.getItem('defaultBranch') || 'สาขาเฉวง', 
-    date: '', 
-    time: '', 
-    guestsCount: 1,
-    serviceName: '',
-    guestName: '',
-    guestPhone: ''
+  const [bookingForm, setBookingForm] = useState(() => {
+    const deepLink = getLiffDeepLinkParams();
+    return {
+      branch: deepLink.branch || localStorage.getItem('defaultBranch') || 'สาขาเฉวง', 
+      date: deepLink.date || '', 
+      time: '', 
+      guestsCount: 1,
+      serviceName: '',
+      guestName: '',
+      guestPhone: ''
+    };
   });
   const [bookingError, setBookingError] = useState('');
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [generatedTicket, setGeneratedTicket] = useState(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  // 🌟 Auto-handle Deep Link on Mount
+  useEffect(() => {
+    const deepLink = getLiffDeepLinkParams();
+    if (deepLink.isBooking) {
+      setActiveNav('booking');
+      setIsBookingModalOpen(true);
+      if (deepLink.branch) {
+        setBookingForm(prev => ({ ...prev, branch: deepLink.branch }));
+      }
+      if (deepLink.date) {
+        setBookingForm(prev => ({ ...prev, date: deepLink.date }));
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (dbBranches.length > 0) {
@@ -648,7 +711,13 @@ export default function CustomerApp() {
                          lineProfilePic: lineProfile?.pictureUrl
                      });
                      setAppState('dashboard');
-                     setActiveNav('home');
+                     const deepLink = getLiffDeepLinkParams();
+                     if (deepLink.isBooking) {
+                         setActiveNav('booking');
+                         setIsBookingModalOpen(true);
+                     } else {
+                         setActiveNav('home');
+                     }
                  } else {
                      if (appState === 'auto_login') setAppState('login');
                  }
@@ -726,7 +795,13 @@ export default function CustomerApp() {
       }
       
       setAppState('dashboard');
-      setActiveNav('home');
+      const deepLink = getLiffDeepLinkParams();
+      if (deepLink.isBooking) {
+          setActiveNav('booking');
+          setIsBookingModalOpen(true);
+      } else {
+          setActiveNav('home');
+      }
     } catch (error) {
       console.error("OTP Error:", error);
       setErrorMsg('รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่');

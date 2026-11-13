@@ -931,7 +931,8 @@ export default function CustomerApp() {
         return false;
     });
 
-    if (duplicateBooking) {
+    const allowMultiple = bookingConfig?.allowCustomerMultipleBookings !== false;
+    if (duplicateBooking && !allowMultiple) {
         setBookingError(`พบการจองซ้ำซ้อน: คุณมีนัดหมายวันที่ ${duplicateBooking.date} เวลา ${duplicateBooking.time} น. อยู่แล้ว (${duplicateBooking.serviceName || duplicateBooking.courseName} - รหัสคิว: ${duplicateBooking.ticketNo}) กรุณาเลือกวันหรือเวลาอื่น`);
         return;
     }
@@ -950,6 +951,8 @@ export default function CustomerApp() {
             customerName: customerData ? getFuzzyKey(customerData, "ชื่อ") : bookingForm.guestName,
             lineUid: userLineUid,
             isGuest: !customerData,
+            isAdditionalBooking: Boolean(duplicateBooking),
+            relatedTicketNo: duplicateBooking ? duplicateBooking.ticketNo : null,
             branch: bookingForm.branch,
             date: bookingForm.date,
             time: bookingForm.time,
@@ -968,7 +971,7 @@ export default function CustomerApp() {
         const savedTicket = { id: docRef.id, ...bookingData };
         setGeneratedTicket(savedTicket);
         setBookingStep(2);
-        showToast('จองคิวสำเร็จ ได้รับการยืนยันทันที!');
+        showToast(duplicateBooking ? 'จองคิวเพิ่มสำเร็จ ได้รับการยืนยันทันที!' : 'จองคิวสำเร็จ ได้รับการยืนยันทันที!');
 
         // 🔔 ส่งข้อความเตือน E-Ticket เข้า LINE ผู้จองทันที
         if (userLineUid) {

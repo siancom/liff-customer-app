@@ -403,18 +403,33 @@ export default function BookingModal({
                              <span className="flex items-center gap-1 font-semibold text-teal-600">
                                 <span className="w-2 h-2 rounded-full bg-teal-500 inline-block"></span> ว่าง
                              </span>
+                             <span className="flex items-center gap-1 font-semibold text-emerald-600">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> เปิดรับเพิ่ม
+                             </span>
+                             <span className="flex items-center gap-1 font-semibold text-blue-600">
+                                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span> จองเพิ่มได้
+                             </span>
                              <span className="flex items-center gap-1 font-semibold text-gray-400">
                                 <span className="w-2 h-2 rounded-full bg-gray-300 inline-block"></span> เต็ม
-                             </span>
-                             <span className="flex items-center gap-1 font-semibold text-amber-600">
-                                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> คุณจองแล้ว
                              </span>
                           </div>
                        </div>
                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1">
                           {timeSlots.map(time => {
                               const slotStart = timeToMins(time);
-                              const isBooked = bookedTimeRanges.some(b => Math.max(slotStart, b.start) < Math.min(slotStart + totalDuration, b.end));
+                              
+                              // คำนวณความจุสล็อต (Capacity): ค่าตั้งต้น + โควต้าพิเศษที่พนักงานกดเปิดรับเพิ่ม
+                              const baseCapacity = Number(bookingConfig?.maxConcurrentBookings || 2);
+                              const currentBranch = bookingForm.branch || 'สาขาเฉวง';
+                              const cleanBranch = currentBranch.replace(/^สาขา/, '').trim();
+                              const overrideKey1 = `${bookingForm.date}_${currentBranch}_${time}`;
+                              const overrideKey2 = `${bookingForm.date}_${cleanBranch}_${time}`;
+                              const extraCapacity = Number(bookingConfig?.extraSlotOverrides?.[overrideKey1] || bookingConfig?.extraSlotOverrides?.[overrideKey2] || 0);
+                              const totalCapacity = baseCapacity + extraCapacity;
+
+                              // นับจำนวนคิวที่จองซ้อนในช่วงเวลานี้
+                              const overlappingBookings = bookedTimeRanges.filter(b => Math.max(slotStart, b.start) < Math.min(slotStart + totalDuration, b.end));
+                              const isSlotFull = overlappingBookings.length >= totalCapacity;
 
                               let isPast = false;
                               if (bookingForm.date === getLocalDateString(new Date())) {
@@ -423,8 +438,9 @@ export default function BookingModal({
                                   isPast = slotStart < currentMins + 30;
                               }
 
+                              // ตรวจสอบว่าลูกค้ารายนี้มีคิวเดิมในรอบนี้อยู่แล้วหรือไม่
                               const currentCustomerPhone = String((customerData ? customerData.cleanPhone : bookingForm.guestPhone) || '').replace(/\D/g, '');
-                              const isMyExistingBooking = currentCustomerPhone.length >= 9 && (allFutureBookings || []).some(b => {
+                              const myBookingInThisSlot = currentCustomerPhone.length >= 9 && (allFutureBookings || []).find(b => {
                                   const bp = String(b.cleanPhone || b.customerPhone || b.phone || '').replace(/\D/g, '');
                                   const isSame = bp && (bp === currentCustomerPhone || (currentCustomerPhone.length >= 9 && bp.endsWith(currentCustomerPhone.slice(-9))));
                                   const isNotCancelled = !['ยกเลิก', 'ยกเลิกโดยลูกค้า', 'ยกเลิกฉุกเฉิน', 'ไม่มาตามนัด'].includes(b.status);
@@ -434,7 +450,9 @@ export default function BookingModal({
                                   return Math.max(slotStart, bStart) < Math.min(slotStart + totalDuration, bEnd);
                               });
 
-                              const disabled = isBooked || isPast || isMyExistingBooking;
+                              // หากลูกค้ามีคิวอยู่แล้ว แต่คลินิกอนุญาตให้จองคิวเพิ่มได้ (ความยืดหยุ่น) หรือมีโควต้าว่าง ให้สามารถกดจองได้
+                              const allowMultiple = bookingConfig?.allowCustomerMultipleBookings !== false;
+                              const disabled = isPast || (isSlotFull && !extraCapacity);
 
                               return (
                                   <button
@@ -444,30 +462,67 @@ export default function BookingModal({
                                       onClick={() => setBookingForm({...bookingForm, time})}
                                       className={`py-2 px-1 rounded-xl border-2 transition-all flex flex-col items-center justify-center ${
                                           bookingForm.time === time
-                                              ? 'bg-teal-500 border-teal-600 text-white shadow-md'
-                                              : isMyExistingBooking
-                                                  ? 'bg-amber-50 border-amber-300 text-amber-800 cursor-not-allowed opacity-90'
-                                                  : disabled
-                                                      ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-not-allowed opacity-60'
-                                                      : 'bg-white border-teal-100 text-gray-800 hover:border-teal-400 hover:shadow-sm'
+                                              ? 'bg-teal-500 border-teal-600 text-white shadow-md scale-[1.02]'
+                                              : myBookingInThisSlot
+                                                  ? 'bg-blue-50/80 border-blue-300 text-blue-900 hover:border-blue-500'
+                                                  : extraCapacity > 0
+                                                      ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 hover:border-emerald-500'
+                                                      : disabled
+                                                          ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-not-allowed opacity-60'
+                                                          : 'bg-white border-teal-100 text-gray-800 hover:border-teal-400 hover:shadow-sm'
                                       }`}
                                   >
                                       <span className="text-xs font-mono font-black">{time}</span>
-                                      <span className={`text-[8.5px] font-bold mt-0.5 ${
+                                      <span className={`text-[8px] font-bold mt-0.5 tracking-tight ${
                                           bookingForm.time === time
                                               ? 'text-teal-100'
-                                              : isMyExistingBooking
-                                                  ? 'text-amber-700'
-                                                  : disabled
-                                                      ? 'text-gray-400'
-                                                      : 'text-teal-600'
+                                              : myBookingInThisSlot
+                                                  ? 'text-blue-600 font-black'
+                                                  : extraCapacity > 0
+                                                      ? 'text-emerald-700 font-black'
+                                                      : disabled
+                                                          ? 'text-gray-400'
+                                                          : 'text-teal-600'
                                       }`}>
-                                          {isMyExistingBooking ? 'คุณจองแล้ว' : disabled ? (isPast ? 'เลยเวลา' : 'เต็ม') : 'ว่าง'}
+                                          {myBookingInThisSlot ? 'จองเพิ่มได้' : disabled ? (isPast ? 'เลยเวลา' : 'เต็ม') : extraCapacity > 0 ? 'เปิดรับเพิ่ม' : 'ว่าง'}
                                       </span>
                                   </button>
                               );
                           })}
                        </div>
+
+                       {/* แสดงข้อความแจ้งเตือนเมื่อเลือกรอบเวลาที่ตนเองเคยจองไว้แล้ว เพื่อยืนยันการจองเพิ่มอย่างยืดหยุ่น */}
+                       {(() => {
+                          if (!bookingForm.time) return null;
+                          const currentCustomerPhone = String((customerData ? customerData.cleanPhone : bookingForm.guestPhone) || '').replace(/\D/g, '');
+                          const slotStart = timeToMins(bookingForm.time);
+                          const myBooking = currentCustomerPhone.length >= 9 && (allFutureBookings || []).find(b => {
+                              const bp = String(b.cleanPhone || b.customerPhone || b.phone || '').replace(/\D/g, '');
+                              const isSame = bp && (bp === currentCustomerPhone || (currentCustomerPhone.length >= 9 && bp.endsWith(currentCustomerPhone.slice(-9))));
+                              const isNotCancelled = !['ยกเลิก', 'ยกเลิกโดยลูกค้า', 'ยกเลิกฉุกเฉิน', 'ไม่มาตามนัด'].includes(b.status);
+                              if (!isSame || !isNotCancelled || b.date !== bookingForm.date) return false;
+                              const bStart = timeToMins(b.time);
+                              const bEnd = bStart + Number(b.duration || 60);
+                              return Math.max(slotStart, bStart) < Math.min(slotStart + totalDuration, bEnd);
+                          });
+
+                          if (!myBooking) return null;
+
+                          return (
+                              <div className="mt-2.5 p-3 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between text-xs text-blue-900 animate-in fade-in">
+                                  <div className="flex items-center gap-2">
+                                      <span className="text-base">💡</span>
+                                      <div>
+                                          <p className="font-bold">คุณมีนัดหมายรอบเวลานี้อยู่แล้ว ({myBooking.serviceName || myBooking.courseName || 'บริการ'})</p>
+                                          <p className="text-[11px] text-blue-700">สามารถกดจองคิวเพิ่มอีก 1 คิวได้ทันที เพื่อความสะดวกและยืดหยุ่น</p>
+                                      </div>
+                                  </div>
+                                  <span className="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-black shrink-0">
+                                      จองคิวเพิ่ม
+                                  </span>
+                              </div>
+                          );
+                       })()}
                     </div>
 
                     <div className="pt-2">

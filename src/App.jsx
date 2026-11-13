@@ -728,15 +728,21 @@ export default function CustomerApp() {
 
 
   // 3. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ และส่ง OTP
-  const handleLogin = async (e) => {
-    if (e) e.preventDefault();
+  const handleLogin = async (e, overridePhone = null) => {
+    if (e && e.preventDefault) e.preventDefault();
     setAppState('loading');
     setErrorMsg('');
 
-    const cleanPhone = phoneNumber.trim();
-    const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
+    const targetPhone = String(overridePhone || phoneNumber || '').trim();
+    const cleanDigits = targetPhone.replace(/\D/g, '');
+    const rawCustomer = dbCustomersRaw.find(c => {
+      const p = String(getFuzzyKey(c, "เบอร์โทร") || '').replace(/\D/g, '');
+      return p && (p === cleanDigits || (cleanDigits.length >= 9 && p.endsWith(cleanDigits.slice(-9))));
+    });
     
     if (rawCustomer) {
+      const customerPhone = getFuzzyKey(rawCustomer, "เบอร์โทร") || targetPhone;
+      setPhoneNumber(customerPhone);
       try {
         if (!window.recaptchaVerifier) {
           window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
@@ -744,7 +750,7 @@ export default function CustomerApp() {
           });
         }
         
-        let formattedPhone = cleanPhone;
+        let formattedPhone = customerPhone.replace(/\D/g, '');
         if (formattedPhone.startsWith('0')) {
            formattedPhone = '+66' + formattedPhone.substring(1);
         } else if (!formattedPhone.startsWith('+')) {
@@ -766,6 +772,11 @@ export default function CustomerApp() {
       }
       setAppState('login');
     }
+  };
+
+  const handleRequireMemberOtp = (phone) => {
+    setIsBookingModalOpen(false);
+    handleLogin(null, phone);
   };
 
   const verifyOtp = async (e) => {
@@ -796,7 +807,7 @@ export default function CustomerApp() {
       
       setAppState('dashboard');
       const deepLink = getLiffDeepLinkParams();
-      if (deepLink.isBooking) {
+      if (deepLink.isBooking || bookingForm.date || bookingForm.time || bookingForm.serviceName || bookingForm.guestPhone) {
           setActiveNav('booking');
           setIsBookingModalOpen(true);
       } else {
@@ -870,16 +881,65 @@ export default function CustomerApp() {
         setBookingError('กรุณาเลือกวันที่ เวลา และบริการ');
         return;
     }
+
+    const rawPhone = customerData ? customerData.cleanPhone : bookingForm.guestPhone;
+    const cleanPhone = String(rawPhone || '').replace(/\D/g, '');
+
+    if (!cleanPhone || cleanPhone.length < 9) {
+        setBookingError('กรุณาระบุเบอร์โทรศัพท์ติดต่อที่ถูกต้อง (อย่างน้อย 9-10 หลัก)');
+        return;
+    }
+
+    // 🔒 1. บังคับยืนยันตัวตนสมาชิก หากเบอร์มีอยู่ในระบบแล้ว (ป้องกันการจองซ้ำซ้อน / สวมสิทธิ์)
+    if (!customerData) {
+        const matchedMember = dbCustomersRaw.find(c => {
+            const p = String(getFuzzyKey(c, "เบอร์โทร") || '').replace(/\D/g, '');
+            return p && (p === cleanPhone || (cleanPhone.length >= 9 && p.endsWith(cleanPhone.slice(-9))));
+        });
+
+        if (matchedMember) {
+            setBookingError(`เบอร์โทรศัพท์ ${cleanPhone} ลงทะเบียนเป็นสมาชิกในระบบแล้ว (${getFuzzyKey(matchedMember, "ชื่อ") || 'สมาชิก'}) กรุณายืนยันตัวตนผ่าน OTP เพื่อเข้าสู่ระบบและใช้สิทธิ์คอร์สของคุณ ป้องกันการจองซ้ำซ้อน`);
+            return;
+        }
+
+        if (!bookingForm.guestName || !bookingForm.guestName.trim()) {
+            setBookingError('กรุณาระบุชื่อผู้จอง');
+            return;
+        }
+    }
+
+    const courseName = bookingCourse ? getFuzzyKey(bookingCourse, "ชื่อคอส") : bookingForm.serviceName;
+    const guestsCount = Math.min(3, Math.max(1, Number(bookingForm.guestsCount || 1)));
+    const calculatedDuration = calculateBookingDuration(courseName, guestsCount, bookingConfig);
+
+    // 🔒 2. ตรวจสอบการจองซ้ำซ้อน (Duplicate Booking Check)
+    const duplicateBooking = allFutureBookings.find(b => {
+        const bPhone = String(b.cleanPhone || b.customerPhone || b.phone || '').replace(/\D/g, '');
+        const isSamePhone = bPhone && (bPhone === cleanPhone || (cleanPhone.length >= 9 && bPhone.endsWith(cleanPhone.slice(-9))));
+        const isNotCancelled = !['ยกเลิก', 'ยกเลิกโดยลูกค้า', 'ยกเลิกฉุกเฉิน', 'ไม่มาตามนัด'].includes(b.status);
+        if (!isSamePhone || !isNotCancelled) return false;
+
+        if (b.date === bookingForm.date) {
+            const slotStart = timeToMins(bookingForm.time);
+            const slotEnd = slotStart + calculatedDuration;
+            const bStart = timeToMins(b.time);
+            const bDur = Number(b.duration || 60);
+            const bEnd = bStart + bDur;
+
+            return Math.max(slotStart, bStart) < Math.min(slotEnd, bEnd);
+        }
+        return false;
+    });
+
+    if (duplicateBooking) {
+        setBookingError(`พบการจองซ้ำซ้อน: คุณมีนัดหมายวันที่ ${duplicateBooking.date} เวลา ${duplicateBooking.time} น. อยู่แล้ว (${duplicateBooking.serviceName || duplicateBooking.courseName} - รหัสคิว: ${duplicateBooking.ticketNo}) กรุณาเลือกวันหรือเวลาอื่น`);
+        return;
+    }
+
     setBookingError('');
     setIsSubmittingBooking(true);
     try {
         const ticketNo = `BK${Date.now().toString().slice(-6)}${Math.floor(Math.random()*10)}`;
-        const courseName = bookingCourse ? getFuzzyKey(bookingCourse, "ชื่อคอส") : bookingForm.serviceName;
-        
-        const guestsCount = Math.min(3, Math.max(1, Number(bookingForm.guestsCount || 1)));
-        const calculatedDuration = calculateBookingDuration(courseName, guestsCount, bookingConfig);
-        const rawPhone = customerData ? customerData.cleanPhone : bookingForm.guestPhone;
-        const cleanPhone = String(rawPhone || '').replace(/\D/g, '');
         const userLineUid = lineProfile?.userId || customerData?.lineUid || null;
 
         const bookingData = {
@@ -1004,6 +1064,7 @@ export default function CustomerApp() {
   if (appState === 'loading' || appState === 'auto_login') {
     return (
       <div className="bg-gradient-to-br from-teal-600 via-emerald-600 to-teal-800 min-h-screen flex flex-col items-center justify-center font-sans relative overflow-hidden">
+        <div id="recaptcha-container"></div>
         <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-20 -mt-20 blur-3xl"></div>
         <div className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-[32px] border border-white/30 flex items-center justify-center mb-6 shadow-2xl animate-pulse">
            <Sparkles size={48} className="text-white" />
@@ -1170,6 +1231,9 @@ export default function CustomerApp() {
             handleCancelBooking={handleCancelBooking}
             openReschedule={openReschedule}
             bookingConfig={bookingConfig}
+            dbCustomersRaw={dbCustomersRaw}
+            allFutureBookings={allFutureBookings}
+            onRequireMemberOtp={handleRequireMemberOtp}
         />
         {/* --- 🌟 SKIN AI MODALS (LOGIN SCREEN) 🌟 --- */}
         <SkinCheckModal
@@ -2348,6 +2412,9 @@ export default function CustomerApp() {
             handleCancelBooking={handleCancelBooking}
             openReschedule={openReschedule}
             bookingConfig={bookingConfig}
+            dbCustomersRaw={dbCustomersRaw}
+            allFutureBookings={allFutureBookings}
+            onRequireMemberOtp={handleRequireMemberOtp}
         />
 
         {/* --- PROMPTPAY QR MODAL --- */}

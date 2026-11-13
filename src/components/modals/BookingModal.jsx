@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin, Users } from 'lucide-react';
+import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin, Users, ShieldCheck } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import BookingCountdown from '../BookingCountdown';
 import { getFuzzyKey } from '../../utils/helpers';
@@ -36,8 +36,20 @@ export default function BookingModal({
     handleCancelBooking,
     openReschedule,
     customerData,
-    bookingConfig = DEFAULT_BOOKING_CONFIG
+    bookingConfig = DEFAULT_BOOKING_CONFIG,
+    dbCustomersRaw = [],
+    allFutureBookings = [],
+    onRequireMemberOtp
 }) {
+    const cleanGuestPhone = String(bookingForm.guestPhone || '').replace(/\D/g, '');
+    const matchedMember = useMemo(() => {
+        if (customerData || cleanGuestPhone.length < 9) return null;
+        return (dbCustomersRaw || []).find(c => {
+            const p = String(getFuzzyKey(c, "เบอร์โทร") || '').replace(/\D/g, '');
+            return p && (p === cleanGuestPhone || (cleanGuestPhone.length >= 9 && p.endsWith(cleanGuestPhone.slice(-9))));
+        });
+    }, [customerData, cleanGuestPhone, dbCustomersRaw]);
+
     const currentServiceName = useMemo(() => {
         return bookingCourse ? (getFuzzyKey(bookingCourse, "ชื่อคอส") || 'ใช้คอส') : (bookingForm.serviceName || '');
     }, [bookingCourse, bookingForm.serviceName]);
@@ -216,8 +228,10 @@ export default function BookingModal({
 
                     {/* ข้อมูลลูกค้า (Guest) */}
                     {!customerData && (
-                        <div className="space-y-4 mb-4 p-5 bg-orange-50 border-2 border-orange-100 rounded-3xl">
-                            <p className="text-[11px] font-bold text-orange-600 uppercase tracking-wider mb-2 ml-1">ข้อมูลผู้จอง (เนื่องจากยังไม่ได้เข้าสู่ระบบ)</p>
+                        <div className="space-y-3 mb-4 p-4 sm:p-5 bg-gradient-to-br from-amber-50/60 to-orange-50/80 border-2 border-amber-200/80 rounded-3xl shadow-sm">
+                            <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-2 ml-1 flex items-center gap-1.5">
+                                <Users size={14} className="text-amber-600" /> ข้อมูลผู้จอง (เนื่องจากยังไม่ได้เข้าสู่ระบบ)
+                            </p>
                             <div>
                                 <input
                                     type="text"
@@ -232,12 +246,41 @@ export default function BookingModal({
                                 <input
                                     type="tel"
                                     required
-                                    placeholder="เบอร์โทรศัพท์ติดต่อ"
+                                    placeholder="เบอร์โทรศัพท์ติดต่อ (เช่น 0812345678)"
                                     value={bookingForm.guestPhone || ''}
                                     onChange={e => setBookingForm({...bookingForm, guestPhone: e.target.value})}
-                                    className="w-full px-4 py-3 border-2 border-white bg-white rounded-xl outline-none focus:border-teal-400 transition-all font-medium text-gray-800 text-sm shadow-sm"
+                                    className={`w-full px-4 py-3 border-2 bg-white rounded-xl outline-none transition-all font-medium text-gray-800 text-sm shadow-sm ${
+                                        matchedMember ? 'border-amber-400 ring-2 ring-amber-200' : 'border-white focus:border-teal-400'
+                                    }`}
                                 />
                             </div>
+
+                            {/* 🚨 แจ้งเตือนและบังคับยืนยันสมาชิกทันทีเมื่อพบเบอร์ในระบบ */}
+                            {matchedMember && (
+                                <div className="mt-2 p-3.5 bg-white border-2 border-amber-300 rounded-2xl shadow-sm space-y-2.5 animate-in fade-in">
+                                    <div className="flex items-start gap-2.5">
+                                        <div className="p-2 bg-amber-100 text-amber-700 rounded-xl shrink-0 mt-0.5">
+                                            <ShieldCheck size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-amber-900 leading-tight">
+                                                เบอร์นี้เป็นสมาชิก Iris Clinic แล้ว!
+                                            </p>
+                                            <p className="text-[11px] font-medium text-gray-600 mt-0.5 leading-snug">
+                                                ตรวจพบข้อมูลของคุณ <b>{getFuzzyKey(matchedMember, "ชื่อ") || 'สมาชิก'}</b> ในระบบ เพื่อความปลอดภัย ป้องกันการจองซ้ำซ้อน และเพื่อใช้สิทธิ์คอร์สของคุณ กรุณายืนยันตัวตนด้วยรหัส OTP ก่อนทำการจอง
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => onRequireMemberOtp && onRequireMemberOtp(cleanGuestPhone)}
+                                        className="w-full py-2.5 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl font-bold text-xs shadow-md shadow-teal-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <ShieldCheck size={16} />
+                                        <span>ยืนยันตัวตนสมาชิกด้วย OTP ทันที</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -356,12 +399,15 @@ export default function BookingModal({
                     <div>
                        <div className="flex items-center justify-between mb-2 ml-1">
                           <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">เวลา (เลือกรอบเวลาที่ว่าง)</label>
-                          <div className="flex items-center gap-2.5 text-[10px]">
+                          <div className="flex items-center gap-2 text-[10px]">
                              <span className="flex items-center gap-1 font-semibold text-teal-600">
                                 <span className="w-2 h-2 rounded-full bg-teal-500 inline-block"></span> ว่าง
                              </span>
                              <span className="flex items-center gap-1 font-semibold text-gray-400">
-                                <span className="w-2 h-2 rounded-full bg-gray-300 inline-block"></span> เต็ม/ไม่ว่าง
+                                <span className="w-2 h-2 rounded-full bg-gray-300 inline-block"></span> เต็ม
+                             </span>
+                             <span className="flex items-center gap-1 font-semibold text-amber-600">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> คุณจองแล้ว
                              </span>
                           </div>
                        </div>
@@ -377,7 +423,18 @@ export default function BookingModal({
                                   isPast = slotStart < currentMins + 30;
                               }
 
-                              const disabled = isBooked || isPast;
+                              const currentCustomerPhone = String((customerData ? customerData.cleanPhone : bookingForm.guestPhone) || '').replace(/\D/g, '');
+                              const isMyExistingBooking = currentCustomerPhone.length >= 9 && (allFutureBookings || []).some(b => {
+                                  const bp = String(b.cleanPhone || b.customerPhone || b.phone || '').replace(/\D/g, '');
+                                  const isSame = bp && (bp === currentCustomerPhone || (currentCustomerPhone.length >= 9 && bp.endsWith(currentCustomerPhone.slice(-9))));
+                                  const isNotCancelled = !['ยกเลิก', 'ยกเลิกโดยลูกค้า', 'ยกเลิกฉุกเฉิน', 'ไม่มาตามนัด'].includes(b.status);
+                                  if (!isSame || !isNotCancelled || b.date !== bookingForm.date) return false;
+                                  const bStart = timeToMins(b.time);
+                                  const bEnd = bStart + Number(b.duration || 60);
+                                  return Math.max(slotStart, bStart) < Math.min(slotStart + totalDuration, bEnd);
+                              });
+
+                              const disabled = isBooked || isPast || isMyExistingBooking;
 
                               return (
                                   <button
@@ -388,20 +445,24 @@ export default function BookingModal({
                                       className={`py-2 px-1 rounded-xl border-2 transition-all flex flex-col items-center justify-center ${
                                           bookingForm.time === time
                                               ? 'bg-teal-500 border-teal-600 text-white shadow-md'
-                                              : disabled
-                                                  ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-not-allowed opacity-60'
-                                                  : 'bg-white border-teal-100 text-gray-800 hover:border-teal-400 hover:shadow-sm'
+                                              : isMyExistingBooking
+                                                  ? 'bg-amber-50 border-amber-300 text-amber-800 cursor-not-allowed opacity-90'
+                                                  : disabled
+                                                      ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-not-allowed opacity-60'
+                                                      : 'bg-white border-teal-100 text-gray-800 hover:border-teal-400 hover:shadow-sm'
                                       }`}
                                   >
                                       <span className="text-xs font-mono font-black">{time}</span>
                                       <span className={`text-[8.5px] font-bold mt-0.5 ${
                                           bookingForm.time === time
                                               ? 'text-teal-100'
-                                              : disabled
-                                                  ? 'text-gray-400'
-                                                  : 'text-teal-600'
+                                              : isMyExistingBooking
+                                                  ? 'text-amber-700'
+                                                  : disabled
+                                                      ? 'text-gray-400'
+                                                      : 'text-teal-600'
                                       }`}>
-                                          {disabled ? (isPast ? 'เลยเวลา' : 'เต็ม') : 'ว่าง'}
+                                          {isMyExistingBooking ? 'คุณจองแล้ว' : disabled ? (isPast ? 'เลยเวลา' : 'เต็ม') : 'ว่าง'}
                                       </span>
                                   </button>
                               );
@@ -410,14 +471,25 @@ export default function BookingModal({
                     </div>
 
                     <div className="pt-2">
-                       <button
-                          type="submit"
-                          disabled={isSubmittingBooking}
-                          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-teal-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 text-base"
-                       >
-                          {isSubmittingBooking ? <Loader2 size={20} className="animate-spin" /> : <CalendarPlus size={20} />}
-                          ยืนยันการจองคิว
-                       </button>
+                       {matchedMember ? (
+                          <button
+                             type="button"
+                             onClick={() => onRequireMemberOtp && onRequireMemberOtp(cleanGuestPhone)}
+                             className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-amber-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 text-base"
+                          >
+                             <ShieldCheck size={20} />
+                             ยืนยันตัวตนสมาชิกด้วย OTP ก่อนจอง
+                          </button>
+                       ) : (
+                          <button
+                             type="submit"
+                             disabled={isSubmittingBooking}
+                             className="w-full bg-teal-500 hover:bg-teal-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-teal-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 text-base"
+                          >
+                             {isSubmittingBooking ? <Loader2 size={20} className="animate-spin" /> : <CalendarPlus size={20} />}
+                             ยืนยันการจองคิว
+                          </button>
+                       )}
                     </div>
                  </form>
               )}

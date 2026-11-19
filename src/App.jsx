@@ -141,6 +141,7 @@ export default function CustomerApp() {
   const [otpCode, setOtpCode] = useState('');
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
 
   // 🌟 NEW STATE FOR SHOP & CART 🌟
   const [dbProducts, setDbProducts] = useState([]);
@@ -745,47 +746,97 @@ export default function CustomerApp() {
   // 3. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ และส่ง OTP
   const handleLogin = async (e, overridePhone = null) => {
     if (e && e.preventDefault) e.preventDefault();
-    setAppState('loading');
+    if (isSendingOtp) return;
     setErrorMsg('');
 
     const targetPhone = String(overridePhone || phoneNumber || '').trim();
     const cleanDigits = targetPhone.replace(/\D/g, '');
+
+    if (!cleanDigits || cleanDigits.length < 9) {
+      setErrorMsg('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (อย่างน้อย 9-10 หลัก)');
+      return;
+    }
+
+    if (dbCustomersRaw.length === 0) {
+      setErrorMsg('ระบบกำลังโหลดข้อมูลสมาชิกล่าสุด กรุณารอสักครู่แล้วลองใหม่อีกครั้งค่ะ');
+      return;
+    }
+
     const rawCustomer = dbCustomersRaw.find(c => {
       const p = String(getFuzzyKey(c, "เบอร์โทร") || '').replace(/\D/g, '');
       return p && (p === cleanDigits || (cleanDigits.length >= 9 && p.endsWith(cleanDigits.slice(-9))));
     });
     
-    if (rawCustomer) {
-      const customerPhone = getFuzzyKey(rawCustomer, "เบอร์โทร") || targetPhone;
-      setPhoneNumber(customerPhone);
-      try {
-        if (!window.recaptchaVerifier) {
-          window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-            'size': 'invisible'
-          });
-        }
-        
-        let formattedPhone = customerPhone.replace(/\D/g, '');
-        if (formattedPhone.startsWith('0')) {
-           formattedPhone = '+66' + formattedPhone.substring(1);
-        } else if (!formattedPhone.startsWith('+')) {
-           formattedPhone = '+66' + formattedPhone;
-        }
-
-        const confirmation = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
-        setConfirmationResult(confirmation);
-        setAppState('otp');
-      } catch (error) {
-        console.error("SMS OTP Error:", error);
-        setErrorMsg('ไม่สามารถส่ง SMS ได้ กรุณาตรวจสอบเบอร์ หรือลองใหม่อีกครั้ง');
-        setAppState('login');
-      }
-    } else {
-      setErrorMsg('ไม่พบข้อมูลสำหรับเบอร์โทรศัพท์นี้ กรุณาลองใหม่อีกครั้งค่ะ');
+    if (!rawCustomer) {
+      setErrorMsg('ไม่พบข้อมูลสำหรับเบอร์โทรศัพท์นี้ในระบบสมาชิก หากท่านเป็นลูกค้าใหม่ สามารถกดเมนู "จองคิวรับบริการ" หรือ "AI วิเคราะห์ผิว" ด้านล่างได้เลยค่ะ');
       if (lineProfile?.userId) {
-          localStorage.removeItem(`liff_phone_${lineProfile.userId}`);
+        localStorage.removeItem(`liff_phone_${lineProfile.userId}`);
       }
-      setAppState('login');
+      return;
+    }
+
+    setIsSendingOtp(true);
+    const customerPhone = getFuzzyKey(rawCustomer, "เบอร์โทร") || targetPhone;
+    setPhoneNumber(customerPhone);
+
+    try {
+      // 1. ล้าง reCAPTCHA เก่า (ถ้ามี) เพื่อป้องกัน instance ซ้ำซ้อนหรือค้างใน DOM
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (clearErr) {}
+        window.recaptchaVerifier = null;
+      }
+
+      // 2. สร้าง RecaptchaVerifier ตัวใหม่บน container ที่อยู่ใน DOM
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => {
+          // reCAPTCHA solved
+        },
+        'expired-callback': () => {
+          if (window.recaptchaVerifier) {
+            try { window.recaptchaVerifier.clear(); } catch (e) {}
+            window.recaptchaVerifier = null;
+          }
+        }
+      });
+
+      // 3. แปลงเบอร์เป็นรูปแบบสากล E.164 (+66...)
+      let formattedPhone = customerPhone.replace(/\D/g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '+66' + formattedPhone.substring(1);
+      } else if (!formattedPhone.startsWith('+')) {
+        formattedPhone = '+66' + formattedPhone;
+      }
+
+      console.log('Sending OTP to:', formattedPhone);
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
+      setConfirmationResult(confirmation);
+      setAppState('otp');
+    } catch (error) {
+      console.error("SMS OTP Error:", error);
+      if (window.recaptchaVerifier) {
+        try { window.recaptchaVerifier.clear(); } catch (e) {}
+        window.recaptchaVerifier = null;
+      }
+      let friendlyError = 'ไม่สามารถส่ง SMS ได้ กรุณาตรวจสอบเบอร์หรือลองใหม่อีกครั้ง';
+      if (error.code === 'auth/too-many-requests') {
+        friendlyError = 'มีการขอรหัส OTP ถี่เกินไป กรุณารอ 2-3 นาทีแล้วลองใหม่อีกครั้งค่ะ';
+      } else if (error.code === 'auth/quota-exceeded') {
+        friendlyError = 'โควตา SMS ประจำวันเต็ม กรุณาแจ้งแอดมินคลินิกเพื่อตรวจสอบค่ะ';
+      } else if (error.code === 'auth/invalid-phone-number') {
+        friendlyError = 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง กรุณาตรวจสอบเบอร์อีกครั้งค่ะ';
+      } else if (error.code === 'auth/captcha-check-failed') {
+        friendlyError = 'การตรวจสอบความปลอดภัย reCAPTCHA ไม่ผ่าน กรุณากดใหม่อีกครั้งค่ะ';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        friendlyError = 'โดเมนยังไม่ได้รับอนุญาตในระบบ Firebase Auth กรุณาติดต่อแอดมินค่ะ';
+      } else if (error.message) {
+        friendlyError = `ไม่สามารถส่ง SMS ได้: ${error.code || error.message}`;
+      }
+      setErrorMsg(friendlyError);
+    } finally {
+      setIsSendingOtp(false);
     }
   };
 
@@ -796,13 +847,18 @@ export default function CustomerApp() {
 
   const verifyOtp = async (e) => {
     if (e) e.preventDefault();
+    if (isVerifyingOtp) return;
     setIsVerifyingOtp(true);
     setErrorMsg('');
     try {
       await confirmationResult.confirm(otpCode);
-      const cleanPhone = phoneNumber.trim();
-      const rawCustomer = dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === cleanPhone);
+      const cleanDigits = String(phoneNumber || '').replace(/\D/g, '');
+      const rawCustomer = dbCustomersRaw.find(c => {
+        const p = String(getFuzzyKey(c, "เบอร์โทร") || '').replace(/\D/g, '');
+        return p && (p === cleanDigits || (cleanDigits.length >= 9 && p.endsWith(cleanDigits.slice(-9))));
+      });
       
+      const cleanPhone = rawCustomer ? (getFuzzyKey(rawCustomer, "เบอร์โทร") || phoneNumber.trim()) : phoneNumber.trim();
       const builtData = buildCustomerData(rawCustomer, cleanPhone, dbHistories, dbCourses, dbOrders);
       setCustomerData({
         ...builtData,
@@ -812,11 +868,13 @@ export default function CustomerApp() {
       
       if (lineProfile?.userId) {
           localStorage.setItem(`liff_phone_${lineProfile.userId}`, cleanPhone);
-          try {
-              const customerRef = doc(getAppCollection('customers'), rawCustomer.id);
-              await updateDoc(customerRef, { lineUid: lineProfile.userId });
-          } catch (e) {
-              console.error("Failed to link LINE UID", e);
+          if (rawCustomer && rawCustomer.id) {
+            try {
+                const customerRef = doc(getAppCollection('customers'), rawCustomer.id);
+                await updateDoc(customerRef, { lineUid: lineProfile.userId });
+            } catch (e) {
+                console.error("Failed to link LINE UID", e);
+            }
           }
       }
       
@@ -833,7 +891,11 @@ export default function CustomerApp() {
       }
     } catch (error) {
       console.error("OTP Error:", error);
-      setErrorMsg('รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่');
+      setErrorMsg(error.code === 'auth/invalid-verification-code' 
+        ? 'รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบและกรอกใหม่อีกครั้งค่ะ' 
+        : error.code === 'auth/code-expired'
+          ? 'รหัส OTP หมดอายุแล้ว กรุณากดย้อนกลับเพื่อขอรหัสใหม่ค่ะ'
+          : `ยืนยันไม่สำเร็จ: ${error.code || 'รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่'}`);
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -1085,7 +1147,6 @@ export default function CustomerApp() {
   if (appState === 'loading' || appState === 'auto_login') {
     return (
       <div className="bg-gradient-to-br from-teal-600 via-emerald-600 to-teal-800 min-h-screen flex flex-col items-center justify-center font-sans relative overflow-hidden">
-        <div id="recaptcha-container"></div>
         <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-20 -mt-20 blur-3xl"></div>
         <div className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-[32px] border border-white/30 flex items-center justify-center mb-6 shadow-2xl animate-pulse">
            <Sparkles size={48} className="text-white" />
@@ -1187,9 +1248,24 @@ export default function CustomerApp() {
                   required
                 />
               </div>
-              <button type="submit" className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-base py-4 rounded-[20px] hover:opacity-90 shadow-lg shadow-teal-500/30 flex items-center justify-center space-x-2 active:scale-95 transition-all">
-                <span>รับรหัสผ่านทาง SMS (OTP)</span>
-                <ArrowRight size={18} />
+              <button 
+                type="submit" 
+                disabled={isSendingOtp}
+                className={`w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-base py-4 rounded-[20px] hover:opacity-90 shadow-lg shadow-teal-500/30 flex items-center justify-center space-x-2 transition-all ${
+                  isSendingOtp ? 'opacity-60 cursor-not-allowed' : 'active:scale-95'
+                }`}
+              >
+                {isSendingOtp ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    <span>กำลังส่งรหัส OTP...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>รับรหัสผ่านทาง SMS (OTP)</span>
+                    <ArrowRight size={18} />
+                  </>
+                )}
               </button>
             </form>
             <div id="recaptcha-container"></div>
@@ -1381,29 +1457,42 @@ export default function CustomerApp() {
 
             <form onSubmit={verifyOtp} className="w-full space-y-5">
               <input 
-                type="number" 
-                placeholder="กรอกรหัส 6 หลัก"
+                type="tel" 
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="one-time-code"
+                placeholder="• • • • • •"
                 value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value)}
-                maxLength={6}
-                className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-4 focus:ring-teal-500/20 focus:bg-white focus:border-teal-500 text-center text-2xl transition-all font-mono font-black text-teal-700 tracking-[0.5em] shadow-inner"
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-4 focus:ring-teal-500/20 focus:bg-white focus:border-teal-500 text-center text-3xl transition-all font-mono font-black text-teal-700 tracking-[0.4em] shadow-inner"
                 required
+                autoFocus
               />
               <button 
                 type="submit" 
                 disabled={isVerifyingOtp || otpCode.length !== 6}
                 className={`w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-base py-4 rounded-[20px] hover:opacity-90 shadow-lg shadow-teal-500/30 flex items-center justify-center space-x-2 transition-all ${isVerifyingOtp || otpCode.length !== 6 ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
               >
-                {isVerifyingOtp ? <Loader2 size={18} className="animate-spin" /> : <span>ยืนยันตัวตน</span>}
+                {isVerifyingOtp ? <Loader2 size={18} className="animate-spin" /> : <span>ยืนยันรหัส OTP</span>}
               </button>
               
-              <button 
-                type="button" 
-                onClick={() => setAppState('login')}
-                className="w-full py-3 text-sm font-bold text-gray-500 hover:text-teal-600 transition-colors"
-              >
-                ย้อนกลับ / แก้ไขเบอร์โทร
-              </button>
+              <div className="flex flex-col items-center gap-2 pt-2">
+                <button 
+                  type="button" 
+                  disabled={isSendingOtp}
+                  onClick={() => { setOtpCode(''); handleLogin(null, phoneNumber); }}
+                  className="text-xs font-bold text-teal-600 hover:text-teal-700 py-1 transition-colors"
+                >
+                  {isSendingOtp ? 'กำลังส่งรหัสใหม่...' : 'ไม่ได้รับรหัส? ขอรหัส OTP ใหม่อีกครั้ง'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => { setErrorMsg(''); setAppState('login'); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 py-1 transition-colors"
+                >
+                  ย้อนกลับ / แก้ไขเบอร์โทรศัพท์
+                </button>
+              </div>
             </form>
           </div>
         </div>

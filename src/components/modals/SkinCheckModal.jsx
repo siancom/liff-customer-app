@@ -695,7 +695,7 @@ export default function SkinCheckModal({ isOpen, onClose, course, app, shopItems
             console.error('AI Scan Error:', err);
             let detailedError = err.message;
             if (detailedError.includes('403') || detailedError.includes('PERMISSION_DENIED')) {
-                detailedError = 'ยังไม่ได้เปิดใช้งาน Firebase AI Logic (Permission Denied)';
+                detailedError = 'การเชื่อมต่อระบบ AI ขัดข้องชั่วคราว กรุณากดลองใหม่อีกครั้ง';
             }
             logDiag('ข้อผิดพลาดระหว่างวิเคราะห์: ' + detailedError, 'error');
             setDiagnosticMode(true);

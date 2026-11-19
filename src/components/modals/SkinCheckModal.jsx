@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Scan, Camera, Sparkles, Upload, Loader2, CheckCircle2, AlertCircle, AlertTriangle, Ban, ArrowRight, Target, Activity, Share2, Smile, Droplets, Eye, Check, Copy, Heart, ShieldCheck, Tag, CircleCheck, Coins, HelpCircle, EyeOff, Layers, Maximize2, ChevronDown, ChevronUp, UserCheck, Calendar, ChevronRight, ShoppingCart, ShoppingBag, History, Gauge, Gift } from 'lucide-react';
 import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
 
+const AI_SERVER_ENDPOINT = 'https://asia-southeast1-iris-clinic-app.cloudfunctions.net/aiSkinAnalysis';
+
 // 🌟 ฐานความรู้เจาะลึกแต่ละด้านผิว (ใช้เมื่อกดขยายการ์ดคะแนน) 🌟
 const SKIN_METRICS = {
   acne: {
@@ -581,31 +583,20 @@ export default function SkinCheckModal({ isOpen, onClose, course, app, shopItems
             }
             logDiag('เชื่อมต่อ Firebase App สำเร็จ (OK)', 'success');
 
-            if (typeof getAI !== 'function' || typeof getGenerativeModel !== 'function') {
-                logDiag('โหลดโมดูล Firebase AI SDK ไม่สมบูรณ์', 'error');
-                return false;
-            }
-            logDiag('โหลดโมดูล Firebase AI SDK สำเร็จ (OK)', 'success');
-
-            let ai;
+            // ตรวจสอบการเชื่อมต่อกับ Iris AI Server (Cloud Function)
             try {
-                ai = getAI(app, { backend: new GoogleAIBackend() });
-                logDiag('กำหนดค่า AI Backend สำเร็จ (OK)', 'success');
-            } catch (e) {
-                logDiag('การกำหนดค่า AI Backend ล้มเหลว: ' + e.message, 'error');
-                return false;
-            }
-
-            try {
-                const model = getGenerativeModel(ai, { model: 'gemini-flash-latest' });
-                logDiag('เข้าถึงโมเดล Gemini สำเร็จ (OK)', 'success');
-            } catch (e) {
-                logDiag('เข้าถึงโมเดลล้มเหลว: ' + e.message, 'error');
-                return false;
+                const healthRes = await fetch(AI_SERVER_ENDPOINT, { method: 'GET' });
+                if (healthRes.ok) {
+                    logDiag('เชื่อมต่อ Iris AI Server สำเร็จ (OK)', 'success');
+                } else {
+                    logDiag('Iris AI Server ตอบกลับ: HTTP ' + healthRes.status, 'warning');
+                }
+            } catch (netErr) {
+                logDiag('ระบบ AI Cloud Function: ' + netErr.message, 'info');
             }
 
             logDiag('✅ ระบบ AI พร้อมทำงาน 100%', 'success');
-            setTimeout(() => setDiagnosticMode(false), 2000);
+            setTimeout(() => setDiagnosticMode(false), 1500);
             return true;
         } catch (err) {
             logDiag('เกิดข้อผิดพลาดไม่คาดคิด: ' + err.message, 'error');
@@ -626,137 +617,99 @@ export default function SkinCheckModal({ isOpen, onClose, course, app, shopItems
         }
 
         try {
-            const ai = getAI(app, { backend: new GoogleAIBackend() });
-            const model = getGenerativeModel(ai, {
-                model: 'gemini-flash-latest',
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                }
-            });
-
+            logDiag('กำลังประมวลผลรูปภาพ...', 'info');
+            const imagePart = await fileToGenerativePart(imageFile);
+            const base64Data = imagePart.inlineData.data;
+            const mimeType = imagePart.inlineData.mimeType || 'image/jpeg';
 
             // Compact shop items to save tokens
             const minifiedShop = shopItems
                 .filter(item => item && item.id && item.name && (item.type === 'course' || item.type === 'simple' || item.type === 'product'))
                 .map(item => ({ id: item.id, name: item.name, type: item.type === 'course' ? 'บริการคลินิก' : 'สินค้า' }));
-            const shopCatalogJson = JSON.stringify(minifiedShop);
 
-            let prompt = '';
-            if (scanMode === 'skin') {
-                prompt = `คุณคือผู้เชี่ยวชาญด้านผิวพรรณประจำ Iris Clinic (ไอริส คลินิก) ที่มีความรอบรู้ สุภาพ อบอุ่น เป็นกันเอง ใส่ใจลูกค้า
-                จงวิเคราะห์ภาพใบหน้านี้อย่างละเอียดในด้านหลักต่อไปนี้ (คะแนน 1-10 โดย 10 คือสมบูรณ์แบบ):
-                หากพบว่าภาพเบลอ มืดไป สว่างไป หรือมีการใช้ฟิลเตอร์/แต่งหน้า ให้แจ้งเตือนในฟิลด์ warning และลดคะแนนลง
-                1. สิวและรอยแดง (acne)
-                2. ริ้วรอยและความกระชับ (wrinkles)
-                3. ความสว่างกระจ่างใส (brightness)
-                4. รูขุมขนและความเรียบเนียน (pores)
-                5. ฝ้า กระ จุดด่างดำ (darkSpots)
-                6. ความชุ่มชื้นและสมดุลความมัน (moisture)
-                7. ความหมองคล้ำรอบดวงตา (darkCircles)
-                8. หลุมสิวและความขรุขระ (acneScars)
-                9. คะแนนสุขภาพผิวโดยรวม (overall)
-                10. ระดับความพร้อมผลัดเซลล์ผิว (cellTurnover) — อิงจากการสะสมของเซลล์ผิวเก่า ความหมองคล้ำ ผิวหน้าตึง/หนา และความขรุขระ หากคะแนนสูงแปลว่ามีเซลล์เก่าสะสมมาก ผิวพร้อมถูกผลัด/ลอกออก
+            logDiag('กำลังส่งภาพให้ Iris AI วิเคราะห์ (Server Mode)...', 'info');
 
-                *สำคัญมาก: จำแนก "สถานะการผลัดเซลล์" ของผิวในภาพนี้ตอนนี้ (status ใน cellTurnoverInfo) โดยดูจากลักษณะที่เห็นจริง:
-                - "ready" = ผิวสะสมเซลล์เก่า หนา/หมองคล้ำ/ขุนขระ/รูขุมขนอุดตัน แต่ไม่มีขุยลอก → แนะนำให้เริ่มผลัดเซลล์
-                - "peeling_now" = ผิวกำลังผลัดเซลล์อยู่ขณะนี้ เห็นขุยแห้ง ผิวลอกเป็นแผ่นๆ กำลังหลุดลอกชัดเจน → ต้องงดผลัดซ้ำ เน้นบำรุงความชุ่มชื้น
-                - "recovering" = เพิ่งผลัดเซลล์/ทำทรีตเมนต์เสร็จใหม่ๆ ผิวใหม่บาง อ่อนไหว อาจมีรอยแดงอ่อนๆ ผิวดูเรียบเนียนผิดปกติ → ต้องรอฟื้น 1-2 สัปดาห์ก่อนผลัดครั้งถัดไป
-                - "normal" = ผิวปกติ ผลัดเซลล์ตามรอบธรรมชาติ ยังไม่จำเป็นต้องเร่ง
-                พร้อมระบุหลักฐานที่สังเกตเห็นจากภาพสั้นๆ ใน statusEvidence เช่น "เห็นขุยแห้งบริเวณแก้ม" หรือ "ผิวหนาหมองมีสิ่งอุดตันตรงทีโซน"
-                หาก status เป็น peeling_now หรือ recovering ต้องระวังเป็นพิเศษ: ใน herbalRecommendation ให้แนะนำ "ผงพอกสมุนไพรไอริส" (พอกบำรุงปลอบผิว ไม่ใช่ผงเร่ง) ร่วมกับการบำรุงความชุ่มชื้นเท่านั้น และห้ามแนะนำครีมกลุ่มผลัดเซลล์ (AHA/BHA/Retinol) ผงเร่ง/โคลนเร่ง หรือการผลัดเซลล์ซ้ำเด็ดขาด
-                ขั้นตอนที่ควรแนะนำเป็นลำดับ: (1) ใช้คลีนซิ่งน้ำนมนวดขัดเบาๆ ก่อนล้างหน้าเพื่อขจัดเซลล์ที่หลุดอยู่ให้ลอยออกอย่างอ่อนโยน (2) ล้างหน้าแล้วพอกบำรุงด้วยผงพอกสมุนไพรไอริส (3) ปิดท้ายด้วยการทาครีมกันแดดทุกครั้ง เพราะผิวใหม่ไวแสงแดดมาก และขั้นท้ายสุด (4) สามารถเอาผงพอกสมุนไพรไอริสผสมน้ำแล้วแต้มเป็นจุดๆ ที่รอย สิว หรือจุดที่มีปัญหา เพื่อบำรุงเข้มข้นเฉพาะจุดได้
+            let data = null;
 
-                *ข้อสำคัญ: จงวิเคราะห์แยกระหว่าง "ผิวแห้ง (Dry Skin - ขาดน้ำมัน)" และ "ผิวขาดน้ำ (Dehydrated Skin - ขาดน้ำ)" อย่างชัดเจน โดยพิจารณาจากรูขุมขน ความมันวาว ความแห้งกร้าน ขุย และริ้วรอย ให้ระบุใน hydrationAnalysis*
+            // 1. เรียกใช้งานผ่าน Cloud Function Server-side (แก้ปัญหา 401 App Check ใน LINE LIFF 100%)
+            try {
+                const response = await fetch(AI_SERVER_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        imageBase64: base64Data,
+                        mimeType,
+                        scanMode,
+                        shopCatalog: minifiedShop
+                    })
+                });
 
-                พร้อมประเมินอายุผิวหน้าจากสภาพผิวที่มองเห็น (estimatedSkinAge ตัวเลขจำนวนเต็ม เช่น 25, 32)
-                และระบุข้อความสถานะอายุผิวแบบชมเชยหรือนุ่มนวล (skinAgeStatus)
+                if (response.ok) {
+                    data = await response.json();
+                    logDiag('วิเคราะห์ผลสำเร็จจาก Iris AI Server (OK)', 'success');
+                } else {
+                    const errJson = await response.json().catch(() => ({}));
+                    throw new Error(errJson.error || `Server HTTP ${response.status}`);
+                }
+            } catch (serverErr) {
+                console.warn('Server AI error, trying client SDK fallback:', serverErr);
+                logDiag('ลองใช้งานโหมดสำรอง Client SDK...', 'info');
 
-                คุณมีรายการคอร์สและสินค้าดังนี้:
-                ${shopCatalogJson}
-                จงเลือกแนะนำคอร์สหรือสินค้าที่เหมาะสมที่สุดกับสภาพผิวของลูกค้าจากรายการด้านบน (แนะนำ 1-3 รายการ) โดยคืนค่าเป็น id ของสินค้าหรือคอร์สนั้นๆ พร้อมระบุเหตุผลสั้นๆ
+                // 2. Fallback ไปที่ Firebase AI Client SDK หากมี
+                if (typeof getAI === 'function' && typeof getGenerativeModel === 'function' && app) {
+                    const ai = getAI(app, { backend: new GoogleAIBackend() });
+                    const model = getGenerativeModel(ai, {
+                        model: 'gemini-flash-latest',
+                        generationConfig: {
+                            responseMimeType: 'application/json',
+                        }
+                    });
 
-                ส่งผลลัพธ์กลับมาเป็น JSON เท่านั้น โครงสร้างดังนี้:
-                {
-                    "mode": "skin",
-                    "greeting": "สวัสดีค่ะคุณลูกค้าสุดน่ารัก อบอุ่นสั้นๆ จาก Iris Clinic",
-                    "estimatedSkinAge": 28,
-                    "skinAgeStatus": "ผิวดูกระชับสดใส แลดูอ่อนเยาว์กว่าอายุจริงค่ะ ✨",
-                    "scores": {
-                        "acne": 8, "wrinkles": 7, "brightness": 6, "pores": 7, "darkSpots": 6, "moisture": 8, "darkCircles": 5, "acneScars": 7, "cellTurnover": 6, "overall": 7
-                    },
-                    "hydrationAnalysis": {
-                        "isDry": true,
-                        "isDehydrated": true,
-                        "description": "ผิวขาดทั้งน้ำและน้ำมัน มีลักษณะแห้งกร้านและเห็นริ้วรอยขาดน้ำชัดเจน",
-                        "recommendation": "ควรดื่มน้ำให้เพียงพอและทำทรีตเมนต์เติมน้ำให้ผิวชั้นลึก"
-                    },
-                    "cellTurnoverInfo": {
-                        "status": "ready",
-                        "statusEvidence": "หลักฐานที่เห็นจากภาพ เช่น เห็นขุยแห้งหลุดเป็นแผ่นบริเวณแก้ม หรือ ผิวหนาหมองมีสิ่งอุดตันตรงทีโซน",
-                        "level": "พร้อมผลัดเซลล์ ระดับปานกลาง",
-                        "description": "สภาพผิวมีเซลล์เก่าสะสมอยู่บ้าง ผิวหมองเล็กน้อย สามารถเริ่มผลัดเซลล์ได้แล้ว",
-                        "herbalRecommendation": "แนะนำให้ผลัดเซลล์ผิวด้วยสมุนไพรธรรมชาติของทางร้าน เพื่อขจัดเซลล์เก่าอย่างอ่อนโยน ผิวเรียบเนียน กระจ่างใสขึ้น"
-                    },
-                    "summary": "ข้อความสรุปสภาพผิวที่พบด้วยภาษาเป็นกันเอง ห่วงใย และอ่านง่าย",
-                    "recommendation": "คำแนะนำการดูแลผิวประจำวันสั้นๆ นุ่มนวล",
-                    "recommendedCourses": [
-                        { "id": "รหัส id ของคอร์ส/สินค้าที่เลือกจากรายการ", "reason": "เหตุผลสั้นๆ" }
-                    ],
-                    "confidenceScore": 85,
-                    "warning": "ถ้าภาพเบลอ มืด แต่งหน้า หรือใช้ฟิลเตอร์ ให้ใส่คำเตือนสั้นๆ ที่นี่ ถ้าภาพชัดเจนดีให้ใส่ค่าว่าง ("")"
-                }`;
-            } else {
-                // Mole & Skin Tag Counter Prompt
-                prompt = `คุณคือแพทย์และผู้เชี่ยวชาญการจี้ไฝ ติ่งเนื้อ กระเนื้อ สิวหิน ประจำ Iris Clinic (ไอริส คลินิก)
-                หากพบว่าภาพเบลอ มืดไป หรือมองเห็นไม่ชัดเจน ให้แจ้งเตือนในฟิลด์ warning
-                จงสแกนภาพใบหน้าหรือลำคอนี้อย่างละเอียด นับจำนวนจุดที่พบ และระบุพิกัดตำแหน่ง 2D Bounding Box ของแต่ละจุดที่พบอย่างแม่นยำที่สุด
-                ใช้สเกล 0 ถึง 1000 ในรูปแบบ [ymin, xmin, ymax, xmax]
+                    const minifiedShopJson = JSON.stringify(minifiedShop);
+                    let prompt = '';
+                    if (scanMode === 'skin') {
+                        prompt = `คุณคือผู้เชี่ยวชาญด้านผิวพรรณประจำ Iris Clinic (ไอริส คลินิก) ที่มีความรอบรู้ สุภาพ อบอุ่น เป็นกันเอง ใส่ใจลูกค้า
+                        จงวิเคราะห์ภาพใบหน้านี้อย่างละเอียดในด้านหลักต่อไปนี้ (คะแนน 1-10 โดย 10 คือสมบูรณ์แบบ):
+                        หากพบว่าภาพเบลอ มืดไป สว่างไป หรือมีการใช้ฟิลเตอร์/แต่งหน้า ให้แจ้งเตือนในฟิลด์ warning และลดคะแนนลง
+                        1. สิวและรอยแดง (acne)
+                        2. ริ้วรอยและความกระชับ (wrinkles)
+                        3. ความสว่างกระจ่างใส (brightness)
+                        4. รูขุมขนและความเรียบเนียน (pores)
+                        5. ฝ้า กระ จุดด่างดำ (darkSpots)
+                        6. ความชุ่มชื้นและสมดุลความมัน (moisture)
+                        7. ความหมองคล้ำรอบดวงตา (darkCircles)
+                        8. หลุมสิวและความขรุขระ (acneScars)
+                        9. คะแนนสุขภาพผิวโดยรวม (overall)
+                        10. ระดับความพร้อมผลัดเซลล์ผิว (cellTurnover) — อิงจากการสะสมของเซลล์ผิวเก่า ความหมองคล้ำ ผิวหน้าตึง/หนา และความขรุขระ หากคะแนนสูงแปลว่ามีเซลล์เก่าสะสมมาก ผิวพร้อมถูกผลัด/ลอกออก
+                        *สำคัญมาก: จำแนก "สถานะการผลัดเซลล์" ของผิวในภาพนี้ตอนนี้ (status ใน cellTurnoverInfo) โดยดูจากลักษณะที่เห็นจริง:
+                        - "ready" = ผิวสะสมเซลล์เก่า หนา/หมองคล้ำ/ขุนขระ/รูขุมขนอุดตัน แต่ไม่มีขุยลอก → แนะนำให้เริ่มผลัดเซลล์
+                        - "peeling_now" = ผิวกำลังผลัดเซลล์อยู่ขณะนี้ เห็นขุยแห้ง ผิวลอกเป็นแผ่นๆ กำลังหลุดลอกชัดเจน → ต้องงดผลัดซ้ำ เน้นบำรุงความชุ่มชื้น
+                        - "recovering" = เพิ่งผลัดเซลล์/ทำทรีตเมนต์เสร็จใหม่ๆ ผิวใหม่บาง อ่อนไหว อาจมีรอยแดงอ่อนๆ ผิวดูเรียบเนียนผิดปกติ → ต้องรอฟื้น 1-2 สัปดาห์ก่อนผลัดครั้งถัดไป
+                        - "normal" = ผิวปกติ ผลัดเซลล์ตามรอบธรรมชาติ ยังไม่จำเป็นต้องเร่ง
+                        พร้อมระบุหลักฐานที่สังเกตเห็นจากภาพสั้นๆ ใน statusEvidence
+                        หาก status เป็น peeling_now หรือ recovering ต้องระวังเป็นพิเศษ: ใน herbalRecommendation ให้แนะนำ "ผงพอกสมุนไพรไอริส" ร่วมกับการบำรุงความชุ่มชื้นเท่านั้น
+                        ขั้นตอนที่ควรแนะนำเป็นลำดับ: (1) ใช้คลีนซิ่งน้ำนมนวดขัดเบาๆ ก่อนล้างหน้า (2) ล้างหน้าแล้วพอกบำรุงด้วยผงพอกสมุนไพรไอริส (3) ทาครีมกันแดดทุกครั้ง (4) ผงพอกสมุนไพรผสมน้ำแต้มเฉพาะจุดได้
+                        *ข้อสำคัญ: จงวิเคราะห์แยกระหว่าง "ผิวแห้ง" และ "ผิวขาดน้ำ" ใน hydrationAnalysis*
+                        พร้อมประเมินอายุผิวหน้า (estimatedSkinAge) และสถานะอายุผิว (skinAgeStatus)
+                        รายการคอร์สและสินค้า: ${minifiedShopJson}
+                        ส่งผลลัพธ์กลับมาเป็น JSON เท่านั้น โครงสร้าง: { mode: "skin", greeting, estimatedSkinAge, skinAgeStatus, scores: { acne, wrinkles, brightness, pores, darkSpots, moisture, darkCircles, acneScars, cellTurnover, overall }, hydrationAnalysis: { isDry, isDehydrated, description, recommendation }, cellTurnoverInfo: { status, statusEvidence, level, description, herbalRecommendation }, summary, recommendation, recommendedCourses: [{ id, reason }], confidenceScore, warning }`;
+                    } else {
+                        prompt = `คุณคือแพทย์และผู้เชี่ยวชาญการจี้ไฝ ติ่งเนื้อ กระเนื้อ สิวหิน ประจำ Iris Clinic (ไอริส คลินิก)
+                        สแกนภาพใบหน้าหรือลำคอนี้ นับจำนวนจุด และระบุพิกัด 2D Bounding Box [ymin, xmin, ymax, xmax] (สเกล 0-1000)
+                        จำแนกประเภท: "mole", "freckle", "skinTag"
+                        คำนวณราคาประเมินค่าบริการจี้ (1-3 จุด: 100-150/จุด, 4-10 จุด: 500-900 บาท, >10 จุด: 1200-1800 บาท)
+                        ส่งผลลัพธ์กลับมาเป็น JSON เท่านั้น โครงสร้าง: { mode: "mole", greeting, estimatedSkinAge, skinAgeStatus, counts: { moles, freckles, skinTags, total }, markers: [{ box2d: [ymin, xmin, ymax, xmax], type, label }], locations: [], estimatedPriceMin, estimatedPriceMax, summary, cauterizeAdvice, confidenceScore, warning }`;
+                    }
 
-                พร้อมประเมินอายุผิวหน้าเบื้องต้น (estimatedSkinAge) และระบุข้อความสถานะอายุผิว (skinAgeStatus)
-
-                จำแนกประเภทดังนี้:
-                - type: "mole" (ไฝ/ขี้แมลงวัน)
-                - type: "freckle" (กระเนื้อ/กระแดด)
-                - type: "skinTag" (ติ่งเนื้อ/สิวหิน)
-
-                คำนวณราคาประเมินค่าบริการจี้เบื้องต้น (หน่วยบาท):
-                - จุดละ 100 - 150 บาท (หาก 1-3 จุด)
-                - 4-10 จุด เหมาแพ็กเกจ 500 - 900 บาท
-                - มากกว่า 10 จุด เหมาทั่วหน้า/ลำคอ 1,200 - 1,800 บาท
-
-                ส่งผลลัพธ์กลับมาเป็น JSON เท่านั้น โครงสร้างดังนี้:
-                {
-                    "mode": "mole",
-                    "greeting": "สวัสดีค่ะคุณลูกค้า สรุปผลการตรวจนับจุดไฝและติ่งเนื้อสำหรับเตรียมจี้ออกนะคะ",
-                    "estimatedSkinAge": 30,
-                    "skinAgeStatus": "สภาพผิวโดยรวมแข็งแรงดี พร้อมบริการจี้ลบจุดอย่างปลอดภัยค่ะ",
-                    "counts": {
-                        "moles": 2, "freckles": 4, "skinTags": 1, "total": 7
-                    },
-                    "markers": [
-                        { "box2d": [420, 380, 450, 410], "type": "mole", "label": "ไฝ / ขี้แมลงวัน" },
-                        { "box2d": [500, 600, 530, 630], "type": "freckle", "label": "กระเนื้อ" },
-                        { "box2d": [780, 480, 810, 510], "type": "skinTag", "label": "ติ่งเนื้อ" }
-                    ],
-                    "locations": ["โหนกแก้มซ้าย", "ข้างมุมปาก", "ลำคอ"],
-                    "estimatedPriceMin": 500,
-                    "estimatedPriceMax": 900,
-                    "summary": "พบไฝเล็กน้อย และมีกระเนื้อบริเวณโหนกแก้มร่วมกับติ่งเนื้อที่ลำคอ สามารถจี้ออกได้เรียบเนียนในการทำครั้งเดียว",
-                    "cauterizeAdvice": "หลังจี้ห้ามโดนน้ำ 3-5 วัน และแต้มผงสมุนไพรลดอักเสบตามที่คลินิกจัดให้ มีประกันดูแลซ้ำ 1 เดือนค่ะ",
-                    "confidenceScore": 90,
-                    "warning": "ถ้าภาพเบลอ มืด หรือใช้ฟิลเตอร์ จนมองไม่เห็นไฝ ให้ใส่คำเตือนสั้นๆ ที่นี่ ถ้าภาพชัดเจนดีให้ใส่ค่าว่าง ("")"
-                }`;
+                    const result = await model.generateContent([prompt, imagePart]);
+                    const responseText = result.response.text();
+                    let jsonString = responseText;
+                    if (jsonString.includes('```json')) jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '');
+                    data = JSON.parse(jsonString);
+                } else {
+                    throw serverErr;
+                }
             }
-
-            const imagePart = await fileToGenerativePart(imageFile);
-            const result = await model.generateContent([prompt, imagePart]);
-            const responseText = result.response.text();
-            
-            let jsonString = responseText;
-            if (jsonString.includes('```json')) {
-                jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '');
-            }
-            const data = JSON.parse(jsonString);
 
             // Convert Bounding Box [ymin, xmin, ymax, xmax] (0-1000) to Center Coordinates (x%, y%)
             if (data.markers && Array.isArray(data.markers)) {

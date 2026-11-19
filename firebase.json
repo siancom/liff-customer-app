@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "iris-clinic-app",
     "public": "dist",
     "ignore": [
       "firebase.json",

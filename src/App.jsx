@@ -104,7 +104,15 @@ export function getLiffDeepLinkParams() {
     openBooking || 
     hash.toLowerCase().includes('booking');
 
-  return { isBooking, branch, date, page, tab };
+  const isSkinCheck = 
+    page === 'skin' || 
+    page === 'ai' || 
+    tab === 'skin' || 
+    action === 'skin' || 
+    getParam('skin') === 'true' || 
+    hash.toLowerCase().includes('skin');
+
+  return { isBooking, isSkinCheck, branch, date, page, tab };
 }
 
 export default function CustomerApp() {
@@ -160,7 +168,7 @@ export default function CustomerApp() {
   const [confirmCancelOrder, setConfirmCancelOrder] = useState(false);
 
   // 🌟 SKIN AI STATES + FEATURE FLAGS + TOAST 🌟
-  const [showSkinCheck, setShowSkinCheck] = useState(false);
+  const [showSkinCheck, setShowSkinCheck] = useState(() => getLiffDeepLinkParams().isSkinCheck);
   const [showSkinProgress, setShowSkinProgress] = useState(false);
   const [showSurvey, setShowSurvey] = useState(false);
   const [featureFlags, setFeatureFlags] = useState({});
@@ -221,6 +229,9 @@ export default function CustomerApp() {
       if (deepLink.date) {
         setBookingForm(prev => ({ ...prev, date: deepLink.date }));
       }
+    }
+    if (deepLink.isSkinCheck) {
+      setShowSkinCheck(true);
     }
   }, []);
 
@@ -718,6 +729,9 @@ export default function CustomerApp() {
                      } else {
                          setActiveNav('home');
                      }
+                     if (deepLink.isSkinCheck) {
+                         setShowSkinCheck(true);
+                     }
                  } else {
                      if (appState === 'auto_login') setAppState('login');
                  }
@@ -812,6 +826,9 @@ export default function CustomerApp() {
           setIsBookingModalOpen(true);
       } else {
           setActiveNav('home');
+      }
+      if (deepLink.isSkinCheck) {
+          setShowSkinCheck(true);
       }
     } catch (error) {
       console.error("OTP Error:", error);

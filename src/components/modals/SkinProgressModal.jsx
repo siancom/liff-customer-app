@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { query, where, onSnapshot } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
-import { X, TrendingUp, ArrowLeftRight, History, Loader2, Camera, ArrowUp, ArrowDown, Minus, Sparkles, CalendarDays, Smile, Frown, Meh, Share2 } from 'lucide-react';
+import { 
+    X, TrendingUp, ArrowLeftRight, History, Loader2, Camera, 
+    ArrowUp, ArrowDown, Minus, Sparkles, CalendarDays, Smile, Frown, Meh, Share2,
+    ChevronRight, ChevronLeft, ChevronDown, ChevronUp, ShieldCheck, Activity, Droplets, AlertCircle, Heart, ArrowLeft, CheckCircle2
+} from 'lucide-react';
 
 // 🌟 Skin Progress Modal — ประวัติการสแกนผิว + กราฟความคืบหน้า + เทียบ Before/After (สไตล์ Skincare Pro) 🌟
 
@@ -16,6 +20,78 @@ const METRIC_LABELS = {
     acneScars: 'หลุมสิว/ขรุขระ',
     cellTurnover: 'พร้อมผลัดเซลล์',
     overall: 'สุขภาพผิวโดยรวม',
+};
+
+// 🌟 ฐานความรู้เจาะลึกแต่ละด้านผิวสำหรับแสดงในหน้ารายละเอียด 🌟
+const SKIN_METRICS = {
+  acne: {
+    label: 'สิว & รอยแดง',
+    causes: 'ฮอร์โมน, ความมันส่วนเกิน, รูขุมขนอุดตัน, สะสมสิ่งสกปรก หรือใช้เครื่องสำอางที่อุดตัน',
+    homeCare: 'ล้างหน้าเบาๆ วันละ 2 ครั้ง, ไม่บีบสิวเอง, เลือกผลิตภัณฑ์ non-comedogenic, หลีกเลี่ยงของมัน/ทอด/หวานจัด',
+    getStatus: (s) => s >= 8 ? { text: 'ผิวใส แทบไม่มีสิว', tone: 'good' } : s >= 6 ? { text: 'มีสิวอุดตัน/รอยแดงเล็กน้อย', tone: 'mid' } : { text: 'มีสิวอักเสบ/รอยแดง ควรดูแล', tone: 'bad' }
+  },
+  wrinkles: {
+    label: 'ริ้วรอย/ความกระชับ',
+    causes: 'คอลลาเจนลดลงตามวัย, แสงแดด, การนอนหน้าบีบ, ความเครียด หรือพักผ่อนไม่เพียงพอ',
+    homeCare: 'ทากันแดดทุกวัน, บำรุงด้วยวิตามินซี/เรตินอล, นอนหลับให้เพียงพอ, ดื่มน้ำมากๆ',
+    getStatus: (s) => s >= 8 ? { text: 'ผิวกระชับ ดูอ่อนเยาว์', tone: 'good' } : s >= 6 ? { text: 'เริ่มมีริ้วรอยเล็กๆ', tone: 'mid' } : { text: 'มีริ้วรอยชัดเจน ควรบำรุง', tone: 'bad' }
+  },
+  brightness: {
+    label: 'ความกระจ่างใส',
+    causes: 'ผิวหมองคล้ำจากแดด, สะสมเซลล์ผิวเก่า, พักผ่อนน้อย หรือการดูแลไม่สม่ำเสมอ',
+    homeCare: 'ขัด/สครับผิวเบาๆ สัปดาห์ละครั้ง, ทาวิตามินซีเช้า-กันแดดกลางวัน, พักผ่อนให้เพียงพอ',
+    getStatus: (s) => s >= 8 ? { text: 'ผิวสว่างกระจ่างใส', tone: 'good' } : s >= 6 ? { text: 'ผิวเริ่มหมองคล้ำเล็กน้อย', tone: 'mid' } : { text: 'ผิวหมองคล้ำ ควรดูแล', tone: 'bad' }
+  },
+  pores: {
+    label: 'รูขุมขน/ผิวเรียบเนียน',
+    causes: 'ความมันส่วนเกิน, รูขุมขนอุดตัน, คอลลาเจนลดลงรอบรูขุมขน หรือกรรมพันธุ์',
+    homeCare: 'ทำความสะอาดรูขุมขน, หลีกเลี่ยงบีบสิวหัวดำ, ใช้โทนเนอร์/Niacinamide, สครับเบาๆ',
+    getStatus: (s) => s >= 8 ? { text: 'ผิวเรียบเนียน รูขุมขนกระชับ', tone: 'good' } : s >= 6 ? { text: 'รูขุมขนกว้างเล็กน้อย', tone: 'mid' } : { text: 'รูขุมขนกว้างชัดเจน ควรดูแล', tone: 'bad' }
+  },
+  darkSpots: {
+    label: 'ฝ้า กระ จุดด่างดำ',
+    causes: 'แสงแดดสะสม, ฮอร์โมน, การอักเสบจากสิว (PIH), หรือกรรมพันธุ์',
+    homeCare: 'ทากันแดด SPF50+ ทุกวัน, ใช้วิตามินซี/อาร์บูติน, หลีกเลี่ยงแสงแดดจัด',
+    getStatus: (s) => s >= 8 ? { text: 'ผิวสะอาด แทบไม่มีจุดด่างดำ', tone: 'good' } : s >= 6 ? { text: 'มีจุดด่างดำ/กระเล็กน้อย', tone: 'mid' } : { text: 'มีฝ้า/จุดด่างดำชัดเจน ควรรักษา', tone: 'bad' }
+  },
+  moisture: {
+    label: 'สมดุลความชุ่มชื้น',
+    causes: 'ผิวขาดน้ำ, อากาศแห้ง/ห้องแอร์, ดื่มน้ำน้อย หรือล้างหน้าบ่อยเกินไป',
+    homeCare: 'ทามอยส์ไจเซอร์หลังล้างหน้าทันที, ดื่มน้ำวันละ 2 ลิตร, เลือกผลิตภัณฑ์ Hyaluronic Acid/Ceramide',
+    getStatus: (s) => s >= 8 ? { text: 'ผิวชุ่มชื้น สมดุลดี', tone: 'good' } : s >= 6 ? { text: 'ผิวเริ่มแห้งตึงเล็กน้อย', tone: 'mid' } : { text: 'ผิวแห้งขาดความชุ่มชื้น', tone: 'bad' }
+  },
+  cellTurnover: {
+    label: 'ผลัดเซลล์ผิว/สมุนไพร',
+    causes: 'เซลล์ผิวเก่าสะสม, ผิวหน้าตึง/หนา, ความหมองคล้ำ หรือไม่ได้ขัดพอกผิวมาสักระยะ',
+    homeCare: 'ขัดผิวเบาๆ สัปดาห์ละครั้งด้วยสครับอ่อนโยน, หลีกเลี่ยงถูแรง, ทามอยส์ไจเซอร์หลังผลัดเซลล์เสมอ',
+    getStatus: (s) => s >= 8 ? { text: 'เซลล์เก่าสะสมมาก พร้อมผลัดเซลล์', tone: 'good' } : s >= 6 ? { text: 'มีเซลล์เก่าพอประมาณ เริ่มผลัดเซลล์ได้', tone: 'mid' } : { text: 'เซลล์ยังใหม่ ยังไม่เร่งผลัดเซลล์', tone: 'bad' }
+  },
+  darkCircles: {
+    label: 'รอยคล้ำรอบดวงตา',
+    causes: 'นอนดึก, เครียด, ภูมิแพ้, หลอดเลือดใต้ตา หรือเมลานินสะสม',
+    homeCare: 'นอนก่อน 4 ทุ่ม, ประคบเย็นรอบดวงตา, ทาอายครีมบำรุง, หลีกเลี่ยงการขยี้ตา',
+    getStatus: (s) => s >= 8 ? { text: 'รอบดวงตาสว่างสดใส', tone: 'good' } : s >= 6 ? { text: 'มีรอยคล้ำเล็กน้อย', tone: 'mid' } : { text: 'รอยคล้ำชัดเจน ดูเหนื่อยล้า', tone: 'bad' }
+  },
+  acneScars: {
+    label: 'หลุมสิว/ความขรุขระ',
+    causes: 'การอักเสบรุนแรงจากสิวในอดีต, การบีบแกะสิว, หรือคอลลาเจนใต้ผิวถูกทำลาย',
+    homeCare: 'ห้ามบีบสิว, ทาวิตามินซีช่วยกระตุ้นคอลลาเจน, ป้องกันแดดสม่ำเสมอ',
+    getStatus: (s) => s >= 8 ? { text: 'ผิวเรียบเนียน แทบไม่มีหลุมสิว', tone: 'good' } : s >= 6 ? { text: 'มีหลุมสิวตื้น/ขรุขระเล็กน้อย', tone: 'mid' } : { text: 'มีหลุมสิวชัดเจน ผิวไม่เรียบ', tone: 'bad' }
+  },
+};
+
+const getTurnoverStatusBadge = (status) => {
+    switch (status) {
+        case 'ready':
+            return { text: 'พร้อมผลัดเซลล์ผิว', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        case 'peeling_now':
+            return { text: 'กำลังผลัดเซลล์อยู่ (เน้นบำรุง)', tone: 'bg-amber-50 text-amber-700 border-amber-200' };
+        case 'recovering':
+            return { text: 'ผิวใหม่กำลังฟื้นฟู', tone: 'bg-blue-50 text-blue-700 border-blue-200' };
+        case 'normal':
+        default:
+            return { text: 'ผิวสมดุลตามธรรมชาติ', tone: 'bg-teal-50 text-teal-700 border-teal-200' };
+    }
 };
 
 // 🎨 ธีมการ์ดแชร์ผลเปรียบเทียบผิว (เลือกได้ในแท็บเทียบ B/A)
@@ -51,6 +127,12 @@ const fmtDate = (iso) => {
         const d = new Date(iso);
         return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
     } catch (e) { return '-'; }
+};
+const fmtTime = (iso) => {
+    try {
+        const d = new Date(iso);
+        return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+    } catch (e) { return ''; }
 };
 const fmtDateShort = (iso) => {
     try {
@@ -98,6 +180,8 @@ export default function SkinProgressModal({ isOpen, onClose, phone, getAppCollec
     const [loadError, setLoadError] = useState(false);
     const [selA, setSelA] = useState(null); // index ก่อน (Before)
     const [selB, setSelB] = useState(null); // index หลัง (After)
+    const [selectedScan, setSelectedScan] = useState(null);
+    const [expandedMetric, setExpandedMetric] = useState(null);
     const [isBuildingShare, setIsBuildingShare] = useState(false);
     // 🎨 สไตล์การ์ดแชร์ — เลือกได้ + จำค่าไว้
     const [shareTheme, setShareTheme] = useState(() => { try { return localStorage.getItem('skin_share_theme') || 'purple'; } catch (e) { return 'purple'; } });
@@ -595,33 +679,60 @@ export default function SkinProgressModal({ isOpen, onClose, phone, getAppCollec
 
                             {/* รายการสแกนทั้งหมด */}
                             <div>
-                                <h4 className="text-xs font-black text-gray-700 uppercase tracking-wider mb-2 flex items-center">
-                                    <CalendarDays size={14} className="mr-1.5 text-indigo-500" /> ประวัติการสแกน ({scans.length})
-                                </h4>
+                                <div className="flex items-center justify-between mb-2">
+                                    <h4 className="text-xs font-black text-gray-700 uppercase tracking-wider flex items-center">
+                                        <CalendarDays size={14} className="mr-1.5 text-indigo-500" /> ประวัติการสแกน ({scans.length})
+                                    </h4>
+                                    <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                                        แตะเพื่อดูรายละเอียด
+                                    </span>
+                                </div>
                                 <div className="space-y-2">
                                     {[...scans].reverse().map((s, ri) => {
                                         const idx = scans.length - 1 - ri;
                                         const prev = idx > 0 ? scans[idx - 1] : null;
                                         const diff = prev ? s.scores.overall - prev.scores.overall : null;
                                         return (
-                                            <div key={s.id || idx} className="bg-white border border-gray-100 rounded-2xl p-2.5 flex items-center gap-3 shadow-sm">
-                                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
-                                                    {(s.thumb || s.image) ? <img src={(s.thumb || s.image)} alt="scan" className="w-full h-full object-cover" />
-                                                        : <div className="w-full h-full flex items-center justify-center text-gray-300"><Camera size={18} /></div>}
+                                            <button
+                                                key={s.id || idx}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedScan(s);
+                                                    setExpandedMetric(null);
+                                                }}
+                                                className="w-full bg-white border border-gray-100 hover:border-indigo-300 hover:shadow-md rounded-2xl p-2.5 flex items-center gap-3 shadow-sm active:scale-[0.98] transition-all text-left group cursor-pointer"
+                                            >
+                                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 relative">
+                                                    {(s.thumb || s.image) ? (
+                                                        <img src={(s.thumb || s.image)} alt="scan" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                                            <Camera size={18} />
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1.5 flex-wrap">
                                                         <span className="text-[11px] font-black text-gray-800">{fmtDate(s.createdAt)}</span>
                                                         {diff != null && <DeltaChip diff={diff} />}
-                                                        {idx === scans.length - 1 && <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md border border-indigo-100">ล่าสุด</span>}
+                                                        {idx === scans.length - 1 && (
+                                                            <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md border border-indigo-100">ล่าสุด</span>
+                                                        )}
                                                     </div>
-                                                    {typeof s.estimatedSkinAge === 'number' && (
-                                                        <span className="text-[9px] text-gray-400 font-bold block">อายุผิว ~{s.estimatedSkinAge} ปี</span>
+                                                    {(s.estimatedSkinAge || s.raw?.estimatedSkinAge) && (
+                                                        <span className="text-[9px] text-gray-400 font-bold block">
+                                                            อายุผิว ~{s.estimatedSkinAge || s.raw?.estimatedSkinAge} ปี
+                                                        </span>
                                                     )}
-                                                    <p className="text-[10px] text-gray-500 leading-snug line-clamp-2 mt-0.5">{s.summary || 'คะแนนสแกนผิวด้วย AI'}</p>
+                                                    <p className="text-[10px] text-gray-500 leading-snug line-clamp-2 mt-0.5">
+                                                        {s.summary || s.raw?.summary || 'คะแนนสแกนผิวด้วย AI'}
+                                                    </p>
                                                 </div>
-                                                <MiniRing score={s.scores.overall} />
-                                            </div>
+                                                <div className="shrink-0 flex items-center gap-1.5">
+                                                    <MiniRing score={s.scores.overall} />
+                                                    <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
+                                                </div>
+                                            </button>
                                         );
                                     })}
                                 </div>
@@ -830,6 +941,273 @@ export default function SkinProgressModal({ isOpen, onClose, phone, getAppCollec
                         )
                     )}
                 </div>
+
+                {/* 🌟 Detail View Overlay when a scan is selected 🌟 */}
+                {selectedScan && (
+                    <div className="absolute inset-0 bg-slate-50 z-30 flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-3.5 shrink-0 flex items-center justify-between text-white shadow-md relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                            <div className="relative z-10 flex items-center space-x-2">
+                                <button
+                                    onClick={() => setSelectedScan(null)}
+                                    className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors cursor-pointer"
+                                >
+                                    <ArrowLeft size={18} />
+                                </button>
+                                <div>
+                                    <h3 className="text-xs font-black">รายละเอียดผลสแกนผิว AI</h3>
+                                    <p className="text-[10px] font-bold opacity-80">{fmtDate(selectedScan.createdAt)} · {fmtTime(selectedScan.createdAt)}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={onClose}
+                                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors cursor-pointer relative z-10"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 hide-scrollbar">
+                            {/* Photo (if available) */}
+                            {(selectedScan.image || selectedScan.thumb) && (
+                                <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-black shadow-md border border-gray-100">
+                                    <img src={selectedScan.image || selectedScan.thumb} alt="Scan Face" className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
+                                    <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                            <span className="text-[10px] font-bold text-teal-200">Iris AI Verified Result</span>
+                                        </div>
+                                        <span className="text-[10px] font-bold opacity-80">{fmtDate(selectedScan.createdAt)}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Overall Score & Estimated Skin Age Banner */}
+                            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-purple-100 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <MiniRing score={selectedScan.scores?.overall} size={58} stroke={5} fontSize={18} />
+                                        <div>
+                                            <span className="text-[11px] font-black text-gray-800 flex items-center gap-1">
+                                                <ShieldCheck size={14} className="text-indigo-600" /> คะแนนสุขภาพผิวโดยรวม
+                                            </span>
+                                            <span className="text-[10px] text-gray-500 font-medium block mt-0.5">
+                                                {selectedScan.scores?.overall >= 8 ? '🌟 ผิวสุขภาพดีเยี่ยม' : selectedScan.scores?.overall >= 6 ? '✨ ผิวสมดุลปานกลาง' : '⚠️ ควรได้รับการฟื้นฟู'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {(selectedScan.estimatedSkinAge || selectedScan.raw?.estimatedSkinAge) && (
+                                        <div className="bg-white/80 backdrop-blur-sm border border-purple-200 rounded-xl px-3 py-2 text-center shrink-0 shadow-xs">
+                                            <span className="text-[9px] font-bold text-purple-600 block">อายุผิวประเมิน</span>
+                                            <span className="text-base font-black text-gray-900 leading-tight">
+                                                ~{selectedScan.estimatedSkinAge || selectedScan.raw?.estimatedSkinAge} <span className="text-[10px] font-bold text-gray-400">ปี</span>
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {(selectedScan.skinAgeStatus || selectedScan.raw?.skinAgeStatus) && (
+                                    <div className="mt-3 pt-2.5 border-t border-purple-100/80 flex items-center gap-1.5 text-[10px] font-bold text-purple-800">
+                                        <Sparkles size={12} className="text-pink-500 shrink-0" />
+                                        <span>{selectedScan.skinAgeStatus || selectedScan.raw?.skinAgeStatus}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* AI Warning Banner */}
+                            {(selectedScan.warning || selectedScan.raw?.warning) && (
+                                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs flex items-start gap-2 shadow-xs">
+                                    <AlertCircle size={15} className="text-amber-500 shrink-0 mt-0.5" />
+                                    <div className="text-[10px] leading-relaxed">
+                                        <span className="font-bold block mb-0.5">ข้อควรระวังภาพถ่าย</span>
+                                        {selectedScan.warning || selectedScan.raw?.warning}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* AI Summary Card */}
+                            {(selectedScan.summary || selectedScan.raw?.summary) && (
+                                <div className="bg-white border border-gray-100 rounded-2xl p-3.5 shadow-sm space-y-1.5">
+                                    <h4 className="text-xs font-black text-gray-800 flex items-center gap-1.5">
+                                        <Heart size={14} className="text-rose-500 fill-rose-500" /> บทวิเคราะห์จากผู้เชี่ยวชาญ AI
+                                    </h4>
+                                    <p className="text-[11px] text-gray-600 leading-relaxed">
+                                        {selectedScan.summary || selectedScan.raw?.summary}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* 9 Metric Scores Grid */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-black text-gray-800 flex items-center gap-1.5">
+                                        <Activity size={14} className="text-teal-600" /> คะแนนสภาพผิว 9 ด้าน (เต็ม 10)
+                                    </h4>
+                                    <span className="text-[9px] text-gray-400 font-medium">แตะแต่ละด้านเพื่อดูคำแนะนำ</span>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2">
+                                    {Object.entries(SKIN_METRICS).map(([key, metric]) => {
+                                        const score = selectedScan.scores?.[key];
+                                        if (typeof score !== 'number') return null;
+                                        const isExpanded = expandedMetric === key;
+                                        const status = metric.getStatus ? metric.getStatus(score) : null;
+                                        const statusTone = status?.tone === 'good' ? 'bg-emerald-50 text-emerald-700' : status?.tone === 'mid' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700';
+                                        return (
+                                            <React.Fragment key={key}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpandedMetric(isExpanded ? null : key)}
+                                                    className={`col-span-1 bg-white border ${isExpanded ? 'border-indigo-400 ring-2 ring-indigo-400/20 shadow-sm' : 'border-gray-100'} p-2 rounded-xl flex items-center gap-2 text-left hover:border-gray-300 transition-all active:scale-[0.98] cursor-pointer`}
+                                                >
+                                                    <MiniRing score={score} size={36} stroke={3} fontSize={11} />
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="text-[10px] text-gray-700 font-bold leading-tight block truncate">
+                                                            {metric.label}
+                                                        </span>
+                                                        <span className="text-[8px] text-gray-400 font-medium flex items-center gap-0.5 mt-0.5">
+                                                            {isExpanded ? <ChevronUp size={10} className="text-indigo-500" /> : <ChevronDown size={10} />}
+                                                            <span>{isExpanded ? 'ย่อ' : 'ดูคำแนะนำ'}</span>
+                                                        </span>
+                                                    </div>
+                                                </button>
+
+                                                {isExpanded && (
+                                                    <div className="col-span-2 bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 space-y-2 animate-in fade-in duration-200">
+                                                        {status && (
+                                                            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black ${statusTone}`}>
+                                                                <Activity size={9} /> {status.text}
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <p className="text-[9px] font-black text-gray-500 mb-0.5 flex items-center gap-1">
+                                                                <AlertCircle size={10} className="text-rose-400" /> สาเหตุ / ปัจจัย
+                                                            </p>
+                                                            <p className="text-[10px] text-gray-700 leading-relaxed">{metric.causes}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[9px] font-black text-gray-500 mb-0.5 flex items-center gap-1">
+                                                                <Sparkles size={10} className="text-amber-500" /> การดูแลเองที่บ้าน
+                                                            </p>
+                                                            <p className="text-[10px] text-gray-700 leading-relaxed">{metric.homeCare}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Hydration Analysis */}
+                            {selectedScan.raw?.hydrationAnalysis && (
+                                <div className="bg-white border border-blue-100 rounded-2xl p-3.5 shadow-sm space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-black text-blue-900 flex items-center gap-1.5">
+                                            <Droplets size={14} className="text-blue-500" /> สมดุลความชุ่มชื้น & น้ำใต้ผิว
+                                        </h4>
+                                        <div className="flex items-center gap-1">
+                                            <span className={`text-[8.5px] font-bold px-2 py-0.5 rounded-full border ${selectedScan.raw.hydrationAnalysis.isDry ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                                {selectedScan.raw.hydrationAnalysis.isDry ? 'ผิวแห้ง' : 'ไม่แห้ง'}
+                                            </span>
+                                            <span className={`text-[8.5px] font-bold px-2 py-0.5 rounded-full border ${selectedScan.raw.hydrationAnalysis.isDehydrated ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                                {selectedScan.raw.hydrationAnalysis.isDehydrated ? 'ผิวขาดน้ำ' : 'น้ำสมดุล'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {selectedScan.raw.hydrationAnalysis.description && (
+                                        <p className="text-[11px] text-gray-600 leading-relaxed">{selectedScan.raw.hydrationAnalysis.description}</p>
+                                    )}
+                                    {selectedScan.raw.hydrationAnalysis.recommendation && (
+                                        <div className="bg-blue-50/60 rounded-xl p-2.5 text-[10px] text-blue-800 leading-relaxed flex items-start gap-1.5">
+                                            <Sparkles size={12} className="text-blue-500 shrink-0 mt-0.5" />
+                                            <span>{selectedScan.raw.hydrationAnalysis.recommendation}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Cell Turnover Info */}
+                            {selectedScan.raw?.cellTurnoverInfo && (
+                                <div className="bg-white border border-emerald-100 rounded-2xl p-3.5 shadow-sm space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-black text-emerald-900 flex items-center gap-1.5">
+                                            <Sparkles size={14} className="text-emerald-500" /> สถานะการผลัดเซลล์ผิวสมุนไพร
+                                        </h4>
+                                        {(() => {
+                                            const badge = getTurnoverStatusBadge(selectedScan.raw.cellTurnoverInfo.status);
+                                            return (
+                                                <span className={`text-[8.5px] font-black px-2 py-0.5 rounded-full border ${badge.tone}`}>
+                                                    {badge.text}
+                                                </span>
+                                            );
+                                        })()}
+                                    </div>
+                                    {selectedScan.raw.cellTurnoverInfo.description && (
+                                        <p className="text-[11px] text-gray-600 leading-relaxed">{selectedScan.raw.cellTurnoverInfo.description}</p>
+                                    )}
+                                    {selectedScan.raw.cellTurnoverInfo.statusEvidence && (
+                                        <div className="text-[10px] text-gray-500 flex items-center gap-1">
+                                            <span className="font-bold">หลักฐานที่สังเกตเห็น:</span>
+                                            <span>{selectedScan.raw.cellTurnoverInfo.statusEvidence}</span>
+                                        </div>
+                                    )}
+                                    {selectedScan.raw.cellTurnoverInfo.herbalRecommendation && (
+                                        <div className="bg-emerald-50/70 rounded-xl p-2.5 text-[10px] text-emerald-900 leading-relaxed flex items-start gap-1.5 border border-emerald-100">
+                                            <Sparkles size={12} className="text-emerald-600 shrink-0 mt-0.5" />
+                                            <div>
+                                                <span className="font-bold block text-[9.5px] text-emerald-800">คำแนะนำสมุนไพรไอริส:</span>
+                                                {selectedScan.raw.cellTurnoverInfo.herbalRecommendation}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* AI Recommendation */}
+                            {(selectedScan.recommendation || selectedScan.raw?.recommendation) && (
+                                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/60 rounded-2xl p-3.5 shadow-sm space-y-1.5">
+                                    <h4 className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                                        <Sparkles size={14} className="text-amber-500" /> คำแนะนำการดูแลผิวประจำวัน
+                                    </h4>
+                                    <p className="text-[11px] text-gray-700 leading-relaxed">
+                                        {selectedScan.recommendation || selectedScan.raw?.recommendation}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Compare Action Button */}
+                            <div className="pt-2 pb-6 space-y-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const foundIdx = scans.findIndex(x => (x.id && x.id === selectedScan.id) || x.createdAt === selectedScan.createdAt);
+                                        if (foundIdx !== -1) {
+                                            setSelB(foundIdx);
+                                            if (foundIdx > 0) setSelA(foundIdx - 1);
+                                            else if (scans.length > 1) setSelA(1);
+                                        }
+                                        setSelectedScan(null);
+                                        setTab('compare');
+                                    }}
+                                    className="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white py-3 rounded-2xl font-black text-xs shadow-md shadow-purple-200 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <ArrowLeftRight size={14} /> นำผลครั้งนี้ไปเทียบ Before/After
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedScan(null)}
+                                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-2xl font-bold text-xs transition-colors cursor-pointer"
+                                >
+                                    ย้อนกลับไปรายการประวัติ
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* QR ซ่อนไว้สำหรับใส่ในภาพแชร์ */}
                 <div ref={qrWrapRef} className="hidden" aria-hidden="true">

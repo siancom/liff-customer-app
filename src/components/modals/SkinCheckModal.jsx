@@ -629,86 +629,25 @@ export default function SkinCheckModal({ isOpen, onClose, course, app, shopItems
 
             logDiag('กำลังส่งภาพให้ Iris AI วิเคราะห์ (Server Mode)...', 'info');
 
+            // 1. เรียกใช้งานผ่าน Iris AI Cloud Function Server-side (แก้ปัญหา App Check 401 ใน LINE LIFF 100%)
             let data = null;
+            const response = await fetch(AI_SERVER_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    imageBase64: base64Data,
+                    mimeType,
+                    scanMode,
+                    shopCatalog: minifiedShop
+                })
+            });
 
-            // 1. เรียกใช้งานผ่าน Cloud Function Server-side (แก้ปัญหา 401 App Check ใน LINE LIFF 100%)
-            try {
-                const response = await fetch(AI_SERVER_ENDPOINT, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        imageBase64: base64Data,
-                        mimeType,
-                        scanMode,
-                        shopCatalog: minifiedShop
-                    })
-                });
-
-                if (response.ok) {
-                    data = await response.json();
-                    logDiag('วิเคราะห์ผลสำเร็จจาก Iris AI Server (OK)', 'success');
-                } else {
-                    const errJson = await response.json().catch(() => ({}));
-                    throw new Error(errJson.error || `Server HTTP ${response.status}`);
-                }
-            } catch (serverErr) {
-                console.warn('Server AI error, trying client SDK fallback:', serverErr);
-                logDiag('ลองใช้งานโหมดสำรอง Client SDK...', 'info');
-
-                // 2. Fallback ไปที่ Firebase AI Client SDK หากมี
-                if (typeof getAI === 'function' && typeof getGenerativeModel === 'function' && app) {
-                    const ai = getAI(app, { backend: new GoogleAIBackend() });
-                    const model = getGenerativeModel(ai, {
-                        model: 'gemini-flash-latest',
-                        generationConfig: {
-                            responseMimeType: 'application/json',
-                        }
-                    });
-
-                    const minifiedShopJson = JSON.stringify(minifiedShop);
-                    let prompt = '';
-                    if (scanMode === 'skin') {
-                        prompt = `คุณคือผู้เชี่ยวชาญด้านผิวพรรณประจำ Iris Clinic (ไอริส คลินิก) ที่มีความรอบรู้ สุภาพ อบอุ่น เป็นกันเอง ใส่ใจลูกค้า
-                        จงวิเคราะห์ภาพใบหน้านี้อย่างละเอียดในด้านหลักต่อไปนี้ (คะแนน 1-10 โดย 10 คือสมบูรณ์แบบ):
-                        หากพบว่าภาพเบลอ มืดไป สว่างไป หรือมีการใช้ฟิลเตอร์/แต่งหน้า ให้แจ้งเตือนในฟิลด์ warning และลดคะแนนลง
-                        1. สิวและรอยแดง (acne)
-                        2. ริ้วรอยและความกระชับ (wrinkles)
-                        3. ความสว่างกระจ่างใส (brightness)
-                        4. รูขุมขนและความเรียบเนียน (pores)
-                        5. ฝ้า กระ จุดด่างดำ (darkSpots)
-                        6. ความชุ่มชื้นและสมดุลความมัน (moisture)
-                        7. ความหมองคล้ำรอบดวงตา (darkCircles)
-                        8. หลุมสิวและความขรุขระ (acneScars)
-                        9. คะแนนสุขภาพผิวโดยรวม (overall)
-                        10. ระดับความพร้อมผลัดเซลล์ผิว (cellTurnover) — อิงจากการสะสมของเซลล์ผิวเก่า ความหมองคล้ำ ผิวหน้าตึง/หนา และความขรุขระ หากคะแนนสูงแปลว่ามีเซลล์เก่าสะสมมาก ผิวพร้อมถูกผลัด/ลอกออก
-                        *สำคัญมาก: จำแนก "สถานะการผลัดเซลล์" ของผิวในภาพนี้ตอนนี้ (status ใน cellTurnoverInfo) โดยดูจากลักษณะที่เห็นจริง:
-                        - "ready" = ผิวสะสมเซลล์เก่า หนา/หมองคล้ำ/ขุนขระ/รูขุมขนอุดตัน แต่ไม่มีขุยลอก → แนะนำให้เริ่มผลัดเซลล์
-                        - "peeling_now" = ผิวกำลังผลัดเซลล์อยู่ขณะนี้ เห็นขุยแห้ง ผิวลอกเป็นแผ่นๆ กำลังหลุดลอกชัดเจน → ต้องงดผลัดซ้ำ เน้นบำรุงความชุ่มชื้น
-                        - "recovering" = เพิ่งผลัดเซลล์/ทำทรีตเมนต์เสร็จใหม่ๆ ผิวใหม่บาง อ่อนไหว อาจมีรอยแดงอ่อนๆ ผิวดูเรียบเนียนผิดปกติ → ต้องรอฟื้น 1-2 สัปดาห์ก่อนผลัดครั้งถัดไป
-                        - "normal" = ผิวปกติ ผลัดเซลล์ตามรอบธรรมชาติ ยังไม่จำเป็นต้องเร่ง
-                        พร้อมระบุหลักฐานที่สังเกตเห็นจากภาพสั้นๆ ใน statusEvidence
-                        หาก status เป็น peeling_now หรือ recovering ต้องระวังเป็นพิเศษ: ใน herbalRecommendation ให้แนะนำ "ผงพอกสมุนไพรไอริส" ร่วมกับการบำรุงความชุ่มชื้นเท่านั้น
-                        ขั้นตอนที่ควรแนะนำเป็นลำดับ: (1) ใช้คลีนซิ่งน้ำนมนวดขัดเบาๆ ก่อนล้างหน้า (2) ล้างหน้าแล้วพอกบำรุงด้วยผงพอกสมุนไพรไอริส (3) ทาครีมกันแดดทุกครั้ง (4) ผงพอกสมุนไพรผสมน้ำแต้มเฉพาะจุดได้
-                        *ข้อสำคัญ: จงวิเคราะห์แยกระหว่าง "ผิวแห้ง" และ "ผิวขาดน้ำ" ใน hydrationAnalysis*
-                        พร้อมประเมินอายุผิวหน้า (estimatedSkinAge) และสถานะอายุผิว (skinAgeStatus)
-                        รายการคอร์สและสินค้า: ${minifiedShopJson}
-                        ส่งผลลัพธ์กลับมาเป็น JSON เท่านั้น โครงสร้าง: { mode: "skin", greeting, estimatedSkinAge, skinAgeStatus, scores: { acne, wrinkles, brightness, pores, darkSpots, moisture, darkCircles, acneScars, cellTurnover, overall }, hydrationAnalysis: { isDry, isDehydrated, description, recommendation }, cellTurnoverInfo: { status, statusEvidence, level, description, herbalRecommendation }, summary, recommendation, recommendedCourses: [{ id, reason }], confidenceScore, warning }`;
-                    } else {
-                        prompt = `คุณคือแพทย์และผู้เชี่ยวชาญการจี้ไฝ ติ่งเนื้อ กระเนื้อ สิวหิน ประจำ Iris Clinic (ไอริส คลินิก)
-                        สแกนภาพใบหน้าหรือลำคอนี้ นับจำนวนจุด และระบุพิกัด 2D Bounding Box [ymin, xmin, ymax, xmax] (สเกล 0-1000)
-                        จำแนกประเภท: "mole", "freckle", "skinTag"
-                        คำนวณราคาประเมินค่าบริการจี้ (1-3 จุด: 100-150/จุด, 4-10 จุด: 500-900 บาท, >10 จุด: 1200-1800 บาท)
-                        ส่งผลลัพธ์กลับมาเป็น JSON เท่านั้น โครงสร้าง: { mode: "mole", greeting, estimatedSkinAge, skinAgeStatus, counts: { moles, freckles, skinTags, total }, markers: [{ box2d: [ymin, xmin, ymax, xmax], type, label }], locations: [], estimatedPriceMin, estimatedPriceMax, summary, cauterizeAdvice, confidenceScore, warning }`;
-                    }
-
-                    const result = await model.generateContent([prompt, imagePart]);
-                    const responseText = result.response.text();
-                    let jsonString = responseText;
-                    if (jsonString.includes('```json')) jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '');
-                    data = JSON.parse(jsonString);
-                } else {
-                    throw serverErr;
-                }
+            if (response.ok) {
+                data = await response.json();
+                logDiag('วิเคราะห์ผลสำเร็จจาก Iris AI Server (OK)', 'success');
+            } else {
+                const errJson = await response.json().catch(() => ({}));
+                throw new Error(errJson.error || `ระบบ AI Server ไม่ตอบสนอง (HTTP ${response.status})`);
             }
 
             // Convert Bounding Box [ymin, xmin, ymax, xmax] (0-1000) to Center Coordinates (x%, y%)

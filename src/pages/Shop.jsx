@@ -711,7 +711,7 @@ const Shop = ({
                             if (shopTab === 'courses' || shopTab === 'single_courses') {
                                 return (
                                     <div key={idx} onClick={() => setSelectedProduct(item)} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col relative transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer pb-2">
-                                        <div className="relative aspect-[4/3] bg-slate-50/50 border-b border-slate-50 overflow-hidden">
+                                        <div className="relative aspect-[3/4] bg-slate-50 border-b border-slate-50 overflow-hidden flex items-center justify-center">
                                             {item.image ? (
                                                 <img src={item.image} alt={item.name} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = COURSE_FALLBACKS[idx % COURSE_FALLBACKS.length]; }} />
                                             ) : (

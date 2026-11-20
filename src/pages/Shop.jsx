@@ -711,11 +711,11 @@ const Shop = ({
                             if (shopTab === 'courses' || shopTab === 'single_courses') {
                                 return (
                                     <div key={idx} onClick={() => setSelectedProduct(item)} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col relative transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer pb-2">
-                                        <div className="relative aspect-[4/3] bg-slate-50/50 p-2 border-b border-slate-50 overflow-hidden">
+                                        <div className="relative aspect-[4/3] bg-slate-50/50 border-b border-slate-50 overflow-hidden">
                                             {item.image ? (
-                                                <img src={item.image} alt={item.name} className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.target.onerror = null; e.target.src = COURSE_FALLBACKS[idx % COURSE_FALLBACKS.length]; }} />
+                                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = COURSE_FALLBACKS[idx % COURSE_FALLBACKS.length]; }} />
                                             ) : (
-                                                <img src={COURSE_FALLBACKS[idx % COURSE_FALLBACKS.length]} alt={item.name} className="w-full h-full object-contain mix-blend-multiply" />
+                                                <img src={COURSE_FALLBACKS[idx % COURSE_FALLBACKS.length]} alt={item.name} className="w-full h-full object-contain mix-blend-multiply p-2" />
                                             )}
                                             {Number(item.price) > 500 && (
                                                 <div className="absolute bottom-0 left-0 w-full flex h-6 text-[9px] font-black select-none z-10">

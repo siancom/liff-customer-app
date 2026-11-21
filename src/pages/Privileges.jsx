@@ -476,7 +476,11 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
       >
           <div>
               <h4 className="font-black text-teal-700 text-sm mb-1 flex items-center"><Heart size={16} className="mr-1.5 text-teal-600" /> อัปเกรดระดับสมาชิก</h4>
-              <p className="text-[10px] text-teal-600/80">สะสมยอดซื้อครบ 5,000.- เพื่อเลื่อนเป็น VIP</p>
+              <p className="text-[10px] text-teal-600/80">
+                {customerData?.isApproved
+                  ? '🎉 คุณได้รับสิทธิ์สมาชิก VIP แล้ว (ส่วนลด 10% ตลอดชีพ)'
+                  : `สะสมสินค้าอีก ฿${Math.max(0, 5000 - (customerData?.productAccumulatedAmount || 0)).toLocaleString()} เพื่อเลื่อนเป็น VIP`}
+              </p>
           </div>
           <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-teal-600 shadow-sm border border-teal-100 group-hover:scale-110 transition-transform">
               <ArrowRight size={18} />

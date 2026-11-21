@@ -4,7 +4,8 @@ import {
   QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
   AlertCircle, Info, Ticket, Phone, Loader2, ArrowRight, Tag, 
   LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse,
-  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, CalendarPlus, Gift, HelpCircle, UserPlus, ShieldCheck
+  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, CalendarPlus, Gift, HelpCircle, UserPlus, ShieldCheck,
+  Camera, Eye, Database
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -156,6 +157,7 @@ export default function CustomerApp() {
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [historyFilterTab, setHistoryFilterTab] = useState('product'); // 'product', 'course', 'all'
 
   // 🌟 WOO COMMERCE: สินค้าเซต (grouped) / หลายตัวเลือก (variable) 🌟
   const [wooProducts, setWooProducts] = useState([]);
@@ -196,6 +198,61 @@ export default function CustomerApp() {
   const [isWalletTopUpOpen, setIsWalletTopUpOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [selectedCourseDetail, setSelectedCourseDetail] = useState(null);
+  const [viewingCoursePhotos, setViewingCoursePhotos] = useState(null);
+  const [enlargedPhoto, setEnlargedPhoto] = useState(null);
+
+  const getHistoryPhotos = (h) => {
+    if (!h) return { before: [], after: [] };
+    const beforeList = [];
+    const afterList = [];
+
+    if (h.customerPhotos) {
+      if (Array.isArray(h.customerPhotos.before)) {
+        h.customerPhotos.before.forEach(p => p && beforeList.push(p));
+      } else if (typeof h.customerPhotos.before === 'string' && h.customerPhotos.before) {
+        beforeList.push(h.customerPhotos.before);
+      }
+      if (Array.isArray(h.customerPhotos.after)) {
+        h.customerPhotos.after.forEach(p => p && afterList.push(p));
+      } else if (typeof h.customerPhotos.after === 'string' && h.customerPhotos.after) {
+        afterList.push(h.customerPhotos.after);
+      }
+    }
+
+    if (Array.isArray(h.beforePhotos)) h.beforePhotos.forEach(p => p && beforeList.push(p));
+    if (Array.isArray(h.afterPhotos)) h.afterPhotos.forEach(p => p && afterList.push(p));
+
+    const single = h.customerPhoto || getFuzzyKey(h, ["รูปลูกค้า", "รูปภาพ", "photo", "image"]);
+    if (single && typeof single === 'string' && (single.startsWith('http') || single.startsWith('data:image'))) {
+      if (beforeList.length === 0 && afterList.length === 0) {
+        afterList.push(single);
+      }
+    }
+
+    return { before: beforeList, after: afterList };
+  };
+
+  const getCourseUsageHistories = (course) => {
+    if (!course || !customerData?.history) return [];
+    const refKey = String(getFuzzyKey(course, ["เลขที่ใบคอส", "col_2"]) || course.courseRefKey || course.id || '').trim();
+    const orderNo = String(course.orderNo || course.refOrderNo || getFuzzyKey(course, "หมายเลขคำสั่งซื้อ") || '').trim();
+    const courseId = String(course.id || '').trim();
+
+    return (customerData.history || []).filter(h => {
+      const t = String(getFuzzyKey(h, "ประเภท") || '');
+      const isUsage = t.includes('ใช้') || t.includes('เบิก') || t.includes('ตัด') || t.includes('บริการ');
+      if (!isUsage) return false;
+
+      const hRef = String(getFuzzyKey(h, ["เลขที่ใบคอส", "col_6", "อ้างอิง"]) || '').trim();
+      const hOrder = String(getFuzzyKey(h, ["หมายเลขคำสั่งซื้อ", "Order", "Ref", "เลขที่บิล"]) || '').trim();
+      const hCourseId = String(h.courseId || '').trim();
+
+      if (courseId && hCourseId && hCourseId === courseId) return true;
+      if (refKey && hRef && (hRef === refKey || hRef.includes(refKey) || refKey.includes(hRef))) return true;
+      if (orderNo && hOrder && hOrder === orderNo) return true;
+      return false;
+    });
+  };
 
   // 🌟 BOOKING STATE 🌟
   const [dbBookings, setDbBookings] = useState([]);
@@ -1593,10 +1650,16 @@ export default function CustomerApp() {
      const t = String(getFuzzyKey(h, "ประเภท") || '');
      return t.includes('ใช้') || t.includes('เบิก') || t.includes('คอส') || t.includes('คอร์ส') || t.includes('ตัด') || t.includes('บริการ');
   });
-  const productPurchases = customerData.history.filter(h => {
-     const rawAmount = getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]);
-     return parseNumber(rawAmount) > 0;
-  });
+
+  const productPurchases = (customerData.history || []).filter(h => h._isProduct);
+  const coursePurchases = (customerData.history || []).filter(h => h._isCourse && h._itemAmount > 0);
+  const allPurchases = (customerData.history || []).filter(h => h._itemAmount > 0 || h._isSpent);
+
+  const activeHistoryList = historyFilterTab === 'product'
+    ? productPurchases
+    : historyFilterTab === 'course'
+      ? coursePurchases
+      : allPurchases;
 
   return (
     <div className="bg-gray-100 min-h-screen flex justify-center font-sans">
@@ -1802,9 +1865,21 @@ export default function CustomerApp() {
                       </div>
                     </div>
 
-                    <div className="mt-4">
-                      <button onClick={(e) => { e.stopPropagation(); setShowQR(course); }} className="w-full bg-gray-900 text-white flex items-center justify-center space-x-2 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform">
-                        <QrCode size={18} /><span>แสดง QR เพื่อใช้งาน</span>
+                    <div className="mt-4 flex gap-2">
+                      <button onClick={(e) => { e.stopPropagation(); setShowQR(course); }} className="flex-1 bg-gray-900 hover:bg-black text-white flex items-center justify-center space-x-1.5 py-3 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-transform">
+                        <QrCode size={16} /><span>แสดง QR เพื่อใช้งาน</span>
+                      </button>
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const hList = getCourseUsageHistories(course);
+                          setViewingCoursePhotos({ course, histories: hList, selectedIndex: 0 }); 
+                        }} 
+                        className="px-3.5 bg-gradient-to-r from-teal-50 to-emerald-50 text-teal-700 hover:bg-teal-100 border border-teal-200/80 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-transform"
+                        title="ดูรูปก่อน-หลังจากการใช้คอร์ส"
+                      >
+                        <Camera size={15} className="text-teal-600" />
+                        <span>รูปก่อน-หลัง</span>
                       </button>
                     </div>
                   </div>
@@ -1971,25 +2046,58 @@ export default function CustomerApp() {
                 <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
                 
                 {/* --- Top Section: Membership --- */}
-                <div className="relative z-10 flex justify-between items-start mb-4">
+                <div className="relative z-10 flex justify-between items-start mb-3">
                    <div>
                      <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-0.5">สถานะสมาชิก</p>
                      <p className="font-black text-lg flex items-center gap-1.5">
                        {customerData.memberStatus}
-                       {customerData.isApproved && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px] border border-white/30 uppercase tracking-widest backdrop-blur-sm shadow-sm">VIP</span>}
+                       {customerData.isApproved && <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] border border-white/30 uppercase tracking-widest backdrop-blur-sm shadow-sm font-black text-amber-200">⭐ VIP</span>}
                      </p>
                    </div>
-                   <Award size={28} className={customerData.isApproved ? "text-yellow-200" : "text-indigo-200"} />
+                   <Award size={32} className={customerData.isApproved ? "text-yellow-300 drop-shadow-md" : "text-white/40"} />
                 </div>
                 
-                <div className="relative z-10 mb-1">
-                   <p className="text-[11px] uppercase tracking-widest font-bold text-white/80 mb-1">ยอดสะสมรวมทั้งหมด</p>
-                   <p className="text-4xl font-black leading-none mb-1">฿{customerData.realAccumulatedAmount.toLocaleString()}</p>
-                   <p className="text-[10px] text-white/70 font-medium">ยอดซื้อสินค้า: ฿{(customerData.productAccumulatedAmount || 0).toLocaleString()}</p>
+                {/* 3-Column Breakdown */}
+                <div className="relative z-10 bg-black/20 p-2.5 rounded-2xl backdrop-blur-sm border border-white/10 mb-3 grid grid-cols-3 gap-1.5 text-center">
+                   <div>
+                     <p className="text-[8px] uppercase tracking-wider font-bold text-amber-200/90 mb-0.5">🛍️ สะสมสินค้า (VIP)</p>
+                     <p className="text-base font-black text-amber-300 leading-tight">฿{(customerData.productAccumulatedAmount || 0).toLocaleString()}</p>
+                   </div>
+                   <div className="border-x border-white/10">
+                     <p className="text-[8px] uppercase tracking-wider font-bold text-teal-100/80 mb-0.5">💆 สะสมคอร์ส</p>
+                     <p className="text-base font-black text-white leading-tight">฿{(customerData.courseAccumulatedAmount || 0).toLocaleString()}</p>
+                   </div>
+                   <div>
+                     <p className="text-[8px] uppercase tracking-wider font-bold text-white/80 mb-0.5">📊 รวมทั้งหมด</p>
+                     <p className="text-base font-black text-white leading-tight">฿{customerData.realAccumulatedAmount.toLocaleString()}</p>
+                   </div>
+                </div>
+
+                {/* VIP Progress Bar */}
+                <div className="relative z-10 bg-black/20 p-2.5 rounded-xl border border-white/10 space-y-1">
+                  <div className="flex justify-between items-center text-[10px] font-bold">
+                    <span className="text-white/90">สิทธิ์สมาชิก VIP (เป้าหมายสะสมสินค้า ฿5,000)</span>
+                    <span className="text-amber-300 font-black">
+                      {customerData.isApproved 
+                        ? '⭐ ครบสิทธิ์ VIP' 
+                        : `${Math.min(100, Math.round(((customerData.productAccumulatedAmount || 0) / 5000) * 100))}%`}
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/20 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-amber-300 to-yellow-400 h-full rounded-full transition-all"
+                      style={{ width: `${Math.min(100, Math.round(((customerData.productAccumulatedAmount || 0) / 5000) * 100))}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-[9px] text-white/80 text-right font-medium">
+                    {customerData.isApproved 
+                      ? '🎉 ยินดีด้วยค่ะ คุณได้รับสิทธิ์สมาชิก VIP ส่วนลด 10% ตลอดชีพ' 
+                      : `ขาดอีก ฿${Math.max(0, 5000 - (customerData.productAccumulatedAmount || 0)).toLocaleString()} เพื่อเลื่อนเป็นสมาชิก VIP`}
+                  </p>
                 </div>
 
                 {/* --- Divider --- */}
-                <div className="relative z-10 h-px w-full bg-white/20 my-5"></div>
+                <div className="relative z-10 h-px w-full bg-white/20 my-4"></div>
 
                 {/* --- Bottom Section: Wallet --- */}
                 <div className="relative z-10 flex justify-between items-center mb-2">
@@ -2066,26 +2174,71 @@ export default function CustomerApp() {
               </div>
               )}
 
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-4 mb-2 pl-2">ประวัติการได้รับยอดสะสม</h3>
-              {productPurchases.length > 0 ? productPurchases.map((p, i) => {
-                const isBerq = getFuzzyKey(p, "ประเภท")?.includes('เบิก');
+              {/* Filter Tabs for History */}
+              <div className="mt-5 mb-2">
+                <div className="flex justify-between items-center mb-2 px-1">
+                  <h3 className="text-xs font-black text-gray-700 uppercase tracking-wider flex items-center">
+                    <Database size={13} className="mr-1.5 text-indigo-500"/> ประวัติการสะสมยอด
+                  </h3>
+                  <span className="text-[10px] font-bold text-gray-500">
+                    {historyFilterTab === 'product' && `สินค้า ${productPurchases.length} รายการ (฿${(customerData.productAccumulatedAmount || 0).toLocaleString()})`}
+                    {historyFilterTab === 'course' && `คอร์ส ${coursePurchases.length} รายการ (฿${(customerData.courseAccumulatedAmount || 0).toLocaleString()})`}
+                    {historyFilterTab === 'all' && `รวม ${allPurchases.length} รายการ (฿${customerData.realAccumulatedAmount.toLocaleString()})`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1 bg-gray-200/60 p-1 rounded-xl text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryFilterTab('product')}
+                    className={`py-1.5 rounded-lg transition-all text-center text-[11px] ${historyFilterTab === 'product' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    🛍️ สินค้า ({productPurchases.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryFilterTab('course')}
+                    className={`py-1.5 rounded-lg transition-all text-center text-[11px] ${historyFilterTab === 'course' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    💆 คอร์ส ({coursePurchases.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryFilterTab('all')}
+                    className={`py-1.5 rounded-lg transition-all text-center text-[11px] ${historyFilterTab === 'all' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    📋 ทั้งหมด ({allPurchases.length})
+                  </button>
+                </div>
+              </div>
+
+              {activeHistoryList.length > 0 ? activeHistoryList.map((p, i) => {
+                const isBerq = p._isSpent;
+                const amt = p._itemAmount || 0;
                 return (
-                <div key={i} className="bg-white rounded-[20px] p-4 shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden">
-                  <div className={`absolute left-0 top-0 w-1.5 h-full ${isBerq ? 'bg-indigo-400' : 'bg-orange-400'}`}></div>
+                <div key={i} className="bg-white rounded-[20px] p-3.5 shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden">
+                  <div className={`absolute left-0 top-0 w-1.5 h-full ${p._isProduct ? 'bg-orange-500' : p._isCourse ? 'bg-teal-500' : 'bg-indigo-400'}`}></div>
                   <div className="flex-1 pl-2 pr-2">
-                    <h4 className="font-bold text-gray-800 text-sm mb-1">{getFuzzyKey(p, ["สินค้า", "รายการ", "ชื่อคอส", "col_18", "col_16"]) || '-'}</h4>
-                    <div className="flex items-center space-x-2 text-[10px]">
+                    <h4 className="font-bold text-gray-800 text-sm leading-tight mb-1">{getFuzzyKey(p, ["สินค้า", "รายการ", "ชื่อคอส", "col_18", "col_16"]) || '-'}</h4>
+                    <div className="flex flex-wrap items-center gap-1 text-[10px]">
                        <span className="font-mono text-gray-400">{getFuzzyKey(p, "วันที่")}</span>
-                       <span className={`${isBerq ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-orange-50 text-orange-600 border-orange-100'} font-bold px-1.5 py-0.5 rounded border`}>{getFuzzyKey(p, "ประเภท")}</span>
+                       {p._isProduct && <span className="bg-orange-50 text-orange-600 border-orange-200 font-bold px-1.5 py-0.5 rounded border">🛍️ สินค้า (นับ VIP)</span>}
+                       {p._isCourse && <span className="bg-teal-50 text-teal-700 border-teal-200 font-bold px-1.5 py-0.5 rounded border">💆 คอร์ส</span>}
+                       {isBerq && <span className="bg-indigo-50 text-indigo-600 border-indigo-200 font-bold px-1.5 py-0.5 rounded border">✂️ {getFuzzyKey(p, "ประเภท")}</span>}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-black text-orange-600">+ {parseNumber(getFuzzyKey(p, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"])).toLocaleString()}</span>
+                  <div className="text-right shrink-0">
+                    <span className={`font-black text-sm ${isBerq ? 'text-indigo-600' : p._isProduct ? 'text-orange-600' : 'text-teal-700'}`}>
+                      {isBerq ? `- ฿${amt.toLocaleString()}` : `+ ฿${amt.toLocaleString()}`}
+                    </span>
                   </div>
                 </div>
                 );
               }) : (
-                <div className="text-center py-10 bg-white rounded-2xl border border-gray-100"><ShoppingBag size={32} className="mx-auto text-gray-200 mb-2"/><p className="text-xs text-gray-400 font-bold">ไม่มีประวัติการได้ยอดสะสม</p></div>
+                <div className="text-center py-10 bg-white rounded-2xl border border-gray-100">
+                  <ShoppingBag size={32} className="mx-auto text-gray-200 mb-2"/>
+                  <p className="text-xs text-gray-400 font-bold">ไม่มีรายการในหมวดนี้</p>
+                </div>
               )}
               
               {/* ศูนย์ช่วยเหลือลูกค้า */}
@@ -2728,6 +2881,17 @@ export default function CustomerApp() {
                           }
                         }
                      }} className="w-full bg-white text-gray-700 py-3 rounded-2xl font-bold border border-gray-200 shadow-sm flex items-center justify-center text-sm active:scale-95 transition-all hover:bg-gray-50"><Info className="mr-2" size={16}/> ดูรายละเอียดสิ่งที่ได้รับในคอร์ส</button>
+                      
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const hList = getCourseUsageHistories(selectedCourseDetail);
+                          setViewingCoursePhotos({ course: selectedCourseDetail, histories: hList, selectedIndex: 0 });
+                        }} 
+                        className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white py-3 rounded-2xl font-bold shadow-sm flex items-center justify-center text-sm active:scale-95 transition-all mt-2.5"
+                      >
+                        <Camera className="mr-2" size={16} /> ดูรูปก่อน - หลังจากการใช้คอร์ส
+                      </button>
                   </div>
 
                   {/* History - รูปแบบตารางเหมือนฝั่งแอดมิน */}
@@ -2853,11 +3017,36 @@ export default function CustomerApp() {
                                                          {hTime && <div className="text-[9px] text-gray-400 font-mono mt-0.5">{hTime}</div>}
                                                      </td>
                                                      <td className="py-3 px-4 align-middle">
-                                                         <div className="font-bold text-gray-800 text-xs mb-1">{actionName}</div>
-                                                         <div className="flex flex-wrap gap-1.5">
+                                                         {(() => {
+                                                             const displayAction = (actionName === 'ตัดคอร์สผ่านระบบ POS' && Array.isArray(h.usedServices) && h.usedServices.length > 0)
+                                                                 ? h.usedServices.join(', ')
+                                                                 : actionName;
+                                                             return (
+                                                                 <>
+                                                                     <div className="font-bold text-gray-800 text-xs mb-1 leading-relaxed">{displayAction}</div>
+                                                                     {Array.isArray(h.usedServices) && h.usedServices.length > 0 && displayAction !== h.usedServices.join(', ') && (
+                                                                         <div className="flex flex-wrap gap-1 mb-1">
+                                                                             {h.usedServices.map((srv, sIdx) => (
+                                                                                 <span key={sIdx} className="text-[9px] bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded font-medium border border-teal-100">
+                                                                                     {srv}
+                                                                                 </span>
+                                                                             ))}
+                                                                         </div>
+                                                                     )}
+                                                                 </>
+                                                             );
+                                                         })()}
+                                                         <div className="flex flex-wrap items-center gap-1.5">
                                                              <span className="text-[9px] bg-white text-gray-600 px-2 py-0.5 rounded-md font-bold border border-gray-200 shadow-sm">
                                                                  หัก {usedQty} ครั้ง
                                                              </span>
+                                                             <button
+                                                                 type="button"
+                                                                 onClick={() => setViewingCoursePhotos({ course: selectedCourseDetail, histories: [h], selectedIndex: 0 })}
+                                                                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors shadow-2xs"
+                                                             >
+                                                                 <Camera size={11} /> ดูรูปก่อน-หลัง
+                                                             </button>
                                                          </div>
                                                      </td>
                                                      <td className="py-3 px-4 align-middle text-center">
@@ -2901,6 +3090,224 @@ export default function CustomerApp() {
                      })()}
                   </div>
                </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- COURSE BEFORE/AFTER PHOTOS MODAL --- */}
+        {viewingCoursePhotos && (() => {
+          const { course, histories = [] } = viewingCoursePhotos;
+          const cName = getFuzzyKey(course, "ชื่อคอส") || 'คอร์สของฉัน';
+          const cRef = getFuzzyKey(course, ["เลขที่ใบคอส", "col_2"]) || '';
+
+          const sessionsWithPhotos = histories.map((h, idx) => {
+            const photos = getHistoryPhotos(h);
+            return {
+              sessionNo: idx + 1,
+              history: h,
+              photos,
+              hasPhotos: photos.before.length > 0 || photos.after.length > 0,
+              date: getFuzzyKey(h, ["วันที่", "col_1"]) || '-',
+              time: getFuzzyKey(h, ["เวลา", "time"]) || '',
+              staff: getFuzzyKey(h, ["พนักงาน", "ผู้ให้บริการ", "staff"]) || '',
+              branch: getFuzzyKey(h, ["สาขา", "branch"]) || '',
+              serviceName: getFuzzyKey(h, ["รายการ", "col_23", "col_18"]) || 'รับบริการ'
+            };
+          });
+
+          const activeIdx = Math.min(viewingCoursePhotos.selectedIndex || 0, Math.max(0, sessionsWithPhotos.length - 1));
+          const currentSession = sessionsWithPhotos[activeIdx];
+
+          return (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-md animate-in fade-in duration-200">
+              <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-gray-100">
+                
+                {/* Header */}
+                <div className="p-5 border-b border-gray-100 flex justify-between items-start bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 text-white relative shrink-0">
+                  <div className="relative z-10 pr-6">
+                    <div className="flex items-center gap-1.5 mb-1 text-teal-100 text-xs font-bold">
+                      <Camera size={15} /> รูปภาพก่อน - หลังทำ (Before & After)
+                    </div>
+                    <h2 className="text-base sm:text-lg font-black leading-tight line-clamp-1">{cName}</h2>
+                    {cRef && <p className="font-mono text-white/80 text-[10px] mt-0.5">เลขที่ใบคอร์ส: {cRef}</p>}
+                  </div>
+                  <button 
+                    onClick={() => setViewingCoursePhotos(null)} 
+                    className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors relative z-10 shrink-0"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Content Body */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50/60">
+                  
+                  {sessionsWithPhotos.length === 0 ? (
+                    <div className="py-12 px-6 text-center bg-white rounded-3xl border border-dashed border-gray-200 my-4">
+                      <div className="w-16 h-16 bg-teal-50 text-teal-500 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
+                        <Camera size={28} />
+                      </div>
+                      <h4 className="font-black text-gray-800 text-sm mb-1">ยังไม่มีรูปภาพบันทึกในระบบ</h4>
+                      <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
+                        เมื่อคุณลูกค้าเข้ามารับบริการที่สาขา เจ้าหน้าที่จะถ่ายรูปก่อนและหลังทำเพื่อบันทึกผลลัพธ์ให้ดูที่นี่ค่ะ ✨
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Session Selector (Tabs if multiple sessions) */}
+                      {sessionsWithPhotos.length > 1 && (
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                          {sessionsWithPhotos.map((s, sIdx) => (
+                            <button
+                              key={sIdx}
+                              type="button"
+                              onClick={() => setViewingCoursePhotos(prev => ({ ...prev, selectedIndex: sIdx }))}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 shrink-0 ${activeIdx === sIdx ? 'bg-teal-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+                            >
+                              <span>ครั้งที่ {s.sessionNo}</span>
+                              <span className="text-[10px] opacity-80">({s.date})</span>
+                              {s.hasPhotos && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Session Card Info */}
+                      {currentSession && (
+                        <div className="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-2xs space-y-1.5">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-gray-800 flex items-center gap-1">
+                              <Clock size={13} className="text-teal-600" /> ครั้งที่ {currentSession.sessionNo} • {currentSession.date} {currentSession.time}
+                            </span>
+                            {currentSession.branch && (
+                              <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md flex items-center gap-0.5">
+                                <MapPin size={10} /> สาขา {currentSession.branch}
+                              </span>
+                            )}
+                          </div>
+                          {currentSession.serviceName && (
+                            <p className="text-[11px] text-teal-800 font-semibold truncate">
+                              บริการ: {currentSession.serviceName}
+                            </p>
+                          )}
+                          {currentSession.staff && (
+                            <p className="text-[10px] text-gray-400">
+                              ผู้ดูแล: {currentSession.staff}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Before & After Photos Grid */}
+                      {currentSession && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          
+                          {/* BEFORE SECTION */}
+                          <div className="bg-white rounded-2xl p-3.5 border border-indigo-100 shadow-2xs space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                                📸 ก่อนทำ (Before)
+                              </span>
+                              <span className="text-[10px] font-bold text-gray-400">
+                                {currentSession.photos.before.length} รูป
+                              </span>
+                            </div>
+
+                            {currentSession.photos.before.length > 0 ? (
+                              <div className="space-y-2">
+                                {currentSession.photos.before.map((imgUrl, pIdx) => (
+                                  <div 
+                                    key={pIdx} 
+                                    onClick={() => setEnlargedPhoto(imgUrl)}
+                                    className="aspect-[4/3] rounded-xl overflow-hidden bg-gray-100 border border-gray-200 relative group cursor-pointer shadow-sm hover:opacity-95"
+                                  >
+                                    <img src={imgUrl} alt={`Before ${pIdx + 1}`} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                      <Eye size={16} /> แตะเพื่อดูภาพใหญ่
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="py-10 text-center bg-gray-50/80 rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
+                                <Camera size={22} className="mx-auto mb-1 text-gray-300" />
+                                <span>ไม่ได้บันทึกรูปก่อนทำ</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* AFTER SECTION */}
+                          <div className="bg-white rounded-2xl p-3.5 border border-emerald-100 shadow-2xs space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                                ✨ หลังทำ (After)
+                              </span>
+                              <span className="text-[10px] font-bold text-gray-400">
+                                {currentSession.photos.after.length} รูป
+                              </span>
+                            </div>
+
+                            {currentSession.photos.after.length > 0 ? (
+                              <div className="space-y-2">
+                                {currentSession.photos.after.map((imgUrl, pIdx) => (
+                                  <div 
+                                    key={pIdx} 
+                                    onClick={() => setEnlargedPhoto(imgUrl)}
+                                    className="aspect-[4/3] rounded-xl overflow-hidden bg-gray-100 border border-gray-200 relative group cursor-pointer shadow-sm hover:opacity-95"
+                                  >
+                                    <img src={imgUrl} alt={`After ${pIdx + 1}`} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                      <Eye size={16} /> แตะเพื่อดูภาพใหญ่
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="py-10 text-center bg-gray-50/80 rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
+                                <Camera size={22} className="mx-auto mb-1 text-gray-300" />
+                                <span>ไม่ได้บันทึกรูปหลังทำ</span>
+                              </div>
+                            )}
+                          </div>
+
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                </div>
+
+                {/* Footer */}
+                <div className="p-3.5 border-t border-gray-100 bg-white text-center">
+                  <button
+                    type="button"
+                    onClick={() => setViewingCoursePhotos(null)}
+                    className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors"
+                  >
+                    ปิดหน้าต่าง
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* --- FULLSCREEN IMAGE PREVIEW LIGHTBOX --- */}
+        {enlargedPhoto && (
+          <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200 cursor-zoom-out"
+            onClick={() => setEnlargedPhoto(null)}
+          >
+            <div className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+              <img src={enlargedPhoto} alt="Enlarged" className="max-w-[95vw] max-h-[85vh] object-contain rounded-2xl shadow-2xl" />
+              <button 
+                type="button"
+                onClick={() => setEnlargedPhoto(null)} 
+                className="absolute -top-3 -right-3 bg-white text-gray-900 rounded-full p-2 shadow-lg hover:scale-105 active:scale-95 transition-all"
+              >
+                <X size={18} />
+              </button>
             </div>
           </div>
         )}

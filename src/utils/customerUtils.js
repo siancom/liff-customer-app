@@ -1,4 +1,4 @@
-import { getFuzzyKey, parseNumber } from './helpers';
+import { getFuzzyKey, parseNumber, parseThaiDate } from './helpers';
 
 export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourses, dbOrders = []) => {
   const custName = (getFuzzyKey(rawCustomer, ["ชื่อลูกค้า", "ชื่อ"]) || '').trim();
@@ -12,88 +12,77 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
   const creditTransactions = dbHistories.filter(h => {
     if (!isCreditTx(h)) return false;
     const hP = String(h.cleanPhone || getFuzzyKey(h, ["เบอร์โทร", "col_3", "phone"]) || '').replace(/\D/g, '');
-    if (hP && cleanPhone && hP === cleanPhone) return true;
+    const cleanDigits = String(cleanPhone || '').replace(/\D/g, '');
+    if (hP && cleanDigits && hP === cleanDigits) return true;
     if (!hP && (getFuzzyKey(h, ["ชื่อลูกค้า", "ชื่อ"]) || '').trim() === custName) return true;
     return false;
   }).sort((a, b) => String(b.timestamp || b.createdAt || '').localeCompare(String(a.timestamp || a.createdAt || '')));
 
+  const cleanDigits = String(cleanPhone || '').replace(/\D/g, '');
+  const custNameClean = custName.replace(/\s+/g, '').toLowerCase();
+
+  // 1. Filter customer histories (exclude cancelled records)
   const customerHistory = dbHistories.filter(h => {
     if (h.transactionType) return false;
-    const nameMatch = custName && (getFuzzyKey(h, ["ชื่อลูกค้า", "ชื่อ"]) || '').trim() === custName;
+    if (h.isCancelled || String(getFuzzyKey(h, ["สถานะ", "col_7", "col_8", "col_9", "col_22"]) || '') === 'ยกเลิก') return false;
+    
     const hP = String(h.cleanPhone || getFuzzyKey(h, ["เบอร์โทร", "col_3", "phone"]) || '').replace(/\D/g, '');
-    const phoneMatch = cleanPhone && hP && hP === cleanPhone;
-    return nameMatch || phoneMatch;
-  });
-  
-  const map = new Map();
-  const uniqueMyHistories = [];
-  customerHistory.forEach(h => {
-     const refRaw = getFuzzyKey(h, ["หมายเลขคำสั่งซื้อ", "เลขที่คำสั่งซื้อ", "รหัสคำสั่งซื้อ", "หมายเลขเอกสาร", "เลขที่บิล", "Order", "Ref"]);
-     const ref = refRaw ? String(refRaw).trim() : '';
-     const currentAmt = parseNumber(getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด"]));
-     
-     if (ref && ref !== '-' && ref.toLowerCase() !== 'null') {
-         if (!map.has(ref)) {
-             const newObj = { ...h, _groupedAmount: currentAmt };
-             map.set(ref, newObj);
-             uniqueMyHistories.push(newObj);
-         } else {
-             const existing = map.get(ref);
-             if (currentAmt > 0) {
-                 existing._groupedAmount = (existing._groupedAmount || 0) + currentAmt;
-             }
-             const existingStatus = getFuzzyKey(existing, ["สถานะ", "col_22"]) || '';
-             const newStatus = getFuzzyKey(h, ["สถานะ", "col_22"]) || '';
-             
-             const statusWeight = (s) => {
-                 if (['ยกเลิก', 'ปฏิเสธ'].includes(s)) return -1;
-                 if (['รอตรวจสอบ', 'รอดำเนินการ'].includes(s)) return 0;
-                 return 1; // เรียบร้อย, ชำระแล้ว, อนุมัติ, จัดส่งแล้ว
-             };
-
-             if (statusWeight(newStatus) > statusWeight(existingStatus)) {
-                 existing["สถานะ"] = newStatus;
-                 existing.status = newStatus;
-             }
-         }
-     } else {
-         uniqueMyHistories.push({ ...h, _groupedAmount: currentAmt });
-     }
+    const phoneMatch = cleanDigits && cleanDigits.length >= 9 && hP && (hP === cleanDigits || hP.endsWith(cleanDigits.slice(-9)));
+    
+    const hName = String(getFuzzyKey(h, ["ชื่อลูกค้า", "ชื่อ", "col_2"]) || '').replace(/\s+/g, '').toLowerCase();
+    const nameMatch = custNameClean && hName && (hName === custNameClean || hName.includes(custNameClean) || custNameClean.includes(hName));
+    
+    return phoneMatch || nameMatch;
   });
 
-  // Attach tracking info from orders collection
-  uniqueMyHistories.forEach(h => {
+  // 2. Attach order tracking information without losing individual transaction amounts
+  const enrichedHistory = customerHistory.map(h => {
      const hRef = getFuzzyKey(h, ["หมายเลขคำสั่งซื้อ", "เลขที่คำสั่งซื้อ", "รหัสคำสั่งซื้อ", "หมายเลขเอกสาร", "เลขที่บิล", "Order", "Ref"]);
      if (hRef && dbOrders.length > 0) {
          const matchingOrder = dbOrders.find(o => String(o.orderNo) === String(hRef) || String(o.id) === String(hRef));
          if (matchingOrder) {
-             if (matchingOrder.status) {
-                 h.status = matchingOrder.status;
-                 h["สถานะ"] = matchingOrder.status;
-             }
-             if (matchingOrder.trackingNo) h.trackingNo = matchingOrder.trackingNo;
-             if (matchingOrder.trackingInfo) h.trackingInfo = matchingOrder.trackingInfo;
-             if (matchingOrder.fulfillment) h.fulfillment = matchingOrder.fulfillment;
-             if (matchingOrder.cartItems) h.cartItems = matchingOrder.cartItems;
-             if (matchingOrder.price) h._groupedAmount = parseNumber(matchingOrder.price); // Use total order price
+             return {
+                 ...h,
+                 status: matchingOrder.status || h.status,
+                 trackingNo: matchingOrder.trackingNo || h.trackingNo,
+                 trackingInfo: matchingOrder.trackingInfo || h.trackingInfo,
+                 fulfillment: matchingOrder.fulfillment || h.fulfillment,
+                 cartItems: matchingOrder.cartItems || h.cartItems
+             };
          }
      }
+     return h;
   });
 
+  // 3. Accumulation calculations strictly aligned with Admin Dashboard
   let historyEarned = 0;
   let historySpent = 0;
   let productEarned = 0;
+  let courseEarned = 0;
 
-  uniqueMyHistories.forEach(h => {
-      const type = String(getFuzzyKey(h, ["ประเภท", "col_4"]) || '');
-      const amt = h._groupedAmount || 0;
+  enrichedHistory.forEach(h => {
+      const type = String(getFuzzyKey(h, ["ประเภท", "col_4"]) || '').trim();
+      const name = String(getFuzzyKey(h, ["สินค้า", "รายการ", "ชื่อคอส", "คอสที่ซื้อ", "col_18", "col_16", "col_23"]) || '').trim();
+      const amt = parseNumber(getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอดเบิก", "ยอด", "col_19"]));
+
+      const isSpent = type.includes('เบิก') || type.includes('จ่าย') || type.includes('หัก') || type.includes('ตัด');
+      const isCourse = type.includes('คอร์ส') || type.includes('คอส') || type.includes('บริการ') || type.includes('รับบริการ') || name.includes('คอร์ส') || name.includes('คอส') || name.includes('ครั้ง');
+      const isProduct = amt > 0 && !isSpent && !isCourse && (type.includes('สินค้า') || type.includes('จัดซื้อ'));
+
+      h._isProduct = isProduct;
+      h._isCourse = isCourse;
+      h._isSpent = isSpent;
+      h._itemAmount = amt;
+
       if (amt > 0) {
-          if (type.includes('เบิก') || type.includes('จ่าย') || type.includes('หัก')) {
+          if (isSpent) {
               historySpent += amt;
           } else {
               historyEarned += amt;
-              if (type.includes('สินค้า')) {
+              if (isProduct) {
                   productEarned += amt;
+              } else if (isCourse) {
+                  courseEarned += amt;
               }
           }
       }
@@ -101,8 +90,10 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
 
   const totalAccumulated = oldAmount + historyEarned - historySpent;
   const productAccumulatedAmount = oldAmount + productEarned;
+  const courseAccumulatedAmount = courseEarned;
   
-  let memberStatus = getFuzzyKey(rawCustomer, "สถานะสมาชิก") || "ยังไม่สะสมยอด";
+  let memberStatus = String(getFuzzyKey(rawCustomer, ["สถานะสมาชิก", "col_7"]) || '').trim();
+  if (!memberStatus || memberStatus === 'undefined') memberStatus = 'ทั่วไป';
   
   if (productAccumulatedAmount >= 5000 && ['ยังไม่สะสมยอด', 'ทั่วไป', 'สะสมยอด', ''].includes(memberStatus)) {
       memberStatus = 'รอบัตร';
@@ -111,12 +102,8 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
   }
 
   const basicStatuses = ['ยังไม่สะสมยอด', 'ทั่วไป', 'สะสมยอด', 'รอบัตร', ''];
-  let isApproved = !basicStatuses.includes(memberStatus) && memberStatus !== '';
-
-  // 🌟 Force member price if product purchases >= 5000
-  if (productAccumulatedAmount >= 5000) {
-      isApproved = true;
-  }
+  const isVip = memberStatus.includes('VIP') || memberStatus.includes('บัตรทอง') || memberStatus.includes('สมาชิกพิเศษ');
+  let isApproved = isVip || productAccumulatedAmount >= 5000;
 
   const userCourses = dbCourses.filter(c => {
     const cp = String(c.cleanPhone || getFuzzyKey(c, ["เบอร์โทร", "col_1", "phone"]) || '').replace(/\D/g, '');
@@ -256,13 +243,14 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
     };
   });
 
-  const sortedHistory = uniqueMyHistories.sort((a,b) => {
-     const refA = String(getFuzzyKey(a, ["หมายเลขเอกสาร", "Ref", "เลขที่บิล"]) || "");
-     const refB = String(getFuzzyKey(b, ["หมายเลขเอกสาร", "Ref", "เลขที่บิล"]) || "");
-     const numA = parseInt(refA.replace(/[^0-9]/g, ''), 10) || 0;
-     const numB = parseInt(refB.replace(/[^0-9]/g, ''), 10) || 0;
-     if (numA !== numB) return numB - numA;
-     return refB.localeCompare(refA);
+  // 4. Sort history by date (newest first)
+  const sortedHistory = enrichedHistory.sort((a, b) => {
+     const dateA = getFuzzyKey(a, ["วันที่", "col_1", "createdAt", "timestamp"]);
+     const dateB = getFuzzyKey(b, ["วันที่", "col_1", "createdAt", "timestamp"]);
+     const timeA = parseThaiDate(dateA)?.getTime() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+     const timeB = parseThaiDate(dateB)?.getTime() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+     if (timeA !== timeB) return timeB - timeA;
+     return String(b.id || '').localeCompare(String(a.id || ''));
   });
 
   const receivedCredit = creditTransactions
@@ -288,8 +276,10 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
     cleanPhone,
     realAccumulatedAmount: totalAccumulated,
     productAccumulatedAmount: productAccumulatedAmount,
+    courseAccumulatedAmount: courseAccumulatedAmount,
     memberStatus: memberStatus,
     isApproved: isApproved,
+    isVip: isVip,
     courses: sortedCourses,
     history: sortedHistory,
     creditTransactions: creditTransactions,

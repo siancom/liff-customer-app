@@ -1554,7 +1554,10 @@ export default function CustomerApp() {
   const totalCreditBalance = customerData.courses.reduce((sum, c) => sum + (c.computedRemainCredit || 0), 0);
   const maxTotalCredit = customerData.courses.reduce((sum, c) => sum + (c.computedTotalCredit || 0), 0);
   
-  const courseUsages = customerData.history.filter(h => getFuzzyKey(h, "ประเภท")?.includes('ใช้') || getFuzzyKey(h, "ประเภท")?.includes('เบิก') || getFuzzyKey(h, "ประเภท") === 'คอส');
+  const courseUsages = customerData.history.filter(h => {
+     const t = String(getFuzzyKey(h, "ประเภท") || '');
+     return t.includes('ใช้') || t.includes('เบิก') || t.includes('คอส') || t.includes('คอร์ส') || t.includes('ตัด') || t.includes('บริการ');
+  });
   const productPurchases = customerData.history.filter(h => {
      const rawAmount = getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอด", "col_19"]);
      return parseNumber(rawAmount) > 0;
@@ -2508,15 +2511,84 @@ export default function CustomerApp() {
                       </div>
                   </div>
 
+                  {/* สิ่งที่ได้รับในคอร์ส (แสดงโดยตรง) */}
+                  {(() => {
+                    const directItems = String(
+                      getFuzzyKey(selectedCourseDetail, ["รายการที่ได้รับ", "รายการที่ได้รับในคอร์ส", "items", "col_11", "receivedItems"]) ||
+                      selectedCourseDetail.promoOption?.items ||
+                      ''
+                    ).trim();
+
+                    let itemsToShow = directItems;
+                    let masterDesc = '';
+                    if (!itemsToShow) {
+                      const cName = String(getFuzzyKey(selectedCourseDetail, "ชื่อคอส") || '').trim();
+                      const cCode = String(getFuzzyKey(selectedCourseDetail, ["รหัสคอส", "col_1", "code"]) || '').trim();
+                      const master = dbMasterCourses.find(mc => {
+                        if (cCode && (mc.id === cCode || mc.id === cCode.split('-opt_')[0] || String(getFuzzyKey(mc, ["รหัสคอส", "code"]) || '') === cCode)) return true;
+                        const mcName = String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim();
+                        if (!mcName) return false;
+                        return mcName === cName || cName.startsWith(mcName) || mcName.startsWith(cName.split(' - ')[0]);
+                      });
+                      if (master) {
+                        if (master.promoOptions && Array.isArray(master.promoOptions)) {
+                          const opt = master.promoOptions.find(o => (cCode && cCode.includes(o.id)) || (o.name && cName.includes(o.name)));
+                          if (opt && opt.items) itemsToShow = opt.items;
+                        }
+                        if (!itemsToShow) {
+                          itemsToShow = String(getFuzzyKey(master, ["รายการที่ได้รับในคอร์ส", "รายการที่ได้รับ", "receivedItems", "คอร์สย่อย", "col_11"]) || '').trim();
+                        }
+                        masterDesc = String(getFuzzyKey(master, ["รายละเอียดสินค้า", "รายละเอียด", "desc", "details"]) || '').trim();
+                      }
+                    }
+
+                    if (!itemsToShow && !masterDesc) return null;
+
+                    return (
+                      <div className="mb-5 bg-white p-4 rounded-3xl shadow-sm border border-teal-100/80">
+                        <h3 className="font-black text-gray-800 text-xs mb-2.5 flex items-center text-teal-700">
+                          <Sparkles size={14} className="mr-1.5 text-teal-500" /> สิ่งที่ได้รับในคอร์ส
+                        </h3>
+                        {itemsToShow && (
+                          <div className="bg-teal-50/60 p-3.5 rounded-2xl border border-teal-100/60 text-xs text-teal-950 leading-relaxed whitespace-pre-line font-medium">
+                            {itemsToShow.replace(/\\n/g, '\n')}
+                          </div>
+                        )}
+                        {masterDesc && !itemsToShow && (
+                          <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-100 text-xs text-gray-700 leading-relaxed whitespace-pre-line">
+                            {masterDesc.replace(/\\n/g, '\n')}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* Actions */}
                   <div className="mb-6 space-y-2">
                      <button onClick={() => { setSelectedCourseDetail(null); setShowQR(selectedCourseDetail); }} className="w-full bg-teal-500 hover:bg-teal-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-teal-500/30 flex items-center justify-center text-base active:scale-95 transition-all"><QrCode className="mr-2"/> รับบริการ / เบิกสินค้า (แสดง QR)</button>
                      
                      <button onClick={() => { 
                         const courseName = String(getFuzzyKey(selectedCourseDetail, "ชื่อคอส") || '').trim();
-                        const matchingMaster = dbMasterCourses.find(mc => String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim() === courseName);
+                        const courseCode = String(getFuzzyKey(selectedCourseDetail, ["รหัสคอส", "col_1", "code"]) || '').trim();
+                        const matchingMaster = dbMasterCourses.find(mc => {
+                          if (courseCode && (mc.id === courseCode || mc.id === courseCode.split('-opt_')[0] || String(getFuzzyKey(mc, ["รหัสคอส", "code"]) || '') === courseCode)) return true;
+                          const mcName = String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim();
+                          if (!mcName) return false;
+                          return mcName === courseName || courseName.startsWith(mcName) || mcName.startsWith(courseName.split(' - ')[0]);
+                        });
+
+                        const directItems = String(
+                          getFuzzyKey(selectedCourseDetail, ["รายการที่ได้รับ", "รายการที่ได้รับในคอร์ส", "items", "col_11", "receivedItems"]) ||
+                          selectedCourseDetail.promoOption?.items ||
+                          ''
+                        ).trim();
+
                         if (matchingMaster) {
-                          const rawPrice = parseNumber(getFuzzyKey(matchingMaster, ["ราคา", "ราคาขาย", "col_6", "col_5"]) || matchingMaster.price || 0);
+                          let matchedOpt = null;
+                          if (matchingMaster.promoOptions && Array.isArray(matchingMaster.promoOptions)) {
+                            matchedOpt = matchingMaster.promoOptions.find(o => (courseCode && courseCode.includes(o.id)) || (o.name && courseName.includes(o.name)));
+                          }
+                          const rawPrice = parseNumber(matchedOpt?.price || getFuzzyKey(matchingMaster, ["ราคา", "ราคาขาย", "col_6", "col_5"]) || matchingMaster.price || getFuzzyKey(selectedCourseDetail, "ราคา") || 0);
                           const desc = String(getFuzzyKey(matchingMaster, ["รายละเอียดสินค้า", "รายละเอียด", "รายละเอียดสินค้า (ถ้ามี)", "description", "details"]) || matchingMaster.desc || '').trim();
                           const credit = parseNumber(getFuzzyKey(matchingMaster, ["เครดิต", "วงเงิน", "credit", "col_8"]) || 0);
                           const itemCat = String(getFuzzyKey(matchingMaster, ["หมวดหมู่", "หมวดสินค้า", "category", "ประเภท", "col_2"]) || 'บริการคลินิก').trim();
@@ -2525,7 +2597,7 @@ export default function CustomerApp() {
                           const vipVal = String(getFuzzyKey(matchingMaster, ["แถม VIP", "แถม VIP Card", "vip", "ฟรีบัตรสมาชิก"]) || '').trim().toLowerCase();
                           const isVip = vipVal === 'true' || vipVal === 'yes' || vipVal === 'ใช่' || vipVal === 'แถม' || vipVal === 'มี';
                           
-                          const receivedItems = String(getFuzzyKey(matchingMaster, ["รายการที่ได้รับในคอร์ส", "รายการที่ได้รับ", "receivedItems", "คอร์สย่อย"]) || '').trim();
+                          const receivedItems = directItems || matchedOpt?.items || String(getFuzzyKey(matchingMaster, ["รายการที่ได้รับในคอร์ส", "รายการที่ได้รับ", "receivedItems", "คอร์สย่อย"]) || '').trim();
 
                           const imageStr = String(getFuzzyKey(matchingMaster, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || '').trim();
                           const imagesArray = imageStr.split(/[\n, ]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
@@ -2534,7 +2606,7 @@ export default function CustomerApp() {
 
                           setSelectedProduct({
                             ...matchingMaster,
-                            name: String(getFuzzyKey(matchingMaster, ["ชื่อคอส", "col_4"]) || matchingMaster.name).trim(),
+                            name: courseName || String(getFuzzyKey(matchingMaster, ["ชื่อคอส", "col_4"]) || matchingMaster.name).trim(),
                             image: finalImage,
                             images: finalImages,
                             price: rawPrice,
@@ -2547,7 +2619,10 @@ export default function CustomerApp() {
                             receivedItems: receivedItems
                           });
                         } else {
-                          const matchingProd = dbProducts.find(p => String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').trim() === courseName);
+                          const matchingProd = dbProducts.find(p => {
+                            const pName = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || '').trim();
+                            return pName && (pName === courseName || courseName.startsWith(pName));
+                          });
                           if (matchingProd) {
                             const rawPrice = parseNumber(getFuzzyKey(matchingProd, ["ราคาขายเต็ม", "ราคาปกติ", "col_6"]) || matchingProd.price || 0);
                             const desc = String(getFuzzyKey(matchingProd, ["รายละเอียดสินค้า", "รายละเอียด", "รายละเอียดสินค้า (ถ้ามี)", "description", "details"]) || matchingProd.description || '').trim();
@@ -2563,10 +2638,21 @@ export default function CustomerApp() {
                               images: finalImages,
                               price: rawPrice,
                               type: 'product',
-                              desc: desc
+                              desc: desc,
+                              receivedItems: directItems
                             });
+                          } else if (directItems) {
+                            setSelectedProduct({
+                              id: selectedCourseDetail.id,
+                              name: courseName,
+                              price: parseNumber(getFuzzyKey(selectedCourseDetail, "ราคา") || 0),
+                              type: 'course',
+                              desc: `จำนวนครั้งทั้งหมด: ${getFuzzyKey(selectedCourseDetail, "จำนวนครั้งที่ได้")} ครั้ง`,
+                              receivedItems: directItems
+                            });
+                          } else {
+                            alert("ไม่พบรายละเอียดเพิ่มเติมของคอร์สนี้ในระบบ");
                           }
-                          else alert("ไม่พบรายละเอียดคอร์สนี้ในระบบ (อาจถูกลบหรือเปลี่ยนชื่อ)");
                         }
                      }} className="w-full bg-white text-gray-700 py-3 rounded-2xl font-bold border border-gray-200 shadow-sm flex items-center justify-center text-sm active:scale-95 transition-all hover:bg-gray-50"><Info className="mr-2" size={16}/> ดูรายละเอียดสิ่งที่ได้รับในคอร์ส</button>
                   </div>
@@ -2575,23 +2661,48 @@ export default function CustomerApp() {
                   <h3 className="font-black text-gray-800 mb-3 flex items-center text-sm"><HistoryIcon size={16} className="mr-2 text-gray-400"/> ประวัติการรับบริการ / หักยอดคอร์ส</h3>
                   <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
                      {(() => {
-                         const refKey = String(getFuzzyKey(selectedCourseDetail, "อ้างอิง") || getFuzzyKey(selectedCourseDetail, "เลขที่ใบคอส") || selectedCourseDetail.id || '');
-                         const histories = courseUsages.filter(h => {
-                            const hRef = String(getFuzzyKey(h, ["อ้างอิง", "เลขที่ใบคอส", "col_6"]) || '');
-                            return hRef === refKey && refKey !== '';
+                         const refKey = String(getFuzzyKey(selectedCourseDetail, ["เลขที่ใบคอส", "col_2"]) || selectedCourseDetail.courseRefKey || selectedCourseDetail.id || '').trim();
+                         const orderNo = String(selectedCourseDetail.orderNo || selectedCourseDetail.refOrderNo || getFuzzyKey(selectedCourseDetail, "หมายเลขคำสั่งซื้อ") || '').trim();
+
+                         const histories = (customerData.history || []).filter(h => {
+                            const hRef = String(getFuzzyKey(h, ["เลขที่ใบคอส", "col_6", "อ้างอิง"]) || '').trim();
+                            const hOrder = String(getFuzzyKey(h, ["หมายเลขคำสั่งซื้อ", "Order", "Ref", "เลขที่บิล"]) || '').trim();
+                            if (refKey && hRef && (hRef === refKey || hRef.includes(refKey) || refKey.includes(hRef))) return true;
+                            if (orderNo && hOrder && hOrder === orderNo) return true;
+                            return false;
                          });
 
-                         if (histories.length === 0) return <div className="text-center py-6 text-gray-400 italic text-xs">ไม่มีประวัติการใช้งาน</div>;
+                         const buyDate = getFuzzyKey(selectedCourseDetail, ["วันที่ซื้อ", "วันที่", "col_3"]);
+                         const buyBranch = getFuzzyKey(selectedCourseDetail, ["สาขาที่ซื้อ", "สาขา"]) || 'เฉวง';
+                         const totalSessions = parseNumber(getFuzzyKey(selectedCourseDetail, "จำนวนครั้งที่ได้")) || 1;
+
+                         const usageHistories = histories.filter(h => {
+                            const t = String(getFuzzyKey(h, "ประเภท") || '');
+                            return t.includes('ใช้') || t.includes('เบิก') || t.includes('ตัด') || t.includes('บริการ');
+                         });
 
                          return (
                              <div className="space-y-3">
-                                 {histories.map((h, i) => (
-                                     <div key={i} className="flex justify-between items-center text-xs border-b border-gray-50 pb-2 last:border-0 last:pb-0">
+                                 {/* ประวัติเปิดคอร์สเริ่มต้น */}
+                                 <div className="flex justify-between items-center text-xs border-b border-gray-100 pb-2.5">
+                                     <div className="flex items-start gap-2">
+                                         <CheckCircle size={14} className="text-emerald-500 shrink-0 mt-0.5" />
                                          <div>
-                                             <span className="font-mono text-gray-400 mr-2">{getFuzzyKey(h, "วันที่")}</span>
+                                             <div className="font-bold text-gray-800">เปิดคอร์สสำเร็จ ({totalSessions} ครั้ง)</div>
+                                             <div className="font-mono text-gray-400 text-[10px] mt-0.5">{buyDate || '-'} • สาขา {buyBranch} {orderNo ? `(บิล #${orderNo})` : ''}</div>
+                                         </div>
+                                     </div>
+                                     <span className="font-black px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[10px] shrink-0 ml-2">เริ่มต้น</span>
+                                 </div>
+
+                                 {/* ประวัติการตัดคอร์ส / รับบริการจริง */}
+                                 {usageHistories.map((h, i) => (
+                                     <div key={i} className="flex justify-between items-center text-xs border-b border-gray-50 pb-2 last:border-0 last:pb-0">
+                                         <div className="pl-5">
+                                             <span className="font-mono text-gray-400 mr-2 text-[10px]">{getFuzzyKey(h, "วันที่")}</span>
                                              <span className="font-bold text-gray-800">{getFuzzyKey(h, "ประเภท")} {getFuzzyKey(h, "รายการ") ? `: ${getFuzzyKey(h, "รายการ")}` : ''}</span>
                                          </div>
-                                         <span className="font-black px-2 py-0.5 rounded bg-teal-50 text-teal-600 text-[10px] shrink-0 ml-2">หัก {parseNumber(getFuzzyKey(h, "จำนวน")) || 1}</span>
+                                         <span className="font-black px-2 py-0.5 rounded bg-teal-50 text-teal-600 text-[10px] shrink-0 ml-2">หัก {parseNumber(getFuzzyKey(h, "จำนวน")) || 1} ครั้ง</span>
                                      </div>
                                  ))}
                              </div>

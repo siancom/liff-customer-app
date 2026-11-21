@@ -4,7 +4,7 @@ import {
   QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
   AlertCircle, Info, Ticket, Phone, Loader2, ArrowRight, Tag, 
   LogOut, Sparkles, MapPin, Award, Banknote, ShoppingBag, HeartPulse,
-  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, CalendarPlus, Gift, HelpCircle, UserPlus
+  History as HistoryIcon, ShoppingCart, ReceiptText, ArrowDownToLine, X, CalendarDays, CalendarPlus, Gift, HelpCircle, UserPlus, ShieldCheck
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -2657,9 +2657,15 @@ export default function CustomerApp() {
                      }} className="w-full bg-white text-gray-700 py-3 rounded-2xl font-bold border border-gray-200 shadow-sm flex items-center justify-center text-sm active:scale-95 transition-all hover:bg-gray-50"><Info className="mr-2" size={16}/> ดูรายละเอียดสิ่งที่ได้รับในคอร์ส</button>
                   </div>
 
-                  {/* History */}
-                  <h3 className="font-black text-gray-800 mb-3 flex items-center text-sm"><HistoryIcon size={16} className="mr-2 text-gray-400"/> ประวัติการรับบริการ / หักยอดคอร์ส</h3>
-                  <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                  {/* History - รูปแบบตารางเหมือนฝั่งแอดมิน */}
+                  <div className="flex items-center justify-between mb-3">
+                     <h3 className="font-black text-gray-800 flex items-center text-sm">
+                        <HistoryIcon size={16} className="mr-2 text-gray-400"/> ประวัติการรับบริการ / หักเครดิตสินค้า
+                     </h3>
+                     <span className="text-[10px] text-gray-400 font-bold sm:hidden">(เลื่อนซ้าย-ขวาเพื่อดูลายเซ็น)</span>
+                  </div>
+
+                  <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden mb-6">
                      {(() => {
                          const refKey = String(getFuzzyKey(selectedCourseDetail, ["เลขที่ใบคอส", "col_2"]) || selectedCourseDetail.courseRefKey || selectedCourseDetail.id || '').trim();
                          const orderNo = String(selectedCourseDetail.orderNo || selectedCourseDetail.refOrderNo || getFuzzyKey(selectedCourseDetail, "หมายเลขคำสั่งซื้อ") || '').trim();
@@ -2672,39 +2678,158 @@ export default function CustomerApp() {
                             return false;
                          });
 
-                         const buyDate = getFuzzyKey(selectedCourseDetail, ["วันที่ซื้อ", "วันที่", "col_3"]);
-                         const buyBranch = getFuzzyKey(selectedCourseDetail, ["สาขาที่ซื้อ", "สาขา"]) || 'เฉวง';
+                         const buyDate = String(getFuzzyKey(selectedCourseDetail, ["วันที่ซื้อ", "วันที่", "col_3"]) || '-');
+                         const buyBranch = String(getFuzzyKey(selectedCourseDetail, ["สาขาที่ซื้อ", "สาขา"]) || 'เฉวง');
                          const totalSessions = parseNumber(getFuzzyKey(selectedCourseDetail, "จำนวนครั้งที่ได้")) || 1;
+                         const coursePrice = parseNumber(getFuzzyKey(selectedCourseDetail, ["ราคา", "ราคาคอร์ส", "col_13"]) || 0);
 
                          const usageHistories = histories.filter(h => {
                             const t = String(getFuzzyKey(h, "ประเภท") || '');
                             return t.includes('ใช้') || t.includes('เบิก') || t.includes('ตัด') || t.includes('บริการ');
                          });
 
-                         return (
-                             <div className="space-y-3">
-                                 {/* ประวัติเปิดคอร์สเริ่มต้น */}
-                                 <div className="flex justify-between items-center text-xs border-b border-gray-100 pb-2.5">
-                                     <div className="flex items-start gap-2">
-                                         <CheckCircle size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                                         <div>
-                                             <div className="font-bold text-gray-800">เปิดคอร์สสำเร็จ ({totalSessions} ครั้ง)</div>
-                                             <div className="font-mono text-gray-400 text-[10px] mt-0.5">{buyDate || '-'} • สาขา {buyBranch} {orderNo ? `(บิล #${orderNo})` : ''}</div>
-                                         </div>
-                                     </div>
-                                     <span className="font-black px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[10px] shrink-0 ml-2">เริ่มต้น</span>
-                                 </div>
+                         const parseSig = (sig) => {
+                             if (!sig) return null;
+                             if (typeof sig !== 'string') return null;
+                             if (sig.startsWith('http') || sig.startsWith('data:image')) return sig;
+                             if (sig.includes('ประวัติการใช้บริการ_Images') || sig.includes('_Images')) {
+                                 return `https://crm.irisnatures.com/ประวัติการใช้บริการ_Images/${sig.split(/[/\\]/).pop()}`;
+                             }
+                             if (sig.match(/\.(jpeg|jpg|gif|png|webp)$/i) || sig.includes('.รูปลูกค้า.') || sig.includes('signature')) {
+                                 return `https://crm.irisnatures.com/uploads/customer_photos/${sig.split(/[/\\]/).pop()}`;
+                             }
+                             return sig;
+                         };
 
-                                 {/* ประวัติการตัดคอร์ส / รับบริการจริง */}
-                                 {usageHistories.map((h, i) => (
-                                     <div key={i} className="flex justify-between items-center text-xs border-b border-gray-50 pb-2 last:border-0 last:pb-0">
-                                         <div className="pl-5">
-                                             <span className="font-mono text-gray-400 mr-2 text-[10px]">{getFuzzyKey(h, "วันที่")}</span>
-                                             <span className="font-bold text-gray-800">{getFuzzyKey(h, "ประเภท")} {getFuzzyKey(h, "รายการ") ? `: ${getFuzzyKey(h, "รายการ")}` : ''}</span>
-                                         </div>
-                                         <span className="font-black px-2 py-0.5 rounded bg-teal-50 text-teal-600 text-[10px] shrink-0 ml-2">หัก {parseNumber(getFuzzyKey(h, "จำนวน")) || 1} ครั้ง</span>
-                                     </div>
-                                 ))}
+                         const isImg = (s) => s && typeof s === 'string' && (s.startsWith('http') || s.startsWith('data:image'));
+
+                         const VerifiedSig = () => (
+                             <div className="flex flex-col items-center justify-center w-full h-full">
+                                 <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center mb-1 shadow-inner">
+                                     <ShieldCheck size={14} className="text-emerald-600" />
+                                 </div>
+                                 <span className="text-[8px] font-bold text-emerald-700 uppercase tracking-wide">Verified</span>
+                             </div>
+                         );
+
+                         return (
+                             <div className="overflow-x-auto">
+                                 <table className="w-full text-xs text-left border-collapse min-w-[560px]">
+                                     <thead>
+                                         <tr className="bg-gray-50/80 border-b border-gray-100">
+                                             <th className="py-3 px-4 font-black text-gray-500 whitespace-nowrap text-[10px] uppercase tracking-wider w-28">วันที่ / เวลา</th>
+                                             <th className="py-3 px-4 font-black text-gray-500 text-[10px] uppercase tracking-wider min-w-[180px]">รายการที่ใช้บริการ</th>
+                                             <th className="py-3 px-4 font-black text-gray-500 text-center whitespace-nowrap text-[10px] uppercase tracking-wider w-28">ยอดเบิก / มูลค่า</th>
+                                             <th className="py-3 px-4 font-black text-gray-500 text-center whitespace-nowrap text-[10px] uppercase tracking-wider w-32">ลายเซ็นลูกค้า</th>
+                                             <th className="py-3 px-4 font-black text-gray-500 text-center whitespace-nowrap text-[10px] uppercase tracking-wider w-32">ลายเซ็นพนักงาน</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody className="divide-y divide-gray-100">
+                                         {/* แถวเปิดคอร์สเริ่มต้น */}
+                                         <tr className="hover:bg-slate-50/60 transition-all">
+                                             <td className="py-3 px-4 align-middle whitespace-nowrap">
+                                                 <div className="font-mono text-gray-600 text-[11px] font-bold bg-gray-100/70 inline-block px-2 py-0.5 rounded-lg border border-gray-100">
+                                                     {buyDate}
+                                                 </div>
+                                             </td>
+                                             <td className="py-3 px-4 align-middle">
+                                                 <div className="font-bold text-gray-800 text-xs mb-1">เปิดคอร์สสำเร็จ</div>
+                                                 <div className="flex flex-wrap items-center gap-1.5">
+                                                     <span className="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-md font-bold border border-emerald-100 shadow-sm">
+                                                         +{totalSessions} ครั้ง
+                                                     </span>
+                                                     <span className="text-[10px] text-gray-400">
+                                                         สาขา {buyBranch} {orderNo ? `(บิล #${orderNo})` : ''}
+                                                     </span>
+                                                 </div>
+                                             </td>
+                                             <td className="py-3 px-4 align-middle text-center">
+                                                 {coursePrice > 0 ? (
+                                                     <div className="mx-auto flex flex-col items-center justify-center bg-orange-50/80 border border-orange-200/60 px-2 py-0.5 rounded-xl w-max">
+                                                         <span className="text-[8px] text-orange-500 font-bold uppercase tracking-wider">ราคาคอร์ส</span>
+                                                         <span className="text-xs font-black text-orange-700 leading-none">฿{coursePrice.toLocaleString()}</span>
+                                                     </div>
+                                                 ) : (
+                                                     <span className="text-gray-300 font-bold">-</span>
+                                                 )}
+                                             </td>
+                                             <td className="py-2.5 px-4 align-middle text-center">
+                                                 <div className="bg-gray-50/60 rounded-xl p-1.5 border border-gray-100 min-h-[52px] w-[100px] mx-auto flex items-center justify-center">
+                                                     <VerifiedSig />
+                                                 </div>
+                                             </td>
+                                             <td className="py-2.5 px-4 align-middle text-center">
+                                                 <div className="bg-gray-50/60 rounded-xl p-1.5 border border-gray-100 min-h-[52px] w-[100px] mx-auto flex items-center justify-center">
+                                                     <VerifiedSig />
+                                                 </div>
+                                             </td>
+                                         </tr>
+
+                                         {/* แถวประวัติการตัดคอร์ส / รับบริการจริง */}
+                                         {usageHistories.map((h, i) => {
+                                             const deductValue = parseNumber(getFuzzyKey(h, ["ยอดสินค้า", "ยอดจัดซื้อ", "ยอดเงิน", "ยอดเบิก", "ยอด", "col_19"]));
+                                             const productQty = String(getFuzzyKey(h, ["จำนวนสินค้าที่เบิก", "จำนวนเบิก", "จำนวนสินค้า"]) || '');
+                                             const usedQty = parseNumber(getFuzzyKey(h, ["จำนวน", "จำนวนที่ใช้", "ตัดคอร์ส", "col_15"])) || 1;
+                                             const actionName = String(getFuzzyKey(h, ["รายการ", "สินค้า", "col_23", "col_18"]) || 'ตัดคอร์สผ่านระบบ POS');
+                                             const hTime = getFuzzyKey(h, ["เวลา", "time"]);
+
+                                             const cSig = getFuzzyKey(h, ["ลายเซนต์ลูกค้า", "ลายเซ็นลูกค้า", "ลายเซ็นต์ลูกค้า", "customerSignature", "ลายมือชื่อลูกค้า"]);
+                                             const sSig = getFuzzyKey(h, ["ลายเซนต์เจ้าหน้าที่", "ลายเซ็นเจ้าหน้าที่", "ลายเซ็นต์เจ้าหน้าที่", "ลายเซนต์พนักงาน", "ลายเซ็นพนักงาน", "staffSignature"]);
+                                             const cSigParsed = parseSig(cSig);
+                                             const sSigParsed = parseSig(sSig);
+
+                                             return (
+                                                 <tr key={i} className="hover:bg-slate-50/60 transition-all">
+                                                     <td className="py-3 px-4 align-middle whitespace-nowrap">
+                                                         <div className="font-mono text-gray-600 text-[11px] font-bold bg-gray-100/70 inline-block px-2 py-0.5 rounded-lg border border-gray-100">
+                                                             {String(getFuzzyKey(h, ["วันที่", "col_1"]) || '-')}
+                                                         </div>
+                                                         {hTime && <div className="text-[9px] text-gray-400 font-mono mt-0.5">{hTime}</div>}
+                                                     </td>
+                                                     <td className="py-3 px-4 align-middle">
+                                                         <div className="font-bold text-gray-800 text-xs mb-1">{actionName}</div>
+                                                         <div className="flex flex-wrap gap-1.5">
+                                                             <span className="text-[9px] bg-white text-gray-600 px-2 py-0.5 rounded-md font-bold border border-gray-200 shadow-sm">
+                                                                 หัก {usedQty} ครั้ง
+                                                             </span>
+                                                         </div>
+                                                     </td>
+                                                     <td className="py-3 px-4 align-middle text-center">
+                                                         {(deductValue > 0 || productQty) ? (
+                                                             <div className="mx-auto flex flex-col items-center justify-center bg-orange-50/80 border border-orange-200/60 px-2 py-0.5 rounded-xl w-max">
+                                                                 <span className="text-[8px] text-orange-500 font-bold uppercase tracking-wider">ยอดเบิก</span>
+                                                                 <span className="text-xs font-black text-orange-700 leading-none">฿{deductValue.toLocaleString()}</span>
+                                                                 {productQty && <span className="text-[9px] font-bold text-orange-500 mt-0.5">{productQty} ชิ้น</span>}
+                                                             </div>
+                                                         ) : (
+                                                             <span className="text-gray-300 font-bold">-</span>
+                                                         )}
+                                                     </td>
+                                                     <td className="py-2.5 px-4 align-middle text-center">
+                                                         <div className="bg-gray-50/60 rounded-xl p-1 border border-gray-100 min-h-[52px] w-[100px] mx-auto flex items-center justify-center relative overflow-hidden">
+                                                             {cSigParsed ? (
+                                                                 isImg(cSigParsed) ? (
+                                                                     <img src={cSigParsed} alt="Customer Sig" className="max-h-10 w-full object-contain mix-blend-multiply" onError={(e) => { e.target.style.display='none'; if(e.target.nextSibling) e.target.nextSibling.style.display='flex'; }} />
+                                                                 ) : <VerifiedSig />
+                                                             ) : <span className="text-gray-300 text-[10px] font-bold">-</span>}
+                                                             <div className="hidden w-full h-full"><VerifiedSig /></div>
+                                                         </div>
+                                                     </td>
+                                                     <td className="py-2.5 px-4 align-middle text-center">
+                                                         <div className="bg-gray-50/60 rounded-xl p-1 border border-gray-100 min-h-[52px] w-[100px] mx-auto flex items-center justify-center relative overflow-hidden">
+                                                             {sSigParsed ? (
+                                                                 isImg(sSigParsed) ? (
+                                                                     <img src={sSigParsed} alt="Staff Sig" className="max-h-10 w-full object-contain mix-blend-multiply" onError={(e) => { e.target.style.display='none'; if(e.target.nextSibling) e.target.nextSibling.style.display='flex'; }} />
+                                                                 ) : <VerifiedSig />
+                                                             ) : <span className="text-gray-300 text-[10px] font-bold">-</span>}
+                                                             <div className="hidden w-full h-full"><VerifiedSig /></div>
+                                                         </div>
+                                                     </td>
+                                                 </tr>
+                                             );
+                                         })}
+                                     </tbody>
+                                 </table>
                              </div>
                          );
                      })()}

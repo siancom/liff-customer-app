@@ -296,12 +296,30 @@ const Shop = ({
                 const imagesArray = rawImage.split(/[\n, ]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
                 const mainImage = imagesArray.length > 0 ? imagesArray[0] : rawImage;
 
+                const promoOptions = Array.isArray(mc.promoOptions) ? mc.promoOptions.filter(o => o && (o.name || o.price)) : [];
+                let priceRange = null;
+                if (promoOptions.length > 1) {
+                    const validPrices = promoOptions.map(o => Number(o.price) || 0).filter(p => p > 0);
+                    if (validPrices.length > 0) {
+                        const minP = Math.min(...validPrices);
+                        const maxP = Math.max(...validPrices);
+                        if (minP !== maxP) {
+                            priceRange = `฿${minP.toLocaleString()} - ฿${maxP.toLocaleString()}`;
+                        }
+                        if (minP > 0 && (!finalPrice || finalPrice > minP)) {
+                            finalPrice = minP;
+                        }
+                    }
+                }
+
                 return {
                     ...mc,
                     id: mc.id,
                     name: String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || mc.name).trim(),
                     price: finalPrice,
                     originalPrice: finalOriginalPrice,
+                    priceRange: priceRange,
+                    promoOptions: promoOptions,
                     image: mainImage,
                     images: imagesArray.length > 0 ? imagesArray : (mc.images || []),
                     isUsingMemberPrice: isUsingMemberPrice,
@@ -712,6 +730,11 @@ const Shop = ({
                                 return (
                                     <div key={idx} onClick={() => setSelectedProduct(item)} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col relative transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer pb-2">
                                         <div className="relative aspect-[3/4] bg-slate-50 border-b border-slate-50 overflow-hidden flex items-center justify-center">
+                                            {item.promoOptions && item.promoOptions.length > 1 && (
+                                                <div className="absolute top-2 left-2 bg-gradient-to-r from-red-500 to-pink-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md z-20 flex items-center gap-1">
+                                                    <Sparkles size={9} /> มี {item.promoOptions.length} โปรโมชั่น
+                                                </div>
+                                            )}
                                             {item.image ? (
                                                 <img src={item.image} alt={item.name} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = COURSE_FALLBACKS[idx % COURSE_FALLBACKS.length]; }} />
                                             ) : (
@@ -741,9 +764,15 @@ const Shop = ({
                                             
                                             {/* Shopee Style Price Layout */}
                                             <div className="flex items-baseline gap-0.5 mt-1 text-left flex-wrap">
-                                                <span className="text-[#EE4D2D] font-black text-[10px]">฿</span>
-                                                <span className="text-[#EE4D2D] font-black text-base leading-none">{(Number(item.price)||0).toLocaleString()}</span>
-                                                {item.originalPrice > item.price && item.originalPrice > 0 && (
+                                                {item.priceRange ? (
+                                                    <span className="text-[#EE4D2D] font-black text-xs sm:text-sm leading-none">{item.priceRange}</span>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-[#EE4D2D] font-black text-[10px]">฿</span>
+                                                        <span className="text-[#EE4D2D] font-black text-base leading-none">{(Number(item.price)||0).toLocaleString()}</span>
+                                                    </>
+                                                )}
+                                                {item.originalPrice > item.price && item.originalPrice > 0 && !item.priceRange && (
                                                     <span className="text-[9px] text-gray-400 line-through ml-1">฿{(Number(item.originalPrice)||0).toLocaleString()}</span>
                                                 )}
                                             </div>
@@ -758,15 +787,28 @@ const Shop = ({
                                             </div>
 
                                             <button 
-                                                onClick={(e) => { e.stopPropagation(); handleAddToCart(item); }} 
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    if (item.promoOptions && item.promoOptions.length > 1) {
+                                                        setSelectedProduct(item);
+                                                    } else {
+                                                        handleAddToCart(item); 
+                                                    }
+                                                }} 
                                                 disabled={item.stock <= 0}
                                                 className={`w-full py-1.5 rounded-xl flex items-center justify-center text-xs font-bold gap-1 shadow-sm mt-1 transition-colors ${
                                                     item.stock <= 0 
                                                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                                    : item.promoOptions && item.promoOptions.length > 1
+                                                    ? 'bg-pink-50 text-pink-600 hover:bg-pink-600 hover:text-white active:scale-95'
                                                     : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white active:scale-95'
                                                 }`}
                                             >
-                                                <ShoppingCart size={14} /> เพิ่ม
+                                                {item.promoOptions && item.promoOptions.length > 1 ? (
+                                                    <><Sparkles size={13} /> เลือกโปร</>
+                                                ) : (
+                                                    <><ShoppingCart size={14} /> เพิ่ม</>
+                                                )}
                                             </button>
                                         </div>
                                     </div>

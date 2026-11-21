@@ -386,8 +386,31 @@ export default function CustomerApp() {
     return basePrice;
   };
 
-  const handleModalAddToCart = () => {
+  const handleModalAddToCart = (overrideOption = null) => {
     if (!selectedProduct) return false;
+
+    // 🌟 รองรับคอร์สโปรโมชั่นที่มีตัวเลือก (Course Promo Options)
+    if (selectedProduct.type === 'course') {
+      const opt = overrideOption || (selectedProduct.promoOptions?.length > 0 ? selectedProduct.promoOptions[0] : null);
+      if (opt) {
+        const optPrice = parseNumber(opt.price) || parseNumber(selectedProduct.price) || 0;
+        const optName = opt.name ? `${selectedProduct.name} - ${opt.name}` : selectedProduct.name;
+        handleAddToCart({
+          ...selectedProduct,
+          id: `${selectedProduct.id}-${opt.id || opt.name}`,
+          courseId: selectedProduct.id,
+          name: optName,
+          price: optPrice,
+          originalPrice: optPrice,
+          priceRange: null,
+          selectedPromoOption: opt,
+          sessions: opt.sessions || selectedProduct.sessions || 1,
+          desc: opt.items || selectedProduct.desc || ''
+        });
+        showToast(`เพิ่ม "${optName}" ลงตะกร้าแล้ว`);
+        return true;
+      }
+    }
 
     if (selectedProduct.wooType === 'variable') {
       if (!selectedVariation) {
@@ -2059,8 +2082,8 @@ export default function CustomerApp() {
             groupedSelections={groupedSelections}
             setGroupedSelections={setGroupedSelections}
             handleModalAddToCart={handleModalAddToCart}
-            handleModalBuyNow={() => {
-                if (handleModalAddToCart()) {
+            handleModalBuyNow={(overrideOpt) => {
+                if (handleModalAddToCart(overrideOpt)) {
                     setSelectedProduct(null);
                     setIsCartModalOpen(true);
                 }

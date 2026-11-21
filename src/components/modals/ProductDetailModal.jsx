@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, HeartPulse, ShoppingBag, Loader2, Minus, Plus, ShoppingCart, FileText, CreditCard, Hourglass } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, HeartPulse, ShoppingBag, Loader2, Minus, Plus, ShoppingCart, FileText, CreditCard, Hourglass, Sparkles, Check } from 'lucide-react';
 import { ProductImage } from '../ui/ProductImage';
 
 export default function ProductDetailModal({
@@ -17,9 +17,19 @@ export default function ProductDetailModal({
     handleModalAddToCart,
     handleModalBuyNow
 }) {
+    const [selectedPromoIndex, setSelectedPromoIndex] = useState(0);
+
+    useEffect(() => {
+        setSelectedPromoIndex(0);
+    }, [selectedProduct?.id]);
+
     if (!selectedProduct || isCartOpen) return null;
 
     if (selectedProduct.type === 'course') {
+        const promoOptions = Array.isArray(selectedProduct.promoOptions) ? selectedProduct.promoOptions.filter(o => o && (o.name || o.price)) : [];
+        const hasPromoOptions = promoOptions.length > 0;
+        const currentPromo = hasPromoOptions ? (promoOptions[selectedPromoIndex] || promoOptions[0]) : null;
+
         let sessionCount = null;
         const match = selectedProduct.name.match(/\(?(\d+)\s*ครั้ง\)?/);
         if (match) {
@@ -27,7 +37,9 @@ export default function ProductDetailModal({
         } else if (selectedProduct.name.includes('รายครั้ง')) {
             sessionCount = 1;
         }
-        const isSingle = sessionCount === 1;
+        const activeSessions = currentPromo?.sessions || selectedProduct.sessions || sessionCount || 1;
+        const activePrice = currentPromo ? (Number(currentPromo.price) || Number(selectedProduct.price) || 0) : (Number(selectedProduct.price) || 0);
+        const isSingle = String(activeSessions) === '1';
         
         const hasValidity = !isSingle && selectedProduct.validity && selectedProduct.validity !== '0' && selectedProduct.validity !== '0 เดือน' && selectedProduct.validity !== '-';
         
@@ -60,16 +72,89 @@ export default function ProductDetailModal({
                                 {selectedProduct.brand.name}
                             </span>
                         )}
-                        <h2 className="text-xl font-black text-[#1d273a] mb-6 leading-tight">{selectedProduct.name}</h2>
+                        <h2 className="text-xl font-black text-[#1d273a] mb-4 leading-tight">{selectedProduct.name}</h2>
                         
+                        {/* 🌟 ตัวเลือกแพ็กเกจโปรโมชั่น (Promo Options Selection) 🌟 */}
+                        {hasPromoOptions && (
+                            <div className="mb-6">
+                                <div className="flex items-center justify-between mb-2.5">
+                                    <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                        <Sparkles size={15} className="text-pink-500 fill-pink-500" />
+                                        เลือกโปรโมชั่น ({promoOptions.length} แพ็กเกจ):
+                                    </div>
+                                    <span className="text-[10px] text-pink-600 font-bold bg-pink-50 px-2.5 py-0.5 rounded-full border border-pink-100">
+                                        แตะเลือกโปรที่ต้องการ
+                                    </span>
+                                </div>
+
+                                <div className="space-y-2.5">
+                                    {promoOptions.map((opt, oIdx) => {
+                                        const isSelected = selectedPromoIndex === oIdx;
+                                        return (
+                                            <div 
+                                                key={opt.id || oIdx}
+                                                onClick={() => setSelectedPromoIndex(oIdx)}
+                                                className={`relative p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
+                                                    isSelected 
+                                                        ? 'border-pink-500 bg-gradient-to-br from-pink-50/70 via-white to-rose-50/40 shadow-sm ring-2 ring-pink-500/20' 
+                                                        : 'border-slate-200 bg-white hover:border-pink-200 hover:bg-slate-50/50'
+                                                }`}
+                                            >
+                                                {opt.badge && (
+                                                    <div className="absolute -top-2.5 right-3 bg-gradient-to-r from-red-500 to-pink-500 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                                                        <Sparkles size={9} /> {opt.badge}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                                                        <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                                            isSelected ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white'
+                                                        }`}>
+                                                            {isSelected && <Check size={12} strokeWidth={3} />}
+                                                        </div>
+
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="font-extrabold text-slate-800 text-sm leading-tight mb-1">
+                                                                {opt.name || `โปรที่ ${oIdx + 1}`}
+                                                            </div>
+                                                            {opt.sessions && (
+                                                                <div className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md inline-block mb-1">
+                                                                    ✨ จำนวน {opt.sessions} ครั้ง
+                                                                </div>
+                                                            )}
+                                                            {opt.items && (
+                                                                <div className="text-[11px] text-slate-500 mt-1 line-clamp-3 leading-relaxed whitespace-pre-line bg-slate-50/70 p-2 rounded-xl border border-slate-100">
+                                                                    {opt.items}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="text-right shrink-0">
+                                                        <span className="text-[10px] text-slate-400 font-bold block">จ่ายเพียง</span>
+                                                        <span className="text-base font-black text-pink-600">
+                                                            ฿{Number(opt.price || 0).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-3 mb-4">
                             <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 flex flex-col">
-                                <span className="text-[11px] font-bold text-gray-500 mb-1">ราคาขาย</span>
-                                <span className="text-xl font-black text-[#1d273a]">฿{(Number(selectedProduct.price)||0).toLocaleString()}</span>
+                                <span className="text-[11px] font-bold text-gray-500 mb-1">
+                                    {hasPromoOptions ? 'ราคาโปรที่เลือก' : 'ราคาขาย'}
+                                </span>
+                                <span className="text-xl font-black text-[#1d273a]">฿{activePrice.toLocaleString()}</span>
                             </div>
-                            <div className="bg-orange-50 rounded-xl p-3 border border-orange-100 flex flex-col">
-                                <span className="text-[11px] font-bold text-[#c2410c] mb-1">เครดิต / วงเงิน</span>
-                                <span className="text-xl font-black text-[#c2410c]">฿{(Number(selectedProduct.credit)||0).toLocaleString()}</span>
+                            <div className="bg-teal-50 rounded-xl p-3 border border-teal-100 flex flex-col">
+                                <span className="text-[11px] font-bold text-teal-700 mb-1">จำนวนครั้งที่ได้</span>
+                                <span className="text-xl font-black text-teal-800">{activeSessions} ครั้ง</span>
                             </div>
                         </div>
                         
@@ -110,9 +195,28 @@ export default function ProductDetailModal({
                         )}
                     </div>
                     
-                    <div className="sticky bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-100 rounded-b-[32px]">
-                        <button onClick={() => { if(handleModalAddToCart()) setSelectedProduct(null); }} className="w-full py-4 bg-pink-500 text-white rounded-2xl font-bold text-sm hover:bg-pink-600 transition-colors shadow-lg shadow-pink-500/30 flex items-center justify-center">
-                            เพิ่มลงตะกร้า
+                    <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md p-4 border-t border-gray-100 rounded-b-[32px] flex gap-2.5 z-30">
+                        <button 
+                            onClick={() => { 
+                                if (handleModalAddToCart(currentPromo)) {
+                                    setSelectedProduct(null); 
+                                }
+                            }} 
+                            className="flex-1 py-3.5 bg-pink-50 text-pink-600 border border-pink-200 rounded-2xl font-bold text-xs sm:text-sm hover:bg-pink-100 transition-colors flex items-center justify-center gap-1.5 active:scale-95"
+                        >
+                            <ShoppingCart size={16} /> เพิ่มลงตะกร้า
+                        </button>
+                        <button 
+                            onClick={() => {
+                                if (handleModalBuyNow) {
+                                    handleModalBuyNow(currentPromo);
+                                } else if (handleModalAddToCart(currentPromo)) {
+                                    setSelectedProduct(null);
+                                }
+                            }}
+                            className="flex-[1.2] py-3.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-2xl font-black text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-all shadow-lg shadow-pink-500/25 flex items-center justify-center gap-1.5 active:scale-95"
+                        >
+                            ซื้อทันที • ฿{activePrice.toLocaleString()}
                         </button>
                     </div>
                 </div>

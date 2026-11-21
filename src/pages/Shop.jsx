@@ -379,11 +379,20 @@ const Shop = ({
         
         myOrders.forEach(od => {
             const status = String(getFuzzyKey(od, ["สถานะ", "col_22"]) || "เรียบร้อย");
-            if (status.includes('รอชำระเงิน')) counts.to_pay++;
-            else if (status.includes('รอตรวจสอบ') || status.includes('รอจัดส่ง') || status.includes('รอดำเนินการ')) counts.to_ship++;
-            else if (status.includes('กำลังจัดส่ง')) counts.to_receive++;
-            else if (status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('ชำระแล้ว') || status.includes('อนุมัติ') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) counts.completed++;
-            else if (status.includes('ยกเลิก')) counts.cancelled++;
+            const isProduct = String(getFuzzyKey(od, ["ประเภท", "col_4"])).includes("สินค้า");
+            
+            if (status.includes('รอชำระเงิน')) {
+                counts.to_pay++;
+            } else if (status.includes('ยกเลิก')) {
+                counts.cancelled++;
+            } else if (isProduct) {
+                if (status.includes('กำลังจัดส่ง')) counts.to_receive++;
+                else if (status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) counts.completed++;
+                else counts.to_ship++;
+            } else {
+                // คอร์สบริการ: ไม่ต้องจัดส่งพัสดุ เมื่อชำระ/อนุมัติแล้วจะอยู่ในสำเร็จแล้ว
+                counts.completed++;
+            }
         });
         return counts;
     }, [customerData?.history]);

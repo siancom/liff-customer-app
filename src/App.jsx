@@ -1979,11 +1979,15 @@ export default function CustomerApp() {
                 orderFilter={orderFilter}
                 setOrderFilter={setOrderFilter}
                 myOrders={customerData?.history || []}
+                courses={customerData?.courses || []}
                 setSelectedOrder={setSelectedOrder}
                 setConfirmCancelOrder={setConfirmCancelOrder}
                 parseNumber={parseNumber}
                 dbProducts={dbProducts}
                 dbMasterCourses={dbMasterCourses}
+                setActiveNav={setActiveNav}
+                setShowQR={setShowQR}
+                setSelectedCourseDetail={setSelectedCourseDetail}
                 handleBuyAgain={(itemName) => {
                     const product = buyAgainItems.find(p => {
                         const pName = p.name.toLowerCase();
@@ -2581,6 +2585,10 @@ export default function CustomerApp() {
              confirmCancelOrder={confirmCancelOrder}
              setConfirmCancelOrder={setConfirmCancelOrder}
              parseNumber={parseNumber}
+             activeCourses={customerData?.courses || []}
+             courses={customerData?.courses || []}
+             setShowQR={setShowQR}
+             setActiveNav={setActiveNav}
              handleCancelOrder={async (id) => {
                  // Implement cancel order logic here
                  console.log('Cancel order:', id);

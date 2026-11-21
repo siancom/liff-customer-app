@@ -41,9 +41,12 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
      if (hRef && dbOrders.length > 0) {
          const matchingOrder = dbOrders.find(o => String(o.orderNo) === String(hRef) || String(o.id) === String(hRef));
          if (matchingOrder) {
+             const finalStatus = matchingOrder.status || h.status || getFuzzyKey(h, ["สถานะ", "col_22"]);
              return {
                  ...h,
-                 status: matchingOrder.status || h.status,
+                 status: finalStatus,
+                 "สถานะ": finalStatus,
+                 "col_22": finalStatus,
                  trackingNo: matchingOrder.trackingNo || h.trackingNo,
                  trackingInfo: matchingOrder.trackingInfo || h.trackingInfo,
                  fulfillment: matchingOrder.fulfillment || h.fulfillment,

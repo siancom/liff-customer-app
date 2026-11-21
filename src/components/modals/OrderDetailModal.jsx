@@ -25,8 +25,10 @@ export default function OrderDetailModal({
     handleCancelOrder,
     isActionLoading,
     handleReorder,
-    activeCourses,
-    setShowQR
+    activeCourses = [],
+    courses = [],
+    setShowQR,
+    setActiveNav
 }) {
     const receiptRef = useRef(null);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -330,21 +332,34 @@ export default function OrderDetailModal({
                         <>
                             {/* Course Details Button */}
                             {(() => {
-                                if (selectedOrder.itemType !== 'course' || !activeCourses || !setShowQR) return null;
-                                const matchingCourse = activeCourses.find(c => {
+                                if (selectedOrder.itemType === 'product') return null;
+                                const courseList = activeCourses && activeCourses.length > 0 ? activeCourses : (courses || []);
+                                const orderNo = String(selectedOrder.orderNo || selectedOrder.id || '').trim();
+                                const orderName = String(selectedOrder.itemName || '').trim().toLowerCase();
+                                const matchingCourse = courseList.find(c => {
                                     const refKeys = ["หมายเลขคำสั่งซื้อ", "อ้างอิง", "เลขที่ใบเสร็จ", "เลขที่ใบคอส"];
-                                    return refKeys.some(k => String(getFuzzyKey(c, k)) === selectedOrder.orderNo) || c.id === selectedOrder.original?.id;
-                                });
-                                if (!matchingCourse) return null;
+                                    const byRef = refKeys.some(k => {
+                                        const v = String(getFuzzyKey(c, k) || '').trim();
+                                        return v && (v === orderNo || v.includes(orderNo) || orderNo.includes(v));
+                                    });
+                                    if (byRef) return true;
+                                    const cName = String(getFuzzyKey(c, ["ชื่อคอส", "ชื่อคอร์ส", "col_8", "col_4"]) || '').trim().toLowerCase();
+                                    return cName && orderName && (cName === orderName || cName.includes(orderName) || orderName.includes(cName));
+                                }) || selectedOrder.matchingCourse;
+
                                 return (
                                     <button 
+                                        type="button"
                                         onClick={() => {
                                             setSelectedOrder(null);
-                                            setShowQR(matchingCourse);
+                                            if (setActiveNav) setActiveNav('home');
+                                            if (matchingCourse && setShowQR) {
+                                                setShowQR(matchingCourse);
+                                            }
                                         }}
-                                        className="flex-[2] py-3.5 bg-[#12B981] hover:bg-[#059669] text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/30"
+                                        className="flex-[2] py-3.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/30 cursor-pointer"
                                     >
-                                        <Ticket size={16} /> ดูรายละเอียดคอร์ส
+                                        <Ticket size={16} /> ไปยังคอร์สของฉัน
                                     </button>
                                 );
                             })()}

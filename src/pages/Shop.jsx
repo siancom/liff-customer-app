@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Image as ImageIcon, ArrowRight, Sparkles, ShoppingCart, Ticket, HeartPulse, ShoppingBag, Loader2, HistoryIcon, Star, Truck, Percent, Search, X, Gift, ShieldCheck, MessageCircle, CheckCircle2, Zap, LayoutGrid, Wallet, Package, ClipboardList, XCircle, ChevronRight } from 'lucide-react';
-import { getFuzzyKey, parseNumber } from '../utils/helpers';
+import { getFuzzyKey, parseNumber, parseThaiDate } from '../utils/helpers';
 import { computeFinalPrice } from '../utils/priceUtils';
 import PriceCompareModal from '../components/modals/PriceCompareModal';
 
@@ -79,34 +79,60 @@ const Shop = ({
 
     const COURSE_CATEGORIES = [
         { id: 'all', label: 'ทั้งหมด' },
-        { id: 'facial', label: 'ผิวหน้า' },
+        { id: 'promo', label: 'โปรโมชั่น' },
+        { id: 'facial', label: 'ผิวหน้า (A-J)' },
+        { id: 'acne_clear', label: 'เคลียร์สิว' },
         { id: 'machine', label: 'ลงเครื่อง' },
-        { id: 'acne_sets', label: 'รักษาสิว' },
-        { id: 'nourish', label: 'บำรุง' },
-        { id: 'ipl', label: 'เลเซอร์/IPL' }
+        { id: 'acne_sets', label: 'รักษาสิว/ฝ้า' },
+        { id: 'nourish', label: 'บำรุงฟื้นฟู' },
+        { id: 'ipl', label: 'IPL กำจัดขน' },
+        { id: 'general', label: 'ทั่วไป' }
     ];
+
+    // 🌟 ตรวจสอบว่าคอร์สหมดเขต / ปิดการใช้งานหรือไม่ (ไม่แสดงให้ลูกค้าเห็น)
+    const isCourseExpired = (mc) => {
+        if (!mc) return true;
+        const status = String(getFuzzyKey(mc, ["สถานะ", "status", "การใช้งาน", "state"]) || '').trim();
+        if (status === 'ร่าง' || status === 'draft' || status === 'ปิดใช้งาน' || status === 'ปิด' || status === 'ไม่แสดง' || status === 'ซ่อน' || status === 'หมดเขต' || status === 'หมดอายุ') {
+            return true;
+        }
+        const rawEnd = getFuzzyKey(mc, ["วันที่สิ้นสุด", "วันหมดเขต", "expireDate", "endDate", "col_10", "validUntil"]);
+        if (rawEnd) {
+            const parsedEnd = parseThaiDate(rawEnd);
+            if (parsedEnd) {
+                // สิ้นสุด ณ สิ้นวันของวันหมดเขต (23:59:59)
+                parsedEnd.setHours(23, 59, 59, 999);
+                if (parsedEnd.getTime() < Date.now()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
 
     const getCourseCategory = (c) => {
         if (!c) return 'other';
-        const type = String(getFuzzyKey(c, ["ประเภท", "col_2"]) || '');
+        const type = String(getFuzzyKey(c, ["ประเภท", "col_2", "หมวดหมู่"]) || '').trim();
+        if (type === 'โปรโมชั่น' || type === 'โปร') return 'promo';
         if (type === 'ผิวหน้า (A-J)') return 'facial';
-        if (type === 'เคลียร์สิว') return 'acne_sets';
+        if (type === 'เคลียร์สิว') return 'acne_clear';
         if (type === 'ลงเครื่อง') return 'machine';
-        if (type === 'รักษาสิว/ฝ้า') return 'acne_sets';
+        if (type === 'รักษาสิว/ฝ้า' || type === 'ดูแลสิว') return 'acne_sets';
         if (type === 'บำรุงฟื้นฟู') return 'nourish';
         if (type === 'IPL กำจัดขน') return 'ipl';
+        if (type === 'ทั่วไป' || type === 'ประจำร้าน') return 'general';
         if (type === 'วอคอิน') return 'walkin';
         
-        let code = String(getFuzzyKey(c, ["รหัสคอส", "col_1"]) || '');
-        if (!code) return 'other';
-        if (!code.startsWith('F-')) return 'old_courses';
-        if (code.startsWith('F-MA') || code.startsWith('F-M')) return 'machine';
-        if (code.startsWith('F-S')) return 'acne_sets';
-        if (code.startsWith('F-N')) return 'nourish';
-        if (code.startsWith('F-AC')) return 'acne_sets';
-        if (code.startsWith('F-IPL')) return 'ipl';
+        let code = String(getFuzzyKey(c, ["รหัสคอส", "col_1"]) || '').trim();
+        if (!code) return 'general';
+        if (code.startsWith('PROMO-') || code.toLowerCase().startsWith('promo')) return 'promo';
+        if (code.startsWith('F-MA') || code.startsWith('F-M') || code.startsWith('MACH-')) return 'machine';
+        if (code.startsWith('F-AC')) return 'acne_clear';
+        if (code.startsWith('F-S') || code.startsWith('ACNE-') || code.startsWith('ACTIVE-')) return 'acne_sets';
+        if (code.startsWith('F-N') || code.startsWith('CARE-')) return 'nourish';
+        if (code.startsWith('F-IPL') || code.startsWith('IPL-')) return 'ipl';
         if (/^F-[A-J]/.test(code)) return 'facial';
-        return 'other';
+        return 'general';
     };
 
     // Extract dynamic product categories based on active dbProducts
@@ -140,14 +166,17 @@ const Shop = ({
     }, [dbProducts]);
 
     const courseCategoriesWithCounts = useMemo(() => {
-        const counts = { all: 0, facial: 0, machine: 0, acne_sets: 0, nourish: 0, ipl: 0, other: 0, walkin: 0, old_courses: 0 };
+        const counts = { all: 0, promo: 0, facial: 0, acne_clear: 0, machine: 0, acne_sets: 0, nourish: 0, ipl: 0, general: 0, other: 0, walkin: 0, old_courses: 0 };
         let total = 0;
         dbMasterCourses.forEach(mc => {
             const name = String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim();
-            const status = String(getFuzzyKey(mc, ["สถานะ", "status", "การใช้งาน", "state"]) || '').trim();
             if (!name) return;
-            if (status === 'ร่าง' || status === 'draft' || status === 'ปิดใช้งาน' || status === 'ปิด' || status === 'ไม่แสดง' || status === 'ซ่อน') return;
+            if (isCourseExpired(mc)) return; // 🌟 ซ่อนคอร์สที่หมดเขต!
             
+            const qty = String(getFuzzyKey(mc, ["จำนวนครั้ง", "col_7"]) || '').trim();
+            if (shopTab === 'courses' && qty === '1') return;
+            if (shopTab === 'single_courses' && qty !== '1') return;
+
             const cat = getCourseCategory(mc);
             if (cat !== 'old_courses') {
                 if (counts[cat] !== undefined) {
@@ -161,7 +190,7 @@ const Shop = ({
             ...c,
             count: c.id === 'all' ? total : (counts[c.id] || 0)
         }));
-    }, [dbMasterCourses]);
+    }, [dbMasterCourses, shopTab]);
 
     const currentTabItems = useMemo(() => {
         let items = [];
@@ -252,16 +281,15 @@ const Shop = ({
         else if (shopTab === 'courses' || shopTab === 'single_courses') {
             items = dbMasterCourses.filter(mc => {
                 const name = String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim();
-                const status = String(getFuzzyKey(mc, ["สถานะ", "status", "การใช้งาน", "state"]) || '').trim();
                 if (!name) return false;
-                if (status === 'ร่าง' || status === 'draft' || status === 'ปิดใช้งาน' || status === 'ปิด' || status === 'ไม่แสดง' || status === 'ซ่อน') return false;
+                if (isCourseExpired(mc)) return false; // 🌟 คอร์สที่หมดเขต จะไม่แสดงฝั่งลูกค้า!
                 
                 const qty = String(getFuzzyKey(mc, ["จำนวนครั้ง", "col_7"]) || '').trim();
                 if (shopTab === 'courses' && qty === '1') return false; // Hide single in package tab
                 if (shopTab === 'single_courses' && qty !== '1') return false; // Hide package in single tab
                 if (getCourseCategory(mc) === 'old_courses') return false;
 
-                if (shopTab === 'single_courses' && activeCourseCategory !== 'all') {
+                if ((shopTab === 'courses' || shopTab === 'single_courses') && activeCourseCategory !== 'all') {
                     if (getCourseCategory(mc) !== activeCourseCategory) return false;
                 }
 
@@ -468,7 +496,7 @@ const Shop = ({
                     </div>
                 )}
 
-                {shopTab === 'single_courses' && (
+                {(shopTab === 'courses' || shopTab === 'single_courses') && (
                     <div className="flex gap-2 overflow-x-auto hide-scrollbar mt-3 pb-1">
                         {courseCategoriesWithCounts.map(cat => (
                             <button

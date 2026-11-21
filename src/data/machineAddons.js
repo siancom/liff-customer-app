@@ -101,3 +101,4 @@ export const MACHINE_TREATMENT_ADDONS = [
     badge: '200.-'
   }
 ];
+

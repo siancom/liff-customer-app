@@ -413,16 +413,23 @@ export default function CustomerApp() {
       // 🌟 เพิ่มรายการบริการเสริมลงเครื่อง (Add-on Machine Treatments)
       if (Array.isArray(selectedAddons) && selectedAddons.length > 0) {
         selectedAddons.forEach((addon) => {
+          const addonQty = Math.max(1, Number(addon.qty) || 1);
+          const addonUnitPrice = Number(addon.price) || 0;
+          const totalLinePrice = addonUnitPrice * addonQty;
+
           handleAddToCart({
             id: `addon-${addon.id}`,
-            name: `${addon.name} (บริการเสริม)`,
-            price: Number(addon.price || 0),
-            originalPrice: Number(addon.price || 0),
+            name: addonQty > 1 ? `${addon.name} (บริการเสริม ${addonQty} ครั้ง)` : `${addon.name} (บริการเสริม)`,
+            addonBaseName: addon.name,
+            price: totalLinePrice,
+            unitPrice: addonUnitPrice,
+            originalPrice: totalLinePrice,
             priceRange: null,
             type: 'course',
-            sessions: 1,
-            desc: addon.desc || 'บริการเสริมลงเครื่องรายครั้ง',
-            items: addon.desc || 'บริการเสริมลงเครื่องรายครั้ง',
+            qty: 1,
+            sessions: addonQty,
+            desc: `${addon.desc || 'บริการเสริมลงเครื่องรายครั้ง'} (จำนวน ${addonQty} ครั้ง)`,
+            items: `${addon.desc || 'บริการเสริมลงเครื่องรายครั้ง'} (จำนวน ${addonQty} ครั้ง)`,
             category: 'ลงเครื่อง',
             isAddon: true,
             parentCourseName: optName,
@@ -431,9 +438,10 @@ export default function CustomerApp() {
         });
       }
 
+      const totalAddonTimes = selectedAddons.reduce((sum, a) => sum + (Number(a.qty) || 1), 0);
       showToast(
         selectedAddons?.length > 0 
-          ? `เพิ่ม "${optName}" พร้อมบริการเสริม ${selectedAddons.length} รายการแล้ว`
+          ? `เพิ่ม "${optName}" พร้อมบริการเสริม ${selectedAddons.length} รายการ (${totalAddonTimes} ครั้ง) แล้ว`
           : `เพิ่ม "${optName}" ลงตะกร้าแล้ว`
       );
       return true;

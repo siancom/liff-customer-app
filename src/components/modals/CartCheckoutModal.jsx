@@ -373,7 +373,7 @@ export default function CartCheckoutModal({
                                             <h3 className="text-xs font-bold text-gray-800 line-clamp-1">{item.name}</h3>
                                             {item.isAddon && (
                                                 <span className="inline-flex items-center gap-1 text-[9px] font-bold text-pink-600 bg-pink-50 px-1.5 py-0.5 rounded-md mt-0.5 border border-pink-100">
-                                                    ✨ บริการเสริมลงเครื่อง
+                                                    ✨ บริการเสริมลงเครื่อง {item.sessions ? `(${item.sessions} ครั้ง)` : ''}
                                                 </span>
                                             )}
                                             <p className="text-teal-600 font-black text-sm mt-0.5">฿{parseNumber(item.price).toLocaleString()}</p>
@@ -427,15 +427,21 @@ export default function CartCheckoutModal({
                                                     <button
                                                         type="button"
                                                         onClick={() => {
+                                                            const mainCourse = cart.find(c => c.type === 'course' && !c.isAddon);
+                                                            const defaultSessions = Math.max(1, Number(mainCourse?.sessions || mainCourse?.selectedPromoOption?.sessions || 1));
+                                                            const totalPrice = Number(addon.price || 0) * defaultSessions;
                                                             addToCart({
                                                                 id: `addon-${addon.id}`,
-                                                                name: `${addon.name} (บริการเสริม)`,
-                                                                price: Number(addon.price || 0),
-                                                                originalPrice: Number(addon.price || 0),
+                                                                name: defaultSessions > 1 ? `${addon.name} (บริการเสริม ${defaultSessions} ครั้ง)` : `${addon.name} (บริการเสริม)`,
+                                                                addonBaseName: addon.name,
+                                                                price: totalPrice,
+                                                                unitPrice: Number(addon.price || 0),
+                                                                originalPrice: totalPrice,
                                                                 type: 'course',
-                                                                sessions: 1,
-                                                                desc: addon.desc,
-                                                                items: addon.desc,
+                                                                qty: 1,
+                                                                sessions: defaultSessions,
+                                                                desc: `${addon.desc} (จำนวน ${defaultSessions} ครั้ง)`,
+                                                                items: `${addon.desc} (จำนวน ${defaultSessions} ครั้ง)`,
                                                                 isAddon: true,
                                                                 category: 'ลงเครื่อง'
                                                             });
@@ -447,7 +453,16 @@ export default function CartCheckoutModal({
                                                                 : 'bg-pink-500 hover:bg-pink-600 text-white shadow-xs active:scale-95'
                                                         }`}
                                                     >
-                                                        {inCart ? <><Check size={11} strokeWidth={3}/> เพิ่มแล้ว</> : <><Plus size={11} strokeWidth={3}/> เพิ่ม ฿{addon.price}</>}
+                                                        {inCart ? (
+                                                            <><Check size={11} strokeWidth={3}/> เพิ่มแล้ว</>
+                                                        ) : (
+                                                            <><Plus size={11} strokeWidth={3}/> เพิ่ม {(() => {
+                                                                const mainCourse = cart.find(c => c.type === 'course' && !c.isAddon);
+                                                                const defaultSessions = Math.max(1, Number(mainCourse?.sessions || mainCourse?.selectedPromoOption?.sessions || 1));
+                                                                const totalPrice = Number(addon.price || 0) * defaultSessions;
+                                                                return defaultSessions > 1 ? `${defaultSessions} ครั้ง ฿${totalPrice.toLocaleString()}` : `฿${totalPrice.toLocaleString()}`;
+                                                            })()}</>
+                                                        )}
                                                     </button>
                                                 </div>
                                             );

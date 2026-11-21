@@ -19,11 +19,11 @@ export default function ProductDetailModal({
     handleModalBuyNow
 }) {
     const [selectedPromoIndex, setSelectedPromoIndex] = useState(0);
-    const [selectedAddons, setSelectedAddons] = useState([]);
+    const [selectedAddonQuantities, setSelectedAddonQuantities] = useState({});
 
     useEffect(() => {
         setSelectedPromoIndex(0);
-        setSelectedAddons([]);
+        setSelectedAddonQuantities({});
     }, [selectedProduct?.id]);
 
     if (!selectedProduct || isCartOpen) return null;
@@ -47,17 +47,52 @@ export default function ProductDetailModal({
         const hasValidity = !isSingle && selectedProduct.validity && selectedProduct.validity !== '0' && selectedProduct.validity !== '0 เดือน' && selectedProduct.validity !== '-';
 
         const toggleAddon = (addon) => {
-            setSelectedAddons(prev => {
-                const exists = prev.some(a => a.id === addon.id);
-                if (exists) {
-                    return prev.filter(a => a.id !== addon.id);
+            setSelectedAddonQuantities(prev => {
+                const currentQty = prev[addon.id] || 0;
+                if (currentQty > 0) {
+                    const next = { ...prev };
+                    delete next[addon.id];
+                    return next;
                 } else {
-                    return [...prev, addon];
+                    // Default to course's activeSessions (จำนวนครั้งที่ได้รับ) automatically
+                    const defaultSessions = Math.max(1, Number(activeSessions) || 1);
+                    return {
+                        ...prev,
+                        [addon.id]: defaultSessions
+                    };
                 }
             });
         };
 
-        const totalAddonPrice = selectedAddons.reduce((sum, a) => sum + (Number(a.price) || 0), 0);
+        const updateAddonQty = (addonId, delta) => {
+            setSelectedAddonQuantities(prev => {
+                const currentQty = prev[addonId] || 0;
+                const newQty = currentQty + delta;
+                if (newQty <= 0) {
+                    const next = { ...prev };
+                    delete next[addonId];
+                    return next;
+                }
+                return {
+                    ...prev,
+                    [addonId]: newQty
+                };
+            });
+        };
+
+        const selectedAddonList = MACHINE_TREATMENT_ADDONS
+            .filter(addon => (selectedAddonQuantities[addon.id] || 0) > 0)
+            .map(addon => {
+                const qty = selectedAddonQuantities[addon.id];
+                return {
+                    ...addon,
+                    qty,
+                    linePrice: Number(addon.price || 0) * qty
+                };
+            });
+
+        const totalAddonPrice = selectedAddonList.reduce((sum, a) => sum + a.linePrice, 0);
+        const totalAddonSessions = selectedAddonList.reduce((sum, a) => sum + a.qty, 0);
         const finalPrice = activePrice + totalAddonPrice;
         
         return (
@@ -224,17 +259,17 @@ export default function ProductDetailModal({
                                                 บริการเสริมพิเศษ / ลงเครื่องรายครั้ง
                                             </h3>
                                             <p className="text-[10px] text-slate-500 font-medium">
-                                                เลือกทำควบคู่กับคอร์สนี้ได้ทันที • เริ่มต้น 100.-
+                                                เริ่มต้น 100.-/ครั้ง • ปรับจำนวนครั้งตามคอร์ส ({activeSessions} ครั้ง) หรือปรับเพิ่ม/ลดได้
                                             </p>
                                         </div>
                                     </div>
-                                    {selectedAddons.length > 0 && (
+                                    {selectedAddonList.length > 0 && (
                                         <button
                                             type="button"
-                                            onClick={() => setSelectedAddons([])}
+                                            onClick={() => setSelectedAddonQuantities({})}
                                             className="text-[10px] text-pink-600 font-bold hover:underline bg-white px-2 py-0.5 rounded-lg border border-pink-200 shadow-2xs shrink-0"
                                         >
-                                            ล้าง ({selectedAddons.length})
+                                            ล้างทั้งหมด
                                         </button>
                                     )}
                                 </div>
@@ -243,51 +278,101 @@ export default function ProductDetailModal({
                             {/* รายการเครื่อง 12 รายการแบบ Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {MACHINE_TREATMENT_ADDONS.map((addon) => {
-                                    const isChecked = selectedAddons.some(a => a.id === addon.id);
+                                    const qty = selectedAddonQuantities[addon.id] || 0;
+                                    const isChecked = qty > 0;
+                                    const itemTotal = Number(addon.price) * (qty || 1);
+
                                     return (
                                         <div
                                             key={addon.id}
                                             onClick={() => toggleAddon(addon)}
-                                            className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-2.5 relative select-none ${
+                                            className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between relative select-none ${
                                                 isChecked
                                                     ? 'border-pink-500 bg-gradient-to-br from-pink-50/80 via-white to-rose-50/50 shadow-xs ring-1 ring-pink-500/20'
                                                     : 'border-slate-200/90 bg-white hover:border-pink-200 hover:bg-slate-50/50'
                                             }`}
                                         >
-                                            <div className={`mt-0.5 w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                                isChecked ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white'
-                                            }`}>
-                                                {isChecked && <Check size={12} strokeWidth={3} />}
+                                            <div className="flex items-start gap-2.5">
+                                                <div className={`mt-0.5 w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                                    isChecked ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white'
+                                                }`}>
+                                                    {isChecked && <Check size={12} strokeWidth={3} />}
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                                                        <span className="text-xs font-extrabold text-slate-800 truncate">
+                                                            {addon.name}
+                                                        </span>
+                                                        <div className="text-right shrink-0">
+                                                            <span className="text-xs font-black text-pink-600 block">
+                                                                +฿{(isChecked ? itemTotal : addon.price).toLocaleString()}
+                                                            </span>
+                                                            {isChecked && (
+                                                                <span className="text-[9px] text-slate-400 font-bold block">
+                                                                    (฿{addon.price} x {qty} ครั้ง)
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-500 line-clamp-1 leading-snug">
+                                                        {addon.desc}
+                                                    </p>
+                                                    <div className="flex items-center gap-1.5 mt-1">
+                                                        <span className="text-[9px] font-bold text-slate-400">
+                                                            ฿{addon.price} / ครั้ง
+                                                        </span>
+                                                        {addon.tag && (
+                                                            <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                                                {addon.tag}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
 
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between gap-1 mb-0.5">
-                                                    <span className="text-xs font-extrabold text-slate-800 truncate">
-                                                        {addon.name}
+                                            {/* Stepper ปรับจำนวนครั้ง (แสดงเมื่อเลือก) */}
+                                            {isChecked && (
+                                                <div 
+                                                    className="mt-2.5 pt-2 border-t border-pink-100 flex items-center justify-between"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <span className="text-[10px] font-bold text-pink-700 flex items-center gap-1">
+                                                        <Sparkles size={11} /> จำนวนครั้ง:
                                                     </span>
-                                                    <span className="text-xs font-black text-pink-600 shrink-0">
-                                                        +฿{Number(addon.price).toLocaleString()}
-                                                    </span>
+                                                    <div className="flex items-center gap-1.5 bg-white rounded-lg border border-pink-200 p-0.5 shadow-2xs">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateAddonQty(addon.id, -1)}
+                                                            className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:bg-pink-100 hover:text-pink-600 transition-colors active:scale-90"
+                                                            title="ลดจำนวนครั้ง"
+                                                        >
+                                                            <Minus size={11} strokeWidth={3} />
+                                                        </button>
+                                                        <span className="text-xs font-black text-pink-700 w-6 text-center">
+                                                            {qty}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateAddonQty(addon.id, 1)}
+                                                            className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:bg-pink-100 hover:text-pink-600 transition-colors active:scale-90"
+                                                            title="เพิ่มจำนวนครั้ง (เกิน 1 ครั้ง)"
+                                                        >
+                                                            <Plus size={11} strokeWidth={3} />
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <p className="text-[10px] text-slate-500 line-clamp-1 leading-snug">
-                                                    {addon.desc}
-                                                </p>
-                                                {addon.tag && (
-                                                    <span className="mt-1 inline-block text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                                        {addon.tag}
-                                                    </span>
-                                                )}
-                                            </div>
+                                            )}
                                         </div>
                                     );
                                 })}
                             </div>
 
-                            {selectedAddons.length > 0 && (
+                            {selectedAddonList.length > 0 && (
                                 <div className="mt-2.5 p-2.5 rounded-xl bg-pink-50/90 border border-pink-200 flex items-center justify-between text-xs animate-in fade-in duration-150">
                                     <span className="font-bold text-pink-800 flex items-center gap-1.5">
                                         <Sparkles size={13} className="text-pink-600" />
-                                        เลือกบริการเสริม {selectedAddons.length} รายการ
+                                        เลือกบริการเสริม {selectedAddonList.length} รายการ (รวม {totalAddonSessions} ครั้ง)
                                     </span>
                                     <span className="font-black text-pink-600">
                                         +฿{totalAddonPrice.toLocaleString()}
@@ -300,19 +385,19 @@ export default function ProductDetailModal({
                     <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md p-4 border-t border-gray-100 rounded-b-[32px] flex gap-2.5 z-30">
                         <button 
                             onClick={() => { 
-                                if (handleModalAddToCart(currentPromo, selectedAddons)) {
+                                if (handleModalAddToCart(currentPromo, selectedAddonList)) {
                                     setSelectedProduct(null); 
                                 }
                             }} 
                             className="flex-1 py-3.5 bg-pink-50 text-pink-600 border border-pink-200 rounded-2xl font-bold text-xs sm:text-sm hover:bg-pink-100 transition-colors flex items-center justify-center gap-1.5 active:scale-95"
                         >
-                            <ShoppingCart size={16} /> เพิ่มลงตะกร้า {selectedAddons.length > 0 && `(+${selectedAddons.length})`}
+                            <ShoppingCart size={16} /> เพิ่มลงตะกร้า {selectedAddonList.length > 0 && `(+${selectedAddonList.length})`}
                         </button>
                         <button 
                             onClick={() => {
                                 if (handleModalBuyNow) {
-                                    handleModalBuyNow(currentPromo, selectedAddons);
-                                } else if (handleModalAddToCart(currentPromo, selectedAddons)) {
+                                    handleModalBuyNow(currentPromo, selectedAddonList);
+                                } else if (handleModalAddToCart(currentPromo, selectedAddonList)) {
                                     setSelectedProduct(null);
                                 }
                             }}

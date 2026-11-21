@@ -387,30 +387,56 @@ export default function CustomerApp() {
     return basePrice;
   };
 
-  const handleModalAddToCart = (overrideOption = null) => {
+  const handleModalAddToCart = (overrideOption = null, selectedAddons = []) => {
     if (!selectedProduct) return false;
 
     // 🌟 รองรับคอร์สโปรโมชั่นที่มีตัวเลือก (Course Promo Options)
     if (selectedProduct.type === 'course') {
       const opt = overrideOption || (selectedProduct.promoOptions?.length > 0 ? selectedProduct.promoOptions[0] : null);
-      if (opt) {
-        const optPrice = parseNumber(opt.price) || parseNumber(selectedProduct.price) || 0;
-        const optName = opt.name ? `${selectedProduct.name} - ${opt.name}` : selectedProduct.name;
-        handleAddToCart({
-          ...selectedProduct,
-          id: `${selectedProduct.id}-${opt.id || opt.name}`,
-          courseId: selectedProduct.id,
-          name: optName,
-          price: optPrice,
-          originalPrice: optPrice,
-          priceRange: null,
-          selectedPromoOption: opt,
-          sessions: opt.sessions || selectedProduct.sessions || 1,
-          desc: opt.items || selectedProduct.desc || ''
+      const optPrice = opt ? (parseNumber(opt.price) || parseNumber(selectedProduct.price) || 0) : (parseNumber(selectedProduct.price) || 0);
+      const optName = opt && opt.name ? `${selectedProduct.name} - ${opt.name}` : selectedProduct.name;
+      const mainItemId = opt ? `${selectedProduct.id}-${opt.id || opt.name}` : selectedProduct.id;
+
+      handleAddToCart({
+        ...selectedProduct,
+        id: mainItemId,
+        courseId: selectedProduct.id,
+        name: optName,
+        price: optPrice,
+        originalPrice: optPrice,
+        priceRange: null,
+        selectedPromoOption: opt,
+        sessions: opt?.sessions || selectedProduct.sessions || 1,
+        desc: opt?.items || selectedProduct.desc || ''
+      });
+
+      // 🌟 เพิ่มรายการบริการเสริมลงเครื่อง (Add-on Machine Treatments)
+      if (Array.isArray(selectedAddons) && selectedAddons.length > 0) {
+        selectedAddons.forEach((addon) => {
+          handleAddToCart({
+            id: `addon-${addon.id}`,
+            name: `${addon.name} (บริการเสริม)`,
+            price: Number(addon.price || 0),
+            originalPrice: Number(addon.price || 0),
+            priceRange: null,
+            type: 'course',
+            sessions: 1,
+            desc: addon.desc || 'บริการเสริมลงเครื่องรายครั้ง',
+            items: addon.desc || 'บริการเสริมลงเครื่องรายครั้ง',
+            category: 'ลงเครื่อง',
+            isAddon: true,
+            parentCourseName: optName,
+            image: selectedProduct.image || ''
+          });
         });
-        showToast(`เพิ่ม "${optName}" ลงตะกร้าแล้ว`);
-        return true;
       }
+
+      showToast(
+        selectedAddons?.length > 0 
+          ? `เพิ่ม "${optName}" พร้อมบริการเสริม ${selectedAddons.length} รายการแล้ว`
+          : `เพิ่ม "${optName}" ลงตะกร้าแล้ว`
+      );
+      return true;
     }
 
     if (selectedProduct.wooType === 'variable') {
@@ -2123,8 +2149,8 @@ export default function CustomerApp() {
             groupedSelections={groupedSelections}
             setGroupedSelections={setGroupedSelections}
             handleModalAddToCart={handleModalAddToCart}
-            handleModalBuyNow={(overrideOpt) => {
-                if (handleModalAddToCart(overrideOpt)) {
+            handleModalBuyNow={(overrideOpt, selectedAddons = []) => {
+                if (handleModalAddToCart(overrideOpt, selectedAddons)) {
                     setSelectedProduct(null);
                     setIsCartModalOpen(true);
                 }
@@ -2140,6 +2166,7 @@ export default function CustomerApp() {
              cart={cart}
              updateCartQty={adjustCartQty}
              removeFromCart={removeFromCart}
+             addToCart={handleAddToCart}
              totals={calculateCartTotals()}
              customerData={customerData}
              lineProfile={lineProfile}

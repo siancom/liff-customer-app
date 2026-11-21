@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, HeartPulse, ShoppingBag, Loader2, Minus, Plus, ShoppingCart, FileText, CreditCard, Hourglass, Sparkles, Check } from 'lucide-react';
+import { X, HeartPulse, ShoppingBag, Loader2, Minus, Plus, ShoppingCart, FileText, CreditCard, Hourglass, Sparkles, Check, Zap } from 'lucide-react';
 import { ProductImage } from '../ui/ProductImage';
+import { MACHINE_TREATMENT_ADDONS } from '../../data/machineAddons';
 
 export default function ProductDetailModal({
     selectedProduct,
@@ -18,9 +19,11 @@ export default function ProductDetailModal({
     handleModalBuyNow
 }) {
     const [selectedPromoIndex, setSelectedPromoIndex] = useState(0);
+    const [selectedAddons, setSelectedAddons] = useState([]);
 
     useEffect(() => {
         setSelectedPromoIndex(0);
+        setSelectedAddons([]);
     }, [selectedProduct?.id]);
 
     if (!selectedProduct || isCartOpen) return null;
@@ -42,6 +45,20 @@ export default function ProductDetailModal({
         const isSingle = String(activeSessions) === '1';
         
         const hasValidity = !isSingle && selectedProduct.validity && selectedProduct.validity !== '0' && selectedProduct.validity !== '0 เดือน' && selectedProduct.validity !== '-';
+
+        const toggleAddon = (addon) => {
+            setSelectedAddons(prev => {
+                const exists = prev.some(a => a.id === addon.id);
+                if (exists) {
+                    return prev.filter(a => a.id !== addon.id);
+                } else {
+                    return [...prev, addon];
+                }
+            });
+        };
+
+        const totalAddonPrice = selectedAddons.reduce((sum, a) => sum + (Number(a.price) || 0), 0);
+        const finalPrice = activePrice + totalAddonPrice;
         
         return (
             <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-md z-[100] flex flex-col justify-end sm:items-center sm:justify-center p-0 sm:p-6 animate-in fade-in duration-200">
@@ -193,30 +210,115 @@ export default function ProductDetailModal({
                                 </div>
                             </div>
                         )}
+
+                        {/* 🌟 บริการเสริมพิเศษ / ลงเครื่องรายครั้ง (Add-on Treatments Upsell) 🌟 */}
+                        <div className="mb-6">
+                            <div className="bg-gradient-to-r from-pink-50 via-rose-50 to-amber-50 p-3.5 rounded-2xl border border-pink-200/80 mb-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-7 h-7 rounded-xl bg-gradient-to-br from-pink-500 to-rose-500 text-white flex items-center justify-center shadow-sm shrink-0">
+                                            <Sparkles size={15} />
+                                        </span>
+                                        <div>
+                                            <h3 className="text-xs font-black text-slate-800 leading-tight">
+                                                บริการเสริมพิเศษ / ลงเครื่องรายครั้ง
+                                            </h3>
+                                            <p className="text-[10px] text-slate-500 font-medium">
+                                                เลือกทำควบคู่กับคอร์สนี้ได้ทันที • เริ่มต้น 100.-
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {selectedAddons.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedAddons([])}
+                                            className="text-[10px] text-pink-600 font-bold hover:underline bg-white px-2 py-0.5 rounded-lg border border-pink-200 shadow-2xs shrink-0"
+                                        >
+                                            ล้าง ({selectedAddons.length})
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* รายการเครื่อง 12 รายการแบบ Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {MACHINE_TREATMENT_ADDONS.map((addon) => {
+                                    const isChecked = selectedAddons.some(a => a.id === addon.id);
+                                    return (
+                                        <div
+                                            key={addon.id}
+                                            onClick={() => toggleAddon(addon)}
+                                            className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-2.5 relative select-none ${
+                                                isChecked
+                                                    ? 'border-pink-500 bg-gradient-to-br from-pink-50/80 via-white to-rose-50/50 shadow-xs ring-1 ring-pink-500/20'
+                                                    : 'border-slate-200/90 bg-white hover:border-pink-200 hover:bg-slate-50/50'
+                                            }`}
+                                        >
+                                            <div className={`mt-0.5 w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                                isChecked ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white'
+                                            }`}>
+                                                {isChecked && <Check size={12} strokeWidth={3} />}
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-1 mb-0.5">
+                                                    <span className="text-xs font-extrabold text-slate-800 truncate">
+                                                        {addon.name}
+                                                    </span>
+                                                    <span className="text-xs font-black text-pink-600 shrink-0">
+                                                        +฿{Number(addon.price).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 line-clamp-1 leading-snug">
+                                                    {addon.desc}
+                                                </p>
+                                                {addon.tag && (
+                                                    <span className="mt-1 inline-block text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                                        {addon.tag}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {selectedAddons.length > 0 && (
+                                <div className="mt-2.5 p-2.5 rounded-xl bg-pink-50/90 border border-pink-200 flex items-center justify-between text-xs animate-in fade-in duration-150">
+                                    <span className="font-bold text-pink-800 flex items-center gap-1.5">
+                                        <Sparkles size={13} className="text-pink-600" />
+                                        เลือกบริการเสริม {selectedAddons.length} รายการ
+                                    </span>
+                                    <span className="font-black text-pink-600">
+                                        +฿{totalAddonPrice.toLocaleString()}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     
                     <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md p-4 border-t border-gray-100 rounded-b-[32px] flex gap-2.5 z-30">
                         <button 
                             onClick={() => { 
-                                if (handleModalAddToCart(currentPromo)) {
+                                if (handleModalAddToCart(currentPromo, selectedAddons)) {
                                     setSelectedProduct(null); 
                                 }
                             }} 
                             className="flex-1 py-3.5 bg-pink-50 text-pink-600 border border-pink-200 rounded-2xl font-bold text-xs sm:text-sm hover:bg-pink-100 transition-colors flex items-center justify-center gap-1.5 active:scale-95"
                         >
-                            <ShoppingCart size={16} /> เพิ่มลงตะกร้า
+                            <ShoppingCart size={16} /> เพิ่มลงตะกร้า {selectedAddons.length > 0 && `(+${selectedAddons.length})`}
                         </button>
                         <button 
                             onClick={() => {
                                 if (handleModalBuyNow) {
-                                    handleModalBuyNow(currentPromo);
-                                } else if (handleModalAddToCart(currentPromo)) {
+                                    handleModalBuyNow(currentPromo, selectedAddons);
+                                } else if (handleModalAddToCart(currentPromo, selectedAddons)) {
                                     setSelectedProduct(null);
                                 }
                             }}
                             className="flex-[1.2] py-3.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-2xl font-black text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-all shadow-lg shadow-pink-500/25 flex items-center justify-center gap-1.5 active:scale-95"
                         >
-                            ซื้อทันที • ฿{activePrice.toLocaleString()}
+                            ซื้อทันที • ฿{finalPrice.toLocaleString()}
                         </button>
                     </div>
                 </div>

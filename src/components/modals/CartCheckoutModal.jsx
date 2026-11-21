@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, ShoppingCart, MapPin, Trash2, Minus, Plus, CreditCard, Store, Banknote, QrCode, AlertCircle, Loader2, Tag, Percent, Ticket, Check, Copy, Search, Wallet, ChevronDown, CheckCircle2, ShoppingBag } from 'lucide-react';
+import { X, ShoppingCart, MapPin, Trash2, Minus, Plus, CreditCard, Store, Banknote, QrCode, AlertCircle, Loader2, Tag, Percent, Ticket, Check, Copy, Search, Wallet, ChevronDown, CheckCircle2, ShoppingBag, Sparkles } from 'lucide-react';
 import CouponSelectorModal from './CouponSelectorModal';
+import { MACHINE_TREATMENT_ADDONS } from '../../data/machineAddons';
 
 const DELIVERY_FEES = {
     standard: 50,
@@ -33,6 +34,7 @@ export default function CartCheckoutModal({
     cart,
     updateCartQty,
     removeFromCart,
+    addToCart,
     totals,
     customerData,
     lineProfile,
@@ -369,6 +371,11 @@ export default function CartCheckoutModal({
                                         </div>
                                         <div className="flex-1 min-w-0 py-1">
                                             <h3 className="text-xs font-bold text-gray-800 line-clamp-1">{item.name}</h3>
+                                            {item.isAddon && (
+                                                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-pink-600 bg-pink-50 px-1.5 py-0.5 rounded-md mt-0.5 border border-pink-100">
+                                                    ✨ บริการเสริมลงเครื่อง
+                                                </span>
+                                            )}
                                             <p className="text-teal-600 font-black text-sm mt-0.5">฿{parseNumber(item.price).toLocaleString()}</p>
                                         </div>
                                         <div className="flex flex-col items-end justify-between">
@@ -382,6 +389,72 @@ export default function CartCheckoutModal({
                                     </div>
                                 ))}
                             </div>
+
+                            {/* 🌟 แถบแนะนำบริการเสริมพิเศษ / ลงเครื่องรายครั้ง (Add-on Upsell in Cart) 🌟 */}
+                            {addToCart && (
+                                <div className="bg-gradient-to-br from-pink-50/70 via-rose-50/40 to-purple-50/50 rounded-2xl p-3.5 shadow-sm border border-pink-100">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                            <Sparkles size={15} className="text-pink-500 fill-pink-500" />
+                                            <h3 className="text-xs font-black text-slate-800">
+                                                บริการเสริมแนะนำ / ลงเครื่องรายครั้ง
+                                            </h3>
+                                        </div>
+                                        <span className="text-[10px] text-pink-600 font-bold bg-white px-2 py-0.5 rounded-full border border-pink-200 shadow-2xs">
+                                            เริ่มต้น ฿100
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mb-2.5">
+                                        แตะเพื่อเพิ่มบริการเครื่องดูแลผิวหน้าทำควบคู่ในบิลนี้:
+                                    </p>
+                                    
+                                    <div className="flex gap-2.5 overflow-x-auto pb-1 hide-scrollbar -mx-1 px-1">
+                                        {MACHINE_TREATMENT_ADDONS.map(addon => {
+                                            const inCart = cart.some(c => c.id === `addon-${addon.id}` || c.name.includes(addon.name));
+                                            return (
+                                                <div 
+                                                    key={addon.id}
+                                                    className="w-36 shrink-0 bg-white rounded-xl p-2.5 border border-pink-100/80 shadow-2xs flex flex-col justify-between"
+                                                >
+                                                    <div>
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <span className="text-[9px] font-bold text-slate-400">ลงเครื่อง</span>
+                                                            <span className="text-xs font-black text-pink-600">฿{addon.price}</span>
+                                                        </div>
+                                                        <h4 className="text-xs font-black text-slate-800 line-clamp-1">{addon.name}</h4>
+                                                        <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{addon.desc}</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            addToCart({
+                                                                id: `addon-${addon.id}`,
+                                                                name: `${addon.name} (บริการเสริม)`,
+                                                                price: Number(addon.price || 0),
+                                                                originalPrice: Number(addon.price || 0),
+                                                                type: 'course',
+                                                                sessions: 1,
+                                                                desc: addon.desc,
+                                                                items: addon.desc,
+                                                                isAddon: true,
+                                                                category: 'ลงเครื่อง'
+                                                            });
+                                                        }}
+                                                        disabled={inCart}
+                                                        className={`mt-2 w-full py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${
+                                                            inCart 
+                                                                ? 'bg-slate-100 text-slate-400 cursor-default'
+                                                                : 'bg-pink-500 hover:bg-pink-600 text-white shadow-xs active:scale-95'
+                                                        }`}
+                                                    >
+                                                        {inCart ? <><Check size={11} strokeWidth={3}/> เพิ่มแล้ว</> : <><Plus size={11} strokeWidth={3}/> เพิ่ม ฿{addon.price}</>}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Delivery Info for Products */}
                             {hasPhysicalProducts && (

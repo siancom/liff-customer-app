@@ -151,6 +151,7 @@ export default function CustomerApp() {
   const [promptpayQRData, setPromptpayQRData] = useState(null);
   const [dbMasterCourses, setDbMasterCourses] = useState([]);
   const [shopTab, setShopTab] = useState('products');
+  const [shopCourseCategory, setShopCourseCategory] = useState('all');
   const [cart, setCart] = useState([]);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -1680,6 +1681,45 @@ export default function CustomerApp() {
                   </div>
                 </div>
               )}
+
+              {/* 🌟 แบนเนอร์ส่งไปยังคอร์สโปรโมชั่นในหน้าร้านค้า 🌟 */}
+              <div 
+                onClick={() => {
+                  setShopTab('courses');
+                  setShopCourseCategory('promo');
+                  setActiveNav('shop');
+                }}
+                className="bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 rounded-[24px] p-4 sm:p-5 text-white shadow-lg shadow-pink-500/20 relative overflow-hidden cursor-pointer active:scale-[0.98] transition-all group"
+              >
+                <div className="absolute right-0 top-0 w-40 h-40 bg-white/15 rounded-full -mr-12 -mt-12 blur-2xl pointer-events-none group-hover:scale-110 transition-transform"></div>
+                <div className="absolute left-1/2 bottom-0 w-24 h-24 bg-amber-400/20 rounded-full blur-xl pointer-events-none"></div>
+                
+                <div className="relative z-10 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner shrink-0">
+                      <Sparkles size={24} className="text-amber-200 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="bg-white/25 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-sm">
+                          Hot Promotion
+                        </span>
+                        <span className="text-[10px] text-amber-200 font-bold">โปรแรงจำกัดเวลา</span>
+                      </div>
+                      <h3 className="text-base font-black leading-tight drop-shadow-sm">
+                        คอร์สโปรโมชั่นพิเศษสุดคุ้ม
+                      </h3>
+                      <p className="text-[11px] text-white/90 font-medium leading-relaxed mt-0.5">
+                        คลิกเพื่อเลือกซื้อคอร์สโปรโมชั่น 1 แถม 1 และราคาพิเศษในร้านค้า
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-9 h-9 rounded-full bg-white text-pink-600 flex items-center justify-center shadow-md shrink-0 group-hover:translate-x-1 transition-transform">
+                    <ArrowRight size={18} />
+                  </div>
+                </div>
+              </div>
+
               <h2 className="text-sm font-black text-gray-800 flex items-center mb-3"><Ticket size={18} className="mr-2 text-teal-600"/> คอร์สที่ใช้งานได้ ({activeCourses.length})</h2>
               
               <div className="flex space-x-2 mb-4 bg-gray-200/50 p-1 rounded-xl">
@@ -1728,13 +1768,9 @@ export default function CustomerApp() {
                       </div>
                     </div>
 
-                    <div className="space-y-2 mt-4">
+                    <div className="mt-4">
                       <button onClick={(e) => { e.stopPropagation(); setShowQR(course); }} className="w-full bg-gray-900 text-white flex items-center justify-center space-x-2 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform">
                         <QrCode size={18} /><span>แสดง QR เพื่อใช้งาน</span>
-                      </button>
-                      
-                      <button onClick={(e) => { e.stopPropagation(); setShowSkinProgress(true); }} className="w-full bg-teal-50 text-teal-700 flex items-center justify-center space-x-2 py-3 rounded-xl font-bold text-sm shadow-sm border border-teal-100 active:scale-95 transition-transform">
-                        <Sparkles size={18} /><span>ดูประวัติการวิเคราะห์ผิว</span>
                       </button>
                     </div>
                   </div>
@@ -1803,6 +1839,8 @@ export default function CustomerApp() {
                 setOrderFilter={setOrderFilter}
                 shopTab={shopTab}
                 setShopTab={setShopTab}
+                activeCourseCategory={shopCourseCategory}
+                setActiveCourseCategory={setShopCourseCategory}
                 dbProducts={dbProducts}
                 dbFirestoreProducts={dbProducts}
                 dbMasterCourses={dbMasterCourses}
@@ -2744,14 +2782,7 @@ export default function CustomerApp() {
                                                  </div>
                                              </td>
                                              <td className="py-3 px-4 align-middle text-center">
-                                                 {coursePrice > 0 ? (
-                                                     <div className="mx-auto flex flex-col items-center justify-center bg-orange-50/80 border border-orange-200/60 px-2 py-0.5 rounded-xl w-max">
-                                                         <span className="text-[8px] text-orange-500 font-bold uppercase tracking-wider">ราคาคอร์ส</span>
-                                                         <span className="text-xs font-black text-orange-700 leading-none">฿{coursePrice.toLocaleString()}</span>
-                                                     </div>
-                                                 ) : (
-                                                     <span className="text-gray-300 font-bold">-</span>
-                                                 )}
+                                                 <span className="text-gray-300 font-bold">-</span>
                                              </td>
                                              <td className="py-2.5 px-4 align-middle text-center">
                                                  <div className="bg-gray-50/60 rounded-xl p-1.5 border border-gray-100 min-h-[52px] w-[100px] mx-auto flex items-center justify-center">
@@ -2797,7 +2828,7 @@ export default function CustomerApp() {
                                                      <td className="py-3 px-4 align-middle text-center">
                                                          {(deductValue > 0 || productQty) ? (
                                                              <div className="mx-auto flex flex-col items-center justify-center bg-orange-50/80 border border-orange-200/60 px-2 py-0.5 rounded-xl w-max">
-                                                                 <span className="text-[8px] text-orange-500 font-bold uppercase tracking-wider">ยอดเบิก</span>
+                                                                 <span className="text-[8px] text-orange-500 font-bold uppercase tracking-wider">{productQty ? 'ราคาสินค้า' : 'วงเงินที่เบิก'}</span>
                                                                  <span className="text-xs font-black text-orange-700 leading-none">฿{deductValue.toLocaleString()}</span>
                                                                  {productQty && <span className="text-[9px] font-bold text-orange-500 mt-0.5">{productQty} ชิ้น</span>}
                                                              </div>

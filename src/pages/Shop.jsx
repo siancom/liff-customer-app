@@ -26,6 +26,8 @@ const Shop = ({
     setIsCustomOrderOpen,
     shopTab,
     setShopTab,
+    activeCourseCategory: propActiveCourseCategory,
+    setActiveCourseCategory: propSetActiveCourseCategory,
     dbProducts = [],
     dbFirestoreProducts = [],
     dbMasterCourses = [],
@@ -46,7 +48,9 @@ const Shop = ({
     const [priceCheckItem, setPriceCheckItem] = useState(null);
     const [competitorPrice, setCompetitorPrice] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeCourseCategory, setActiveCourseCategory] = useState('all');
+    const [internalCourseCategory, setInternalCourseCategory] = useState('all');
+    const activeCourseCategory = propActiveCourseCategory !== undefined ? propActiveCourseCategory : internalCourseCategory;
+    const setActiveCourseCategory = propSetActiveCourseCategory || setInternalCourseCategory;
     const [activeProductCategory, setActiveProductCategory] = useState('all');
     const [localDisplayLimit, setLocalDisplayLimit] = useState(10);
     const observerTarget = useRef(null);

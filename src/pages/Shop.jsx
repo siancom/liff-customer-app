@@ -139,6 +139,34 @@ const Shop = ({
         return 'general';
     };
 
+    // Helper to determine if an item in dbProducts is actually a service / machine addon / course
+    const isServiceOrCourseProduct = (p) => {
+        if (!p) return false;
+        const name = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name"]) || p.name || '').trim();
+        const cat = String(getFuzzyKey(p, ["หมวดสินค้า", "หมวดหมู่", "category"]) || '').trim();
+        const unit = String(getFuzzyKey(p, ["หน่วยนับ", "unit"]) || '').trim();
+        const code = String(getFuzzyKey(p, ["รหัส", "col_1", "sku"]) || p.sku || '').trim().toUpperCase();
+
+        // 1. หมวดสินค้าหรือหน่วยนับระบุเป็นบริการ / ลงเครื่อง / คอร์ส
+        if (cat.includes('ลงเครื่อง') || cat.includes('บริการ') || cat.includes('คอร์ส') || cat.includes('คอส') || cat.includes('ทรีตเมนต์') || cat.includes('ทรีทเมนต์')) return true;
+        if (unit.includes('ครั้ง') || unit.includes('คอร์ส') || unit.includes('คอส')) return true;
+
+        // 2. รหัสกลุ่มเครื่อง / คอร์ส (เช่น F-M, F-MA, MACH, CR-)
+        if (code.startsWith('F-M') || code.startsWith('MACH') || code.startsWith('CR-')) return true;
+
+        // 3. ชื่อมีระบุคอร์ส/บริการ/จำนวนครั้งชัดเจน
+        if (name.includes('ซื้อเพิ่มโปร') || name.includes('ลงเครื่อง') || name.includes('1 ครั้ง') || name.includes('2 ครั้ง') || name.includes('คอร์ส') || name.includes('คอส')) return true;
+
+        // 4. หมวดหมู่ใน WooCommerce
+        if (p.categories && Array.isArray(p.categories)) {
+            if (p.categories.some(c => c.name && (c.name.includes('คอร์ส') || c.name.toLowerCase().includes('course') || c.name.includes('บริการ') || c.name.includes('ลงเครื่อง')))) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
     // Extract dynamic product categories based on active dbProducts
     const PRODUCT_CATEGORIES = useMemo(() => {
         const cats = new Map();
@@ -148,9 +176,10 @@ const Shop = ({
             const status = String(getFuzzyKey(p, ["สถานะ", "status", "การใช้งาน", "state"]) || '').trim();
             if (!name || p.isStoreUseOnly) return;
             if (status === 'ร่าง' || status === 'draft' || status === 'ปิดใช้งาน' || status === 'ปิด' || status === 'ไม่แสดง' || status === 'ซ่อน') return;
-            if (p.categories && Array.isArray(p.categories)) {
-                if (p.categories.some(cat => cat.name && (cat.name.includes('คอร์ส') || cat.name.toLowerCase().includes('course')))) return;
-            }
+            
+            // กรองคอร์ส/บริการลงเครื่องออก ไม่ให้ไปโผล่ในหมวดหมู่สินค้า
+            if (isServiceOrCourseProduct(p)) return;
+
             let cat = '';
             if (p.categories && Array.isArray(p.categories) && p.categories.length > 0) {
                 cat = p.categories[0].name;
@@ -206,11 +235,8 @@ const Shop = ({
                 if (status === 'ร่าง' || status === 'draft' || status === 'ปิดใช้งาน' || status === 'ปิด' || status === 'ไม่แสดง' || status === 'ซ่อน') return false;
                 if (p.isStoreUseOnly) return false;
                 
-                // Exclude WooCommerce courses from physical products tab
-                if (p.categories && Array.isArray(p.categories)) {
-                    const isCourse = p.categories.some(cat => cat.name && (cat.name.includes('คอร์ส') || cat.name.toLowerCase().includes('course')));
-                    if (isCourse) return false;
-                }
+                // 🌟 กรองบริการ/คอร์ส/ลงเครื่อง ออกจากแท็บสินค้า (Physical Products)
+                if (isServiceOrCourseProduct(p)) return false;
                 
                 return true;
             }).map(p => {

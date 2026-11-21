@@ -11,15 +11,17 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
 
   const creditTransactions = dbHistories.filter(h => {
     if (!isCreditTx(h)) return false;
-    if (h.cleanPhone && String(h.cleanPhone) === cleanPhone) return true;
-    if (!h.cleanPhone && (getFuzzyKey(h, ["ชื่อลูกค้า", "ชื่อ"]) || '').trim() === custName) return true;
+    const hP = String(h.cleanPhone || getFuzzyKey(h, ["เบอร์โทร", "col_3", "phone"]) || '').replace(/\D/g, '');
+    if (hP && cleanPhone && hP === cleanPhone) return true;
+    if (!hP && (getFuzzyKey(h, ["ชื่อลูกค้า", "ชื่อ"]) || '').trim() === custName) return true;
     return false;
   }).sort((a, b) => String(b.timestamp || b.createdAt || '').localeCompare(String(a.timestamp || a.createdAt || '')));
 
   const customerHistory = dbHistories.filter(h => {
     if (h.transactionType) return false;
     const nameMatch = custName && (getFuzzyKey(h, ["ชื่อลูกค้า", "ชื่อ"]) || '').trim() === custName;
-    const phoneMatch = cleanPhone && h.cleanPhone && String(h.cleanPhone) === cleanPhone;
+    const hP = String(h.cleanPhone || getFuzzyKey(h, ["เบอร์โทร", "col_3", "phone"]) || '').replace(/\D/g, '');
+    const phoneMatch = cleanPhone && hP && hP === cleanPhone;
     return nameMatch || phoneMatch;
   });
   
@@ -116,8 +118,11 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
       isApproved = true;
   }
 
-  const userCourses = dbCourses.filter(c => String(getFuzzyKey(c, ["เบอร์โทร", "col_1"]) || '').trim() === cleanPhone).map(c => {
-    const total = parseNumber(getFuzzyKey(c, ["จำนวนครั้งที่ได้", "col_10"])) || 1;
+  const userCourses = dbCourses.filter(c => {
+    const cp = String(c.cleanPhone || getFuzzyKey(c, ["เบอร์โทร", "col_1", "phone"]) || '').replace(/\D/g, '');
+    return cleanPhone && cp === cleanPhone;
+  }).map(c => {
+    const total = parseNumber(getFuzzyKey(c, ["จำนวนครั้งที่ได้", "col_10", "col_4", "จำนวนครั้ง", "จำนวนรวม"])) || 1;
     const oldUsedRaw = getFuzzyKey(c, ["ครั้งที่ใช้", "col_5"]);
     const oldRemainingRaw = getFuzzyKey(c, ["ครั้งที่เหลือดิบ", "ครั้งที่เหลือ", "col_4"]);
 

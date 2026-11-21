@@ -2155,8 +2155,18 @@ export default function CustomerApp() {
                                   const courseNo = `IC${Date.now().toString().slice(-6)}${i}`;
                                   const courseRef = doc(getAppCollection('courses'));
                                   
-                                  const courseTotalQty = String(getFuzzyKey(item.originalItem, ["จำนวนครั้ง", "col_7"]) || "1");
-                                  let creditReceived = String(getFuzzyKey(item.originalItem, ["เครดิตที่ได้รับ", "เครดิตที่ได้", "ยอดเครดิต", "เครดิต", "วงเงินคอร์ส", "col_14"]) || "0");
+                                  const courseTotalQty = String(
+                                      item.sessions || 
+                                      item.selectedPromoOption?.sessions || 
+                                      item.promoOption?.sessions || 
+                                      getFuzzyKey(item.originalItem, ["จำนวนครั้ง", "col_7"]) || 
+                                      "1"
+                                  );
+                                  let creditReceived = String(
+                                      item.credit || 
+                                      getFuzzyKey(item.originalItem, ["เครดิตที่ได้รับ", "เครดิตที่ได้", "ยอดเครดิต", "เครดิต", "วงเงินคอร์ส", "col_14"]) || 
+                                      "0"
+                                  );
                                   if (parseNumber(creditReceived) === 0 && String(item.name).match(/(เติมเงิน|เครดิต|วงเงิน|ฝากเงิน|voucher)/i)) {
                                       creditReceived = String(item.price);
                                   }
@@ -2169,26 +2179,50 @@ export default function CustomerApp() {
                                       expireDateStr = `${String(expDate.getDate()).padStart(2, '0')}/${String(expDate.getMonth() + 1).padStart(2, '0')}/${exY}`;
                                   }
 
+                                  const courseReceivedItems = String(
+                                      item.desc || 
+                                      item.items || 
+                                      item.selectedPromoOption?.items || 
+                                      item.promoOption?.items || 
+                                      getFuzzyKey(item.originalItem, ["รายการที่ได้รับ", "col_11"]) || 
+                                      ''
+                                  );
+
                                   const courseData = {
                                       "เบอร์โทร": cPhone,
+                                      "col_1": cPhone,
                                       "cleanPhone": custCleanPhone,
                                       "เลขที่ใบคอส": courseNo,
+                                      "col_2": courseNo,
                                       "วันที่ซื้อ": dateStr,
+                                      "col_3": dateStr,
                                       "ผู้ซื้อคอส": cName,
+                                      "col_9": cName,
                                       "ชื่อคอส": item.name,
+                                      "col_8": item.name,
                                       "สาขาที่ซื้อ": "ซื้อผ่านแอป",
                                       "ราคา": String(item.price),
+                                      "col_13": String(item.price),
                                       "เครดิตที่ได้รับ": creditReceived,
+                                      "col_14": creditReceived,
                                       "จำนวนครั้งที่ได้": courseTotalQty,
+                                      "col_10": courseTotalQty,
+                                      "col_4": courseTotalQty,
                                       "ยอดค้างชำระ": "0",
                                       "ยอดชำระแล้วทั้งหมด": String(item.price),
                                       "ครั้งที่ใช้": "0",
+                                      "col_5": "0",
                                       "ครั้งที่เหลือดิบ": courseTotalQty,
+                                      "col_33": courseTotalQty,
                                       "สถานะ": "ยังคงเหลือ",
+                                      "col_6": "ยังคงเหลือ",
                                       "ประเภทการชำระ": orderData.paymentMethod === 'omise' ? "บัตรเครดิต (Omise)" : "จ่ายเต็มผ่านเครดิต (LIFF)",
-                                      "รายการที่ได้รับ": String(getFuzzyKey(item.originalItem, ["รายการที่ได้รับ", "col_11"]) || ''),
+                                      "รายการที่ได้รับ": courseReceivedItems,
+                                      "col_11": courseReceivedItems,
                                       "ฟรีบัตรสมาชิก": String(getFuzzyKey(item.originalItem, ["ฟรีบัตรสมาชิก"]) || 'ไม่'),
-                                      "claimedItems": []
+                                      "claimedItems": [],
+                                      "createdAt": customDateObj.toISOString(),
+                                      "promoOption": item.selectedPromoOption || item.promoOption || null
                                   };
                                   if (expireDateStr) courseData["วันหมดอายุ"] = expireDateStr;
                                   batch.set(courseRef, courseData);
@@ -2197,15 +2231,21 @@ export default function CustomerApp() {
                                   batch.set(historyRef, {
                                       "วันที่": dateStr,
                                       "ชื่อลูกค้า": cName,
+                                      "col_2": cName,
                                       "เบอร์โทร": cPhone,
+                                      "col_3": cPhone,
                                       "cleanPhone": custCleanPhone,
                                       "หมายเลขคำสั่งซื้อ": orderNo,
                                       "ประเภท": "ซื้อคอร์ส",
+                                      "col_4": "ซื้อคอร์ส",
                                       "สถานะ": "เรียบร้อย",
                                       "สินค้า": item.name,
+                                      "col_18": item.name,
                                       "ยอดเงิน": String(item.price),
+                                      "col_19": String(item.price),
                                       "สาขา": "ซื้อผ่านแอป",
-                                      "อ้างอิง": courseNo
+                                      "อ้างอิง": courseNo,
+                                      "col_6": courseNo
                                   });
                               }
                           } else if (item.type === 'product') {

@@ -772,39 +772,6 @@ const Shop = ({
                 </div>
             </div>
 
-            {/* FAST ORDER: สั่งสินค้าจากรูปภาพ */}
-            <div className="px-1">
-                <button 
-                    onClick={() => setIsCustomOrderOpen(true)}
-                    className="w-full relative rounded-[24px] p-5 shadow-lg text-white overflow-hidden text-left active:scale-[0.98] transition-all duration-300 flex items-center group"
-                    style={{ background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 50%, #7c3aed 100%)' }}
-                >
-                    <div className="bg-white/20 p-3 rounded-2xl mr-4 border border-white/30 shrink-0 relative z-10 shadow-sm">
-                        <ImageIcon size={28} className="text-white drop-shadow" />
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-ping"></div>
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-indigo-600 shadow-sm"></div>
-                    </div>
-
-                    <div className="relative z-10 flex-1">
-                        <div className="flex items-center space-x-2 mb-1.5">
-                            <span className="bg-gradient-to-r from-rose-400 to-orange-500 px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest border border-white/20 text-white shadow-sm flex items-center">
-                                <Sparkles size={10} className="mr-1 animate-pulse" /> Fast Order
-                            </span>
-                        </div>
-                        <h2 className="text-[19px] font-black mb-0.5 leading-tight text-white drop-shadow-sm">
-                            สั่งสินค้าจากรูปภาพ
-                        </h2>
-                        <p className="text-[11px] text-blue-100 font-medium leading-snug">
-                            ถ่ายรูปใบสั่งแพทย์ หรือขวดเดิม<br/>ส่งให้แอดมินจัดยาให้ได้เลย!
-                        </p>
-                    </div>
-
-                    <div className="bg-white w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-md relative z-10 border border-white/50 text-indigo-600">
-                        <ArrowRight size={18} />
-                    </div>
-                </button>
-            </div>
-
             {/* THAIMART BANNER */}
             <div className="px-1">
                 <a 
@@ -936,10 +903,11 @@ const Shop = ({
                 </div>
             )}
 
+            {(MOCK_COUPONS || []).filter(c => !c.code?.includes('LUCKY') && !c.isPersonal && !c.isBatch && c.isActive !== false).length > 0 && (
             <div>
                 <h3 className="text-[13px] font-black text-gray-800 mb-3 px-1 flex items-center"><Ticket size={16} className="mr-1.5 text-rose-500"/> เก็บโค้ดส่วนลด</h3>
                 <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-3 snap-x px-1">
-                    {MOCK_COUPONS.filter(c => !c.code?.includes('LUCKY') && !c.isPersonal && !c.isBatch && c.isActive !== false).map((coupon, i) => {
+                    {(MOCK_COUPONS || []).filter(c => !c.code?.includes('LUCKY') && !c.isPersonal && !c.isBatch && c.isActive !== false).map((coupon, i) => {
                     const isCollected = customerData?.collectedCoupons?.includes(coupon.code);
                     return (
                     <div key={i} className="snap-center shrink-0 w-64 bg-gradient-to-r from-rose-400 to-orange-400 rounded-2xl p-[2px] shadow-sm relative overflow-hidden group">
@@ -967,6 +935,7 @@ const Shop = ({
                     )})}
                 </div>
             </div>
+            )}
 
             {buyAgainItems.length > 0 && (
             <div>

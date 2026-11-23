@@ -23,7 +23,6 @@ import ProductDetailModal from './components/modals/ProductDetailModal';
 import OrderDetailModal from './components/modals/OrderDetailModal';
 import PromotionModal from './components/modals/PromotionModal';
 import { fetchWithProxy, WOO_CFG } from './utils/wooProxy';
-import { MOCK_COUPONS } from './data/mockData';
 import { getFullPrice, computeFinalPrice } from './utils/priceUtils';
 
 // --- 🌟 SKIN AI MODALS 🌟 ---
@@ -344,15 +343,9 @@ export default function CustomerApp() {
     setTimeout(() => setToast(null), 3200);
   };
 
-  // 🌟 รวมคูปองจากระบบ Firestore + Fallback Mock Data 🌟
-  const combinedCoupons = useMemo(() => {
-    const list = [...(dbCoupons || [])];
-    MOCK_COUPONS.forEach(mc => {
-      if (!list.some(c => String(c.code).toUpperCase() === String(mc.code).toUpperCase())) {
-        list.push(mc);
-      }
-    });
-    return list;
+  // 🌟 คูปองยึดตามระบบ Firestore ที่มีเท่านั้น 🌟
+  const systemCoupons = useMemo(() => {
+    return (dbCoupons || []).filter(c => c && c.isActive !== false);
   }, [dbCoupons]);
 
   // 🌟 เก็บโค้ดคูปองเข้าบัญชีลูกค้า (Firestore + Local State) 🌟
@@ -1536,7 +1529,6 @@ export default function CustomerApp() {
 
               <div className="grid grid-cols-4 gap-2">
                 <button onClick={() => setIsVipRegistrationOpen(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-amber-300 relative">
-                   <div className="absolute top-1 right-1 bg-gray-100 text-gray-500 text-[7px] font-bold px-1 rounded-full">เร็วๆ นี้</div>
                    <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mb-2 group-hover:bg-amber-500 group-hover:text-white transition-colors">
                      <UserPlus size={20} />
                    </div>
@@ -1544,7 +1536,6 @@ export default function CustomerApp() {
                 </button>
 
                 <button onClick={() => setIsBookingModalOpen(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-teal-300 relative">
-                   <div className="absolute top-1 right-1 bg-emerald-500 text-white text-[7.5px] font-black px-1.5 py-0.2 rounded-full shadow-2xs">เปิดแล้ว</div>
                    <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center mb-2 group-hover:bg-teal-500 group-hover:text-white transition-colors">
                      <CalendarPlus size={20} />
                    </div>
@@ -1552,7 +1543,6 @@ export default function CustomerApp() {
                 </button>
 
                 <button onClick={() => setShowSkinCheck(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-pink-300 relative">
-                   <div className="absolute top-1 right-1 bg-purple-600 text-white text-[7.5px] font-black px-1.5 py-0.2 rounded-full shadow-2xs animate-pulse">เปิดแล้ว</div>
                    <div className="w-10 h-10 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2 group-hover:bg-pink-500 group-hover:text-white transition-colors">
                      <Sparkles size={20} />
                    </div>
@@ -1560,7 +1550,6 @@ export default function CustomerApp() {
                 </button>
 
                 <button onClick={() => setIsHelpCenterOpen(true)} className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center active:scale-95 transition-all group hover:border-blue-300 relative">
-                   <div className="absolute top-1 right-1 bg-gray-100 text-gray-500 text-[7px] font-bold px-1 rounded-full">เร็วๆ นี้</div>
                    <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-2 group-hover:bg-blue-500 group-hover:text-white transition-colors">
                      <HelpCircle size={20} />
                    </div>
@@ -2034,7 +2023,7 @@ export default function CustomerApp() {
                 activeCourses={activeCourses}
                 customerData={customerData}
                 handleCollectCoupon={handleCollectCoupon}
-                MOCK_COUPONS={combinedCoupons}
+                MOCK_COUPONS={systemCoupons}
                 onNavigateToCategory={(catId, tabId = 'courses') => {
                   setShopTab(tabId);
                   setShopCourseCategory(catId);
@@ -2093,7 +2082,7 @@ export default function CustomerApp() {
                 selectedPackages={null}
                 setSelectedPackages={() => {}}
                 setSelectedProduct={setSelectedProduct}
-                MOCK_COUPONS={combinedCoupons}
+                MOCK_COUPONS={systemCoupons}
                 buyAgainItems={buyAgainItems}
                 handleCollectCoupon={handleCollectCoupon}
                 isPaginating={false}
@@ -2161,7 +2150,7 @@ export default function CustomerApp() {
                 handleRedeemReward={async (reward) => {
                   return { success: true }; 
                 }}
-                MOCK_COUPONS={combinedCoupons}
+                MOCK_COUPONS={systemCoupons}
                 marketingPromotions={dbMarketingPromotions}
                 handleCollectCoupon={handleCollectCoupon}
                 dbLuckyPrizes={dbLuckyPrizes}
@@ -2404,7 +2393,6 @@ export default function CustomerApp() {
                 <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'home' ? 'bg-teal-50' : ''}`}><Ticket size={22} className={activeNav === 'home' ? 'fill-teal-100/50' : ''} /></div><span className="text-[9px] font-bold">คอร์สของฉัน</span>
              </button>
              <button onClick={() => setActiveNav('shop')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors relative ${activeNav === 'shop' ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                <span className="absolute top-1 right-2 bg-gray-100 text-gray-500 text-[7px] font-black px-1 rounded-full">เร็วๆ นี้</span>
                 <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'shop' ? 'bg-emerald-50' : ''}`}><ShoppingBag size={22} className={activeNav === 'shop' ? 'fill-emerald-100/50' : ''} /></div><span className="text-[9px] font-bold">ร้านค้า</span>
              </button>
              
@@ -2414,13 +2402,11 @@ export default function CustomerApp() {
                   onClick={() => setActiveNav('booking')}
                   className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-[0_10px_25px_rgba(37,99,235,0.4)] transition-transform hover:scale-105 relative border-4 border-white"
                 >
-                  <span className="absolute -top-2 bg-emerald-500 text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap">เปิดแล้ว</span>
                   <CalendarDays size={24} />
                 </button>
              </div>
 
              <button onClick={() => setActiveNav('privileges')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors relative ${activeNav === 'privileges' ? 'text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                <span className="absolute top-1 right-2 bg-gray-100 text-gray-500 text-[7px] font-black px-1 rounded-full">เร็วๆ นี้</span>
                 <div className={`p-1.5 rounded-xl transition-all ${activeNav === 'privileges' ? 'bg-pink-50' : ''}`}><Gift size={22} className={activeNav === 'privileges' ? 'text-pink-500' : ''} /></div><span className="text-[9px] font-bold">สิทธิพิเศษ</span>
              </button>
              <button onClick={() => setActiveNav('profile')} className={`flex flex-col items-center justify-center w-full py-2 space-y-1 transition-colors ${activeNav === 'profile' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}>
@@ -2466,7 +2452,7 @@ export default function CustomerApp() {
              totals={calculateCartTotals()}
              customerData={customerData}
              lineProfile={lineProfile}
-             MOCK_COUPONS={combinedCoupons}
+             MOCK_COUPONS={systemCoupons}
              dbBranches={dbBranches}
              omiseConfig={omiseConfig}
              onConfirmOrder={async (orderData) => {

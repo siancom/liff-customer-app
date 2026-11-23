@@ -23,6 +23,7 @@ import ProductDetailModal from './components/modals/ProductDetailModal';
 import OrderDetailModal from './components/modals/OrderDetailModal';
 import PromotionModal from './components/modals/PromotionModal';
 import { fetchWithProxy, WOO_CFG } from './utils/wooProxy';
+import { BROCHURE_COURSES } from './data/mockData';
 import { getFullPrice, computeFinalPrice } from './utils/priceUtils';
 
 // --- 🌟 SKIN AI MODALS 🌟 ---
@@ -686,7 +687,16 @@ export default function CustomerApp() {
       };
     });
 
-    const combined = [...dbMasterCourses, ...posCourses];
+    const brochureCourses = (BROCHURE_COURSES || []).map(b => ({
+      ...b,
+      "รหัสคอส": b.id,
+      "ชื่อคอส": b.name,
+      "ราคา": String(b.price || (b.packages && b.packages[0]?.price) || 0),
+      "ประเภท": b.itemCategory || 'ผิวหน้า (A-J)',
+      isBrochure: true
+    }));
+
+    const combined = [...brochureCourses, ...dbMasterCourses, ...posCourses];
     const seen = new Set();
     return combined.filter(c => {
       const key = c.id || c["รหัสคอส"] || c.code;
@@ -1809,56 +1819,6 @@ export default function CustomerApp() {
         {/* CONTENT AREA */}
         <div className="flex-1 overflow-y-auto px-4 py-6 relative z-0">
           
-          {/* 📢 แถบประกาศระบบ: แจ้งเปิดใช้งานเฉพาะจองคิวและวิเคราะห์ผิว */}
-          {!isNoticeDismissed && (
-            <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200/90 rounded-2xl p-3.5 mb-4 shadow-xs relative overflow-hidden animate-in fade-in">
-              <div className="flex items-start gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
-                  <Sparkles size={14} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                    <span className="text-[11px] font-black text-amber-900">
-                      📢 แจ้งสถานะระบบ IrisCare
-                    </span>
-                    <span className="text-[8px] font-black bg-emerald-500 text-white px-1.5 py-0.2 rounded-md">
-                      เปิดให้บริการ
-                    </span>
-                  </div>
-                  <p className="text-[10.5px] text-amber-950 font-medium leading-relaxed">
-                    ปัจจุบันระบบเปิดให้บริการเฉพาะ <strong className="text-emerald-700 font-black">"จองคิวรับบริการ"</strong> และ <strong className="text-purple-700 font-black">"AI วิเคราะห์สภาพผิว"</strong> ค่ะ สำหรับระบบอื่นๆ (ร้านค้า, คอร์ส, สิทธิพิเศษ) กำลังอยู่ระหว่างการพัฒนาเพิ่มเติมค่ะ ✨
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveNav('booking')}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9.5px] font-black px-2.5 py-1.5 rounded-lg shadow-xs flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
-                    >
-                      <CalendarDays size={11} />
-                      <span>จองคิวรับบริการ</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowSkinCheck(true)}
-                      className="bg-purple-600 hover:bg-purple-700 text-white text-[9.5px] font-black px-2.5 py-1.5 rounded-lg shadow-xs flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
-                    >
-                      <Sparkles size={11} />
-                      <span>วิเคราะห์ผิว AI</span>
-                    </button>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsNoticeDismissed(true)}
-                  className="text-amber-400 hover:text-amber-600 p-1 -mr-1 -mt-1 rounded-lg transition-colors cursor-pointer"
-                  title="ปิดประกาศ"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* NAV 1: HOME (คอร์สของฉัน) */}
           {activeNav === 'home' && (
             <div className="space-y-4 animate-in fade-in duration-300">
@@ -2028,7 +1988,12 @@ export default function CustomerApp() {
                   setShopTab(tabId);
                   setShopCourseCategory(catId);
                   setActiveNav('shop');
-                  window.scrollTo(0, 0);
+                  setTimeout(() => {
+                    const el = document.getElementById('course-options-section') || document.getElementById('shop-items-section');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }, 120);
                 }}
               />
             </div>

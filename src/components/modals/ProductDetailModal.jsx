@@ -40,7 +40,16 @@ export default function ProductDetailModal({
         const currentProgramTiers = currentProgram?.tiers || [];
         const activeProgramTier = currentProgramTiers[selectedProgramTierIndex] || currentProgramTiers[0] || null;
 
-        const promoOptions = Array.isArray(selectedProduct.promoOptions) ? selectedProduct.promoOptions.filter(o => o && (o.name || o.price)) : [];
+        const rawPackages = Array.isArray(selectedProduct.packages) ? selectedProduct.packages.map(p => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            originalPrice: p.originalPrice,
+            sessions: p.name
+        })) : [];
+        const promoOptions = Array.isArray(selectedProduct.promoOptions) && selectedProduct.promoOptions.length > 0 
+            ? selectedProduct.promoOptions.filter(o => o && (o.name || o.price)) 
+            : rawPackages;
         const hasPromoOptions = promoOptions.length > 0;
 
         let currentPromo = null;

@@ -31,6 +31,15 @@ const Shop = ({
     cart = [],
     setIsCartModalOpen
 }) => {
+    const [localSelectedPackages, setLocalSelectedPackages] = useState({});
+    const activeSelectedPackages = (selectedPackages && typeof selectedPackages === 'object' && Object.keys(selectedPackages).length > 0) ? selectedPackages : localSelectedPackages;
+    const handleSelectPackage = (courseId, pkgId) => {
+        setLocalSelectedPackages(prev => ({ ...prev, [courseId]: pkgId }));
+        if (typeof setSelectedPackages === 'function') {
+            try { setSelectedPackages(prev => ({ ...(prev || {}), [courseId]: pkgId })); } catch(e) {}
+        }
+    };
+
     const [priceCheckItem, setPriceCheckItem] = useState(null);
     const [competitorPrice, setCompetitorPrice] = useState('');
     const [showCrmPosterModal, setShowCrmPosterModal] = useState(false);
@@ -139,6 +148,7 @@ const Shop = ({
     // 🌟 ตรวจสอบว่าคอร์สมีรูปภาพพร้อมเปิดขายหรือไม่
     // (ตามคำสั่ง: ยกเครื่องใหม่ถ้าคอร์สไหนใส่รูปจากฝั่งแอดมินเรียบร้อย เปิดขายฝั่งลูกค้าได้เลย และรูปที่ระบบใส่มาเองไม่แสดง)
     const hasCourseImage = (mc) => {
+        if (mc.isBrochure) return true;
         return Boolean(getValidCourseImage(mc));
     };
 
@@ -188,6 +198,14 @@ const Shop = ({
 
     const getCourseCategory = (c) => {
         if (!c) return 'other';
+        if (c.itemCategory === 'โปรโมชั่นโบรชัวร์' || c.isBrochure) {
+            let n = String(c.name || '');
+            if (n.startsWith('[') || n.includes('ทรีทเม้นท์') || /^bro-trt/i.test(c.id || '')) return 'facial';
+            if (n.includes('รักษาสิว/ฝ้า') || /^bro-set/i.test(c.id || '')) return 'acne_sets';
+            if (n.includes('บำรุง') || /^bro-mnt/i.test(c.id || '')) return 'nourish';
+            if (n.includes('ลงเครื่อง') || /^bro-mac/i.test(c.id || '')) return 'machine';
+            return 'facial';
+        }
         const type = String(getFuzzyKey(c, ["ประเภท", "col_2", "หมวดหมู่"]) || '').trim();
         if (type === 'โปรโมชั่น' || type === 'โปร') return 'promo';
         if (type === 'ผิวหน้า (A-J)') return 'facial';
@@ -819,7 +837,7 @@ const Shop = ({
 
             {/* 🌟 ส่วนแสดงโปรโมชั่นโบรชัวร์ (Fast Buy Courses) 🌟 */}
             {shopTab === 'courses' && currentTabItems.some(i => i.isBrochure) && (
-                <div className="pt-2 pb-2">
+                <div id="course-options-section" className="pt-2 pb-2">
                     <div className="flex justify-between items-end mb-4 px-1">
                         <h3 className="text-[15px] font-black text-rose-600 flex items-center bg-rose-50 px-4 py-1.5 rounded-full border border-rose-100 shadow-sm">
                             <Sparkles size={18} className="mr-1.5 animate-pulse text-rose-500"/> โปรโมชั่นพิเศษ (แนะนำ)
@@ -828,7 +846,7 @@ const Shop = ({
                     <div className="flex flex-col gap-4 px-1">
                         {currentTabItems.filter(i => i.isBrochure).map((brochure, idx) => {
                             const hasPackages = brochure.packages && brochure.packages.length > 0;
-                            const activePkgId = selectedPackages[brochure.id] || (hasPackages ? brochure.packages[0].id : null);
+                            const activePkgId = (activeSelectedPackages && activeSelectedPackages[brochure.id]) || (hasPackages ? brochure.packages[0].id : null);
                             const activePkg = hasPackages ? brochure.packages.find(p => p.id === activePkgId) : null;
 
                             const displayPrice = activePkg ? (Number(activePkg.price) || 0) : (Number(brochure.price) || 0);
@@ -862,7 +880,7 @@ const Shop = ({
                                                 {brochure.packages.map(pkg => (
                                                     <button 
                                                         key={pkg.id}
-                                                        onClick={(e) => { e.stopPropagation(); setSelectedPackages(prev => ({...prev, [brochure.id]: pkg.id})); }}
+                                                        onClick={(e) => { e.stopPropagation(); handleSelectPackage(brochure.id, pkg.id); }}
                                                         className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${activePkgId === pkg.id ? 'bg-white border-white text-rose-600 shadow-md scale-105' : 'bg-white/20 border-white/30 text-white hover:bg-white/30'}`}
                                                     >
                                                         {String(pkg.name || '')}
@@ -969,7 +987,7 @@ const Shop = ({
 
             {/* 🌟 สินค้าและบริการทั้งหมด (Main Grid) 🌟 */}
             {currentTabItems.filter(i => !i.isBrochure).length > 0 && (
-                <div className="pt-2">
+                <div id="shop-items-section" className="pt-2">
                     <div className="flex justify-between items-end mb-3 px-1">
                         <h3 className="text-[14px] font-black text-gray-800 flex items-center">
                             {shopTab === 'products' && <><ShoppingBag size={18} className="mr-1.5 text-blue-500"/> สินค้าทั้งหมด</>}

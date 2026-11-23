@@ -65,6 +65,13 @@ export const BROCHURE_COURSES = [
       { id: 'bro-trt-i-10', name: 'เหมา 10 ครั้ง', price: 7999, originalPrice: 12000 }
     ]
   },
+  { id: 'bro-trt-j', name: '[J] ซุปเปอร์ไวท์ผลักวิตามินหน้าใส', bgText: 'J', desc: '1.ปรนนิบัติผิว 2.ขัดหน้าขาว 3.เมโสผลักวิตามิน 4.ลงเครื่องซุปเปอร์ไวท์ 5.ไครโอเย็น 6.มาร์คหน้าใส', type: 'course', itemCategory: 'โปรโมชั่นโบรชัวร์', image: 'https://images.unsplash.com/photo-1570172619644-defd000f07df?w=400&q=80', isBrochure: true, theme: 'from-amber-400 to-rose-500',
+    packages: [
+      { id: 'bro-trt-j-1', name: '1 ครั้ง', price: 899, originalPrice: 1200 },
+      { id: 'bro-trt-j-5', name: '5 ครั้ง', price: 4250, originalPrice: 6000 },
+      { id: 'bro-trt-j-10', name: 'เหมา 10 ครั้ง', price: 7999, originalPrice: 12000 }
+    ]
+  },
 
   // --- ชุดรักษาสิว-ฝ้า (ปรับสภาพผิวเคลียร์สิว - ฟื้นฟูผิว-ลดฝ้า) ---
   { id: 'bro-set-a', name: 'SET.A คอร์สรักษาสิว/ฝ้า', bgText: 'SET A', desc: 'ผลิตภัณฑ์ 3000 บ. | ฟรีลงเครื่อง 15 ครั้ง | ฟรีแอคทีฟสกิน 1 ครั้ง', price: 5900, originalPrice: 8900, type: 'course', itemCategory: 'โปรโมชั่นโบรชัวร์', image: 'https://images.unsplash.com/photo-1616409840905-1a221f76b5fc?w=400&q=80', isBrochure: true, theme: 'from-blue-600 to-indigo-800' },

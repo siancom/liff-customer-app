@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Image as ImageIcon, ArrowRight, Sparkles, ShoppingCart, Ticket, HeartPulse, ShoppingBag, Loader2, HistoryIcon, Star, Truck, Percent, Search, X, Gift, ShieldCheck, MessageCircle, CheckCircle2, Zap, LayoutGrid, Wallet, Package, ClipboardList, XCircle, ChevronRight } from 'lucide-react';
+import { Image as ImageIcon, ArrowRight, Sparkles, ShoppingCart, Ticket, HeartPulse, ShoppingBag, Loader2, HistoryIcon, Star, Truck, Percent, Search, X, Gift, ShieldCheck, MessageCircle, CheckCircle2, Zap, LayoutGrid, Wallet, Package, ClipboardList, XCircle, ChevronRight, Award, ExternalLink } from 'lucide-react';
 import { getFuzzyKey, parseNumber, parseThaiDate } from '../utils/helpers';
 import { computeFinalPrice } from '../utils/priceUtils';
 import PriceCompareModal from '../components/modals/PriceCompareModal';
@@ -33,6 +33,7 @@ const Shop = ({
 }) => {
     const [priceCheckItem, setPriceCheckItem] = useState(null);
     const [competitorPrice, setCompetitorPrice] = useState('');
+    const [showCrmPosterModal, setShowCrmPosterModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [internalCourseCategory, setInternalCourseCategory] = useState('all');
     const activeCourseCategory = propActiveCourseCategory !== undefined ? propActiveCourseCategory : internalCourseCategory;
@@ -667,6 +668,75 @@ const Shop = ({
                 )}
             </div>
 
+            {/* 🌟 CRM HERO BANNER: ชวนใช้ระบบจองคิว & สะสมแต้มออนไลน์ ลดสูงสุด 20% 🌟 */}
+            <div className="px-1">
+                <div className="relative overflow-hidden rounded-[24px] border border-amber-400/40 shadow-xl shadow-indigo-950/20 bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#312e81] p-4 text-white">
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                            <span className="bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-[9px] px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-xs uppercase tracking-wider">
+                                <Award size={10} className="fill-slate-950" /> สิทธิพิเศษ CRM • ถึง 31 ธ.ค. 69
+                            </span>
+                            <button 
+                                type="button"
+                                onClick={() => setShowCrmPosterModal(true)}
+                                className="text-[10px] text-amber-300 hover:text-white font-bold flex items-center gap-0.5 underline underline-offset-2 opacity-90 transition-opacity"
+                            >
+                                ดูโปสเตอร์เต็ม <ExternalLink size={10} />
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-base sm:text-lg font-black text-white leading-tight drop-shadow-xs">
+                                    ชวนใช้ระบบจองคิว & สะสมแต้ม
+                                </h3>
+                                <p className="text-amber-200/90 text-[11px] font-medium leading-snug mt-1">
+                                    จองง่าย สะดวก ได้ส่วนลดทันที ไม่ต้องรอคิว
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                    <span className="bg-white/10 backdrop-blur-xs text-amber-300 font-extrabold text-[10px] px-2 py-0.5 rounded-md border border-amber-400/30">
+                                        🏷️ ซื้อคอร์สออนไลน์: ลดทันที 20%*
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div 
+                                onClick={() => setShowCrmPosterModal(true)}
+                                className="w-16 h-20 sm:w-20 sm:h-24 rounded-xl overflow-hidden shrink-0 border-2 border-amber-400/60 shadow-md relative group cursor-pointer bg-slate-900"
+                            >
+                                <img 
+                                    src="/posters/crm_promo_poster.jpg" 
+                                    alt="CRM Promotion" 
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                                />
+                                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors flex items-end justify-center p-1">
+                                    <span className="bg-black/70 text-white text-[7px] font-black px-1 rounded w-full text-center">
+                                        ดูเต็มใบ
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-3 pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-slate-300 font-medium truncate">
+                                🎁 ทุกบริการสะสมคะแนน แลกรับของรางวัล & คอร์สฟรี
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (shopTab !== 'courses') setShopTab('courses');
+                                    setActiveCourseCategory('facial');
+                                }}
+                                className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 text-slate-950 font-black text-xs flex items-center gap-1 shadow-md active:scale-95 transition-all shrink-0"
+                            >
+                                <span>ดูคอร์สลด 20%</span>
+                                <ArrowRight size={12} strokeWidth={3} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* FAST ORDER: สั่งสินค้าจากรูปภาพ */}
             <div className="px-1">
                 <button 
@@ -1159,6 +1229,59 @@ const Shop = ({
                         {cart.reduce((s, i) => s + i.qty, 0)}
                     </span>
                 </button>
+            )}
+
+            {/* 🌟 POPUP MODAL: แสดงโปสเตอร์สิทธิพิเศษ CRM เต็มใบ 🌟 */}
+            {showCrmPosterModal && (
+                <div 
+                    className="fixed inset-0 bg-black/80 backdrop-blur-md z-[120] flex items-center justify-center p-3 animate-in fade-in duration-200"
+                    onClick={() => setShowCrmPosterModal(false)}
+                >
+                    <div 
+                        className="bg-slate-900 rounded-[28px] max-w-sm w-full overflow-hidden shadow-2xl border border-amber-400/40 relative flex flex-col max-h-[92vh]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="p-3 bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 border-b border-amber-400/30 flex items-center justify-between text-white">
+                            <div className="flex items-center gap-1.5 text-xs font-black text-amber-300">
+                                <Award size={16} /> สิทธิพิเศษระบบจองคิว & สะสมแต้มออนไลน์
+                            </div>
+                            <button 
+                                onClick={() => setShowCrmPosterModal(false)}
+                                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <div className="p-2 overflow-y-auto flex-1 flex items-center justify-center bg-slate-950">
+                            <img 
+                                src="/posters/crm_promo_poster.jpg" 
+                                alt="CRM Promotion Full Poster" 
+                                className="w-full h-auto max-h-[72vh] object-contain rounded-xl"
+                            />
+                        </div>
+
+                        <div className="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
+                            <button
+                                onClick={() => setShowCrmPosterModal(false)}
+                                className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700 transition-colors"
+                            >
+                                ปิด
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowCrmPosterModal(false);
+                                    if (shopTab !== 'courses') setShopTab('courses');
+                                    setActiveCourseCategory('facial');
+                                }}
+                                className="flex-[1.5] py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+                            >
+                                <ShoppingBag size={14} />
+                                <span>ไปเลือกซื้อคอร์สเลย</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

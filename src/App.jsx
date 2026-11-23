@@ -1986,6 +1986,12 @@ export default function CustomerApp() {
                 setShowCancelConfirm={setShowCancelConfirm}
                 setBookingError={setBookingError}
                 activeCourses={activeCourses}
+                onNavigateToCategory={(catId, tabId = 'courses') => {
+                  setShopTab(tabId);
+                  setShopCourseCategory(catId);
+                  setActiveNav('shop');
+                  window.scrollTo(0, 0);
+                }}
               />
             </div>
           )}

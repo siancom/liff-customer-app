@@ -19,6 +19,7 @@ import Booking from './pages/Booking';
 import Privileges from './pages/Privileges';
 import BookingModal from './components/modals/BookingModal';
 import CartCheckoutModal from './components/modals/CartCheckoutModal';
+import OrderSuccessModal from './components/modals/OrderSuccessModal';
 import ProductDetailModal from './components/modals/ProductDetailModal';
 import OrderDetailModal from './components/modals/OrderDetailModal';
 import PromotionModal from './components/modals/PromotionModal';
@@ -170,6 +171,7 @@ export default function CustomerApp() {
   const [orderFilter, setOrderFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [confirmCancelOrder, setConfirmCancelOrder] = useState(false);
+  const [orderSuccessData, setOrderSuccessData] = useState(null);
 
   // 🌟 SKIN AI STATES + FEATURE FLAGS + TOAST 🌟
   const [showSkinCheck, setShowSkinCheck] = useState(() => getLiffDeepLinkParams().isSkinCheck);
@@ -2622,6 +2624,19 @@ export default function CustomerApp() {
                       } else {
                           showToast('ชำระเงินและเพิ่มคอร์สเรียบร้อยแล้วค่ะ! ✨');
                       }
+                      setOrderSuccessData({
+                          orderNo: orderNo,
+                          dateStr: dateStr,
+                          timeStr: timeStr,
+                          cart: orderData.cart || [],
+                          finalPrice: orderData.finalPrice,
+                          paymentMethod: orderData.paymentMethod,
+                          hasCourses: (orderData.cart || []).some(i => i.type === 'course' || i.type === 'single_course' || i.isCourse),
+                          hasProducts: (orderData.cart || []).some(i => i.type === 'product'),
+                          isInstant: true,
+                          selectedBranch: orderData.selectedBranch || 'สาขาเฉวง',
+                          deliveryInfo: orderData.deliveryInfo
+                      });
                       return { success: true, orderId: orderNo };
                   } else {
                       const batch = writeBatch(db);
@@ -2682,6 +2697,19 @@ export default function CustomerApp() {
                       } else {
                           showToast('ส่งคำสั่งซื้อเรียบร้อยแล้วค่ะ รอแอดมินตรวจสอบสักครู่นะคะ ✨');
                       }
+                      setOrderSuccessData({
+                          orderNo: orderNo,
+                          dateStr: dateStr,
+                          timeStr: timeStr,
+                          cart: cleanCart || orderData.cart || [],
+                          finalPrice: orderData.finalPrice,
+                          paymentMethod: orderData.paymentMethod,
+                          hasCourses: (orderData.cart || []).some(i => i.type === 'course' || i.type === 'single_course' || i.isCourse),
+                          hasProducts: (orderData.cart || []).some(i => i.type === 'product'),
+                          isInstant: false,
+                          selectedBranch: orderData.selectedBranch || 'สาขาเฉวง',
+                          deliveryInfo: orderData.deliveryInfo
+                      });
                       return { success: true, orderId: orderNo };
                   }
                 } catch(e) {
@@ -2726,6 +2754,25 @@ export default function CustomerApp() {
                  setConfirmCancelOrder(false);
                  setIsCartModalOpen(true);
              }}
+          />
+        )}
+
+        {/* --- 🌟 THANK YOU / ORDER SUCCESS MODAL 🌟 --- */}
+        {orderSuccessData && (
+          <OrderSuccessModal
+            isOpen={!!orderSuccessData}
+            onClose={() => setOrderSuccessData(null)}
+            orderData={orderSuccessData}
+            onViewCourses={() => {
+              setOrderSuccessData(null);
+              setActiveNav('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onViewOrders={() => {
+              setOrderSuccessData(null);
+              setActiveNav('orders');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
         )}
 

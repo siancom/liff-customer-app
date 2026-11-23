@@ -715,17 +715,17 @@ export default function CustomerApp() {
       c.col_1 === 'FACIAL-AJ' ||
       (Array.isArray(c.programs) && c.programs.length >= 9)
     );
-    if (found) {
-      return {
-        ...found,
-        type: 'course',
-        image: found.image || '/posters/facial_treatment_poster.jpg',
-        images: (found.images && found.images.length > 0) ? found.images : ['/posters/facial_treatment_poster.jpg']
-      };
-    }
+    const base = found || FACIAL_AJ_MASTER_COURSE;
+    const courseName = base.name || base["ชื่อคอส"] || base.col_4 || 'โปรแกรมทรีทเม้นท์ผิวหน้า (Facial Treatment A-J)';
     return {
-      ...FACIAL_AJ_MASTER_COURSE,
-      type: 'course'
+      ...base,
+      id: base.id || 'FACIAL-AJ',
+      name: courseName,
+      "ชื่อคอส": courseName,
+      col_4: courseName,
+      type: 'course',
+      image: base.image || base["รูปภาพ"] || '/posters/facial_treatment_poster.jpg',
+      images: (base.images && base.images.length > 0) ? base.images : ['/posters/facial_treatment_poster.jpg']
     };
   }, [allShopMasterCourses, dbMasterCourses]);
 

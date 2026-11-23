@@ -1,5 +1,8 @@
 export const FACIAL_AJ_MASTER_COURSE = {
   "id": "FACIAL-AJ",
+  "name": "โปรแกรมทรีทเม้นท์ผิวหน้า (Facial Treatment A-J)",
+  "ชื่อคอส": "โปรแกรมทรีทเม้นท์ผิวหน้า (Facial Treatment A-J)",
+  "type": "course",
   "จำนวนครั้งที่ได้": "1",
   "col_2": "ผิวหน้า (A-J)",
   "รูปภาพ": "/posters/facial_treatment_poster.jpg",

@@ -72,10 +72,11 @@ export default function ProductDetailModal({
         }
 
         let sessionCount = null;
-        const match = selectedProduct.name.match(/\(?(\d+)\s*ครั้ง\)?/);
+        const courseDisplayName = String(selectedProduct.name || selectedProduct["ชื่อคอส"] || selectedProduct.col_4 || 'โปรแกรมทรีทเม้นท์ผิวหน้า');
+        const match = courseDisplayName.match(/\(?(\d+)\s*ครั้ง\)?/);
         if (match) {
             sessionCount = parseInt(match[1]);
-        } else if (selectedProduct.name.includes('รายครั้ง')) {
+        } else if (courseDisplayName.includes('รายครั้ง')) {
             sessionCount = 1;
         }
         const activeSessions = currentPromo?.sessions || selectedProduct.sessions || sessionCount || 1;
@@ -151,7 +152,7 @@ export default function ProductDetailModal({
                         <div className="w-full bg-slate-50 relative flex items-center justify-center border-b border-gray-100 overflow-hidden max-h-[380px]">
                             <img 
                                 src={selectedProduct.image} 
-                                alt={selectedProduct.name} 
+                                alt={courseDisplayName} 
                                 className="w-full h-auto max-h-[380px] object-contain" 
                             />
                         </div>
@@ -163,7 +164,7 @@ export default function ProductDetailModal({
                                 {selectedProduct.brand.name}
                             </span>
                         )}
-                        <h2 className="text-xl font-black text-[#1d273a] mb-4 leading-tight">{selectedProduct.name}</h2>
+                        <h2 className="text-xl font-black text-[#1d273a] mb-4 leading-tight">{courseDisplayName}</h2>
                         
                         {/* 🌟 1. กรณีคอร์สรวมโปรแกรมทรีทเม้นท์ (A - J All-in-One) 🌟 */}
                         {hasPrograms && currentProgram && (
@@ -204,7 +205,7 @@ export default function ProductDetailModal({
                                                 </span>
                                                 <div className="min-w-0 flex-1">
                                                     <div className={`text-[11px] leading-tight truncate ${isProgSelected ? 'font-black' : 'font-bold'}`}>
-                                                        {prog.baseName.replace(/^[A-J]\.\s*/, '')}
+                                                        {(prog.baseName || '').replace(/^[A-J]\.\s*/, '')}
                                                     </div>
                                                     <div className="text-[10px] text-pink-600 font-extrabold mt-0.5">
                                                         เริ่ม ฿{Number(startPrice).toLocaleString()}
@@ -268,7 +269,7 @@ export default function ProductDetailModal({
                                                         <div className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
                                                             {tier.sessions} ครั้ง
                                                             <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded border border-teal-200/60">
-                                                                {currentProgram.baseName.replace(/^[A-J]\.\s*/, '')}
+                                                                {(currentProgram.baseName || '').replace(/^[A-J]\.\s*/, '')}
                                                             </span>
                                                         </div>
                                                         <div className="text-[10px] text-slate-500 font-medium">
@@ -598,6 +599,8 @@ export default function ProductDetailModal({
         );
     }
 
+    const productDisplayName = String(selectedProduct.name || selectedProduct["ชื่อสินค้า"] || selectedProduct["ชื่อคอส"] || selectedProduct.col_2 || selectedProduct.col_4 || '');
+
     return (
         <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-md z-[100] flex flex-col justify-end sm:items-center sm:justify-center p-0 sm:p-6 animate-in fade-in duration-200">
            <div className="bg-gray-50 w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-[32px] sm:rounded-[32px] shadow-2xl relative flex flex-col">
@@ -616,7 +619,7 @@ export default function ProductDetailModal({
                            >
                                {selectedProduct.images.map((img, idx) => (
                                    <div key={idx} className="w-full h-full flex-shrink-0 snap-center relative">
-                                       <ProductImage src={img} alt={`${selectedProduct.name} - ${idx+1}`} fallbackIcon={selectedProduct.type === 'course' ? HeartPulse : ShoppingBag} />
+                                       <ProductImage src={img} alt={`${productDisplayName} - ${idx+1}`} fallbackIcon={selectedProduct.type === 'course' ? HeartPulse : ShoppingBag} />
                                    </div>
                                ))}
                            </div>
@@ -630,7 +633,7 @@ export default function ProductDetailModal({
                            </div>
                        </>
                    ) : (
-                       <ProductImage src={selectedProduct.image} alt={selectedProduct.name} fallbackIcon={selectedProduct.type === 'course' ? HeartPulse : ShoppingBag} />
+                       <ProductImage src={selectedProduct.image} alt={productDisplayName} fallbackIcon={selectedProduct.type === 'course' ? HeartPulse : ShoppingBag} />
                    )}
                </div>
 
@@ -640,7 +643,7 @@ export default function ProductDetailModal({
                            {selectedProduct.brand.name}
                        </span>
                    )}
-                   <h2 className="text-xl font-black text-gray-900 mb-2 leading-tight">{selectedProduct.name}</h2>
+                   <h2 className="text-xl font-black text-gray-900 mb-2 leading-tight">{productDisplayName}</h2>
                    {/* 🌟 ช่วงราคาสมาชิกของเซต — คำนวณจากราคาสมาชิกแต่ละชิ้นในเซต */}
                    {(() => {
                      const members = subItems.map(s => Number(s.memberPrice) || 0).filter(v => v > 0);

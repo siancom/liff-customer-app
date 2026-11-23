@@ -2466,7 +2466,13 @@ export default function CustomerApp() {
                   const dateStr = customDateObj.toLocaleDateString('th-TH');
                   const timeStr = customDateObj.toLocaleTimeString('th-TH', { hour12: false, hour: '2-digit', minute: '2-digit' });
 
-                  if ((orderData.paymentMethod === 'credit' || orderData.paymentMethod === 'omise') && !orderData.isPending) {
+                  // 🌟 ตรวจสอบว่าชำระเงินสำเร็จทันที หรือยอดเป็น ฿0 (คูปอง 100% / สิทธิ์ฟรี) หรือตัดวงเงินเครดิต
+                  const isInstantPaid = Number(orderData.finalPrice || 0) === 0 || 
+                      orderData.paymentMethod === 'credit' || 
+                      (orderData.paymentMethod === 'omise' && !orderData.isPending) ||
+                      (!orderData.isPending && String(orderData.paymentMethod || '').startsWith('omise_'));
+
+                  if (isInstantPaid) {
                       const batch = writeBatch(db);
 
                       // Deduct credit by creating a history record
@@ -2491,16 +2497,17 @@ export default function CustomerApp() {
                                   "ประเภท": "เบิกใช้เครดิต",
                                   "ยอดเงิน": String(deductAmt),
                                   "รายละเอียด": `ใช้เครดิตชำระสินค้าออนไลน์ผ่านแอป ${orderNo}`,
-                                  "สาขา": "ซื้อผ่านแอป"
+                                  "สาขา": orderData.selectedBranch || "สาขาเฉวง"
                               });
                               remainingToDeduct -= deductAmt;
                           }
                       }
 
-                      // Create courses for purchased courses/services
+                      // Create courses for purchased courses/services/single_courses
                       for (const item of orderData.cart) {
-                          if (item.type === 'course' || item.type === 'single_course') {
-                              for (let i = 0; i < item.qty; i++) {
+                          const isCourseItem = item.type === 'course' || item.type === 'single_course' || item.category === 'ลงเครื่อง' || item.isAddon || item.isCourse || item.sessions;
+                          if (isCourseItem) {
+                              for (let i = 0; i < (item.qty || 1); i++) {
                                   const courseNo = `IC${Date.now().toString().slice(-6)}${i}`;
                                   const courseRef = doc(getAppCollection('courses'));
                                   
@@ -2521,7 +2528,7 @@ export default function CustomerApp() {
                                   }
 
                                   let expireDateStr = "";
-                                  if (item.type === 'single_course') {
+                                  if (item.type === 'single_course' || item.category === 'ลงเครื่อง' || item.isAddon || String(courseTotalQty) === '1') {
                                       const expDate = new Date(customDateObj);
                                       expDate.setDate(expDate.getDate() + 7);
                                       const exY = expDate.getFullYear() + 543;
@@ -2537,6 +2544,10 @@ export default function CustomerApp() {
                                       ''
                                   );
 
+                                  const coursePaymentLabel = orderData.finalPrice === 0 
+                                      ? "สิทธิ์ส่วนลด 100%" 
+                                      : (orderData.paymentMethod === 'omise' ? "บัตรเครดิต (Omise)" : (orderData.paymentMethod === 'credit' ? "จ่ายเต็มผ่านเครดิต (LIFF)" : "ชำระออนไลน์"));
+
                                   const courseData = {
                                       "เบอร์โทร": cPhone,
                                       "col_1": cPhone,
@@ -2549,7 +2560,7 @@ export default function CustomerApp() {
                                       "col_9": cName,
                                       "ชื่อคอส": item.name,
                                       "col_8": item.name,
-                                      "สาขาที่ซื้อ": "ซื้อผ่านแอป",
+                                      "สาขาที่ซื้อ": orderData.selectedBranch || "สาขาเฉวง",
                                       "ราคา": String(item.price),
                                       "col_13": String(item.price),
                                       "เครดิตที่ได้รับ": creditReceived,
@@ -2565,13 +2576,15 @@ export default function CustomerApp() {
                                       "col_33": courseTotalQty,
                                       "สถานะ": "ยังคงเหลือ",
                                       "col_6": "ยังคงเหลือ",
-                                      "ประเภทการชำระ": orderData.paymentMethod === 'omise' ? "บัตรเครดิต (Omise)" : "จ่ายเต็มผ่านเครดิต (LIFF)",
+                                      "ประเภทการชำระ": coursePaymentLabel,
                                       "รายการที่ได้รับ": courseReceivedItems,
                                       "col_11": courseReceivedItems,
                                       "ฟรีบัตรสมาชิก": String(getFuzzyKey(item.originalItem, ["ฟรีบัตรสมาชิก"]) || 'ไม่'),
                                       "claimedItems": [],
                                       "createdAt": customDateObj.toISOString(),
-                                      "promoOption": item.selectedPromoOption || item.promoOption || null
+                                      "promoOption": item.selectedPromoOption || item.promoOption || null,
+                                      "orderNo": orderNo,
+                                      "refOrderNo": orderNo
                                   };
                                   if (expireDateStr) courseData["วันหมดอายุ"] = expireDateStr;
                                   batch.set(courseRef, courseData);
@@ -2592,7 +2605,7 @@ export default function CustomerApp() {
                                       "col_18": item.name,
                                       "ยอดเงิน": String(item.price),
                                       "col_19": String(item.price),
-                                      "สาขา": "ซื้อผ่านแอป",
+                                      "สาขา": orderData.selectedBranch || "สาขาเฉวง",
                                       "อ้างอิง": courseNo,
                                       "col_6": courseNo
                                   });
@@ -2611,10 +2624,36 @@ export default function CustomerApp() {
                                   "สินค้า": item.name,
                                   "จำนวน": String(item.qty),
                                   "ยอดเงิน": String(item.price * item.qty),
-                                  "สาขา": "ซื้อผ่านแอป"
+                                  "สาขา": orderData.selectedBranch || "สาขาเฉวง"
                               });
                           }
                       }
+
+                      // 🌟 บันทึกลงคอลเลกชัน orders เพื่อให้ Admin Dashboard และ POS เห็นสถานะสำเร็จทันที
+                      const cleanCart = (orderData.cart || []).map(item => {
+                          const cleaned = { ...item };
+                          Object.keys(cleaned).forEach(key => cleaned[key] === undefined && delete cleaned[key]);
+                          return cleaned;
+                      });
+                      const orderRef = doc(getAppCollection('orders'));
+                      batch.set(orderRef, {
+                          orderNo: orderNo,
+                          customerName: cName,
+                          customerPhone: cPhone,
+                          cleanPhone: custCleanPhone,
+                          cartItems: cleanCart,
+                          totalPrice: orderData.finalPrice,
+                          paymentMethod: orderData.finalPrice === 0 ? 'free_discount' : orderData.paymentMethod,
+                          slipImage: orderData.slipImage || '',
+                          status: 'สำเร็จ',
+                          courseCreated: true,
+                          stockDeducted: true,
+                          chargeId: orderData.chargeId || '',
+                          shippingAddress: orderData.deliveryInfo || '',
+                          branch: orderData.selectedBranch || 'สาขาเฉวง',
+                          createdAt: customDateObj.toISOString(),
+                          updatedAt: customDateObj.toISOString()
+                      });
 
                       await batch.commit();
                       setIsCartModalOpen(false);
@@ -2622,7 +2661,7 @@ export default function CustomerApp() {
                       if (orderData.qrCodeUri) {
                           setPromptpayQRData({ url: orderData.qrCodeUri, orderId: orderNo, chargeId: orderData.chargeId });
                       } else {
-                          showToast('ชำระเงินและเพิ่มคอร์สเรียบร้อยแล้วค่ะ! ✨');
+                          showToast('ชำระเงินและเพิ่มคอร์สเข้าสู่ระบบเรียบร้อยแล้วค่ะ! ✨');
                       }
                       setOrderSuccessData({
                           orderNo: orderNo,
@@ -2631,7 +2670,7 @@ export default function CustomerApp() {
                           cart: orderData.cart || [],
                           finalPrice: orderData.finalPrice,
                           paymentMethod: orderData.paymentMethod,
-                          hasCourses: (orderData.cart || []).some(i => i.type === 'course' || i.type === 'single_course' || i.isCourse),
+                          hasCourses: (orderData.cart || []).some(i => i.type === 'course' || i.type === 'single_course' || i.category === 'ลงเครื่อง' || i.isAddon || i.isCourse),
                           hasProducts: (orderData.cart || []).some(i => i.type === 'product'),
                           isInstant: true,
                           selectedBranch: orderData.selectedBranch || 'สาขาเฉวง',

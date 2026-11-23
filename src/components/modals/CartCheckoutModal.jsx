@@ -169,7 +169,7 @@ export default function CartCheckoutModal({
             setIsEditingAddress(true);
             return;
         }
-        if (paymentMethod === 'promptpay' && !slipImage) {
+        if (finalPrice > 0 && paymentMethod === 'promptpay' && !slipImage) {
             setErrorMsg('กรุณาแนบสลิปการโอนเงิน');
             return;
         }
@@ -179,8 +179,8 @@ export default function CartCheckoutModal({
             const orderData = {
                 cart,
                 deliveryInfo,
-                paymentMethod,
-                slipImage,
+                paymentMethod: finalPrice === 0 ? 'free_discount' : paymentMethod,
+                slipImage: finalPrice === 0 ? '' : slipImage,
                 appliedCoupon,
                 baseTotal,
                 discountAmount,
@@ -189,9 +189,9 @@ export default function CartCheckoutModal({
                 selectedBranch,
                 omiseToken,
                 chargeId,
-                isPending,
-                authorizeUri,
-                qrCodeUri
+                isPending: finalPrice === 0 ? false : isPending,
+                authorizeUri: finalPrice === 0 ? null : authorizeUri,
+                qrCodeUri: finalPrice === 0 ? null : qrCodeUri
             };
 
             const result = await onConfirmOrder(orderData);
@@ -203,6 +203,12 @@ export default function CartCheckoutModal({
                 window.location.href = orderData.authorizeUri;
             }
         };
+
+        // 🌟 หากยอดชำระเป็น ฿0 (ใช้สิทธิ์คูปอง 100% หรือบริการฟรี) ดำเนินการสั่งซื้อและเพิ่มคอร์สเข้า POS ทันทีโดยไม่ต้องผ่าน Payment Gateway
+        if (finalPrice === 0) {
+            await processOrder(null, null, false, null, null);
+            return;
+        }
 
         if (paymentMethod === 'omise_mobile') {
             if (!mobileBank) {
@@ -617,6 +623,19 @@ export default function CartCheckoutModal({
                             </div>
 
                             {/* Payment Method */}
+                            {finalPrice === 0 ? (
+                                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+                                    <Sparkles size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+                                    <div>
+                                        <h4 className="text-xs font-black text-emerald-800 flex items-center gap-1.5">
+                                            สิทธิ์ส่วนลด 100% / สิทธิ์บริการฟรี
+                                        </h4>
+                                        <p className="text-[11px] text-emerald-600 mt-1 leading-relaxed">
+                                            ยอดชำระสุทธิ ฿0 ไม่ต้องโอนเงินหรือชำระค่าบริการ ระบบจะสร้างใบคอร์สและบันทึกประวัติเข้าสู่ระบบ POS ของคลินิกให้ทันทีค่ะ ✨
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
                             <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                                 <h3 className="text-xs font-black text-gray-800 flex items-center mb-3"><CreditCard size={16} className="mr-1.5 text-teal-600"/> เลือกวิธีชำระเงิน</h3>
                                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
@@ -817,6 +836,7 @@ export default function CartCheckoutModal({
                                     </div>
                                 )}
                             </div>
+                            )}
                         </>
                     )}
                 </div>
@@ -854,7 +874,7 @@ export default function CartCheckoutModal({
                             {isSubmitting ? (
                                 <><Loader2 size={18} className="animate-spin" /> <span>กำลังดำเนินการ...</span></>
                             ) : (
-                                <span>ยืนยันการสั่งซื้อ</span>
+                                <span>{finalPrice === 0 ? 'ยืนยันรับสิทธิ์ทันที (ฟรี)' : 'ยืนยันการสั่งซื้อ'}</span>
                             )}
                         </button>
                     </div>

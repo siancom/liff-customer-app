@@ -182,6 +182,7 @@ export default function CustomerApp() {
     enable_omise_promptpay: true, enable_omise_mobile: true, enable_omise_creditcard: true, enable_omise_installment: true, enable_omise_shopeepay: true
   });
   const [bookingConfig, setBookingConfig] = useState(DEFAULT_BOOKING_CONFIG);
+  const [storeHolidays, setStoreHolidays] = useState([]);
 
   const [dbCoupons, setDbCoupons] = useState([]);
   const [dbRedeemTiers, setDbRedeemTiers] = useState([]);
@@ -451,8 +452,10 @@ export default function CustomerApp() {
     if (selectedProduct.type === 'course') {
       const opt = overrideOption || (selectedProduct.promoOptions?.length > 0 ? selectedProduct.promoOptions[0] : null);
       const optPrice = opt ? (parseNumber(opt.price) || parseNumber(selectedProduct.price) || 0) : (parseNumber(selectedProduct.price) || 0);
-      const optName = opt && opt.name ? `${selectedProduct.name} - ${opt.name}` : selectedProduct.name;
-      const mainItemId = opt ? `${selectedProduct.id}-${opt.id || opt.name}` : selectedProduct.id;
+      const optName = opt && opt.name 
+        ? (selectedProduct.isFacialTreatmentMaster || selectedProduct.programs ? opt.name : `${selectedProduct.name} - ${opt.name}`) 
+        : selectedProduct.name;
+      const mainItemId = opt ? `${selectedProduct.id}-${opt.id || opt.code || opt.name}` : selectedProduct.id;
 
       handleAddToCart({
         ...selectedProduct,
@@ -611,6 +614,48 @@ export default function CustomerApp() {
         type: 'product'
     }));
   }, [customerData, dbProducts]);
+
+  const allShopMasterCourses = useMemo(() => {
+    const posCourses = (dbProducts || []).filter(p => {
+      const code = String(getFuzzyKey(p, ["รหัส", "col_1"]) || '').trim();
+      return code.startsWith('F-') || code.startsWith('MACH-');
+    }).map(p => {
+      const cName = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อคอส", "col_4"]) || '');
+      let qty = null;
+      const match = cName.match(/(\d+)\s*(ครั้ง|c)/i);
+      if (match) qty = parseInt(match[1], 10);
+      
+      const code = String(getFuzzyKey(p, ["รหัส", "col_1"]) || '').trim();
+      let cat = 'ทั่วไป';
+      if (code.startsWith('F-MA') || code.startsWith('F-M') || code.startsWith('MACH-')) cat = 'ลงเครื่อง';
+      else if (code.startsWith('F-S')) cat = 'รักษาสิว/ฝ้า';
+      else if (code.startsWith('F-N')) cat = 'บำรุงฟื้นฟู';
+      else if (code.startsWith('F-AC')) cat = 'เคลียร์สิว';
+      else if (code.startsWith('F-IPL')) cat = 'IPL กำจัดขน';
+      else if (/^F-[A-J]/.test(code)) cat = 'ผิวหน้า (A-J)';
+      
+      return {
+        ...p,
+        isPOSCourse: true,
+        "รหัสคอส": code,
+        "ชื่อคอส": cName,
+        "ราคา": String(getFuzzyKey(p, ["ราคาขายเต็ม", "col_6"]) || getFuzzyKey(p, ["ราคาขาย", "col_5"]) || 0),
+        "ประเภท": cat,
+        "จำนวนครั้งที่ได้": qty !== null ? String(qty) : "1",
+        "จำนวนครั้ง": qty !== null ? String(qty) : "1",
+        "image": p.image || p["รูปภาพ"] || p.firebaseImageUrl || p.col_13 || ''
+      };
+    });
+
+    const combined = [...dbMasterCourses, ...posCourses];
+    const seen = new Set();
+    return combined.filter(c => {
+      const key = c.id || c["รหัสคอส"] || c.code;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [dbMasterCourses, dbProducts]);
 
   // 1. โหลดและ Initialize LINE LIFF SDK
   useEffect(() => {
@@ -797,6 +842,10 @@ export default function CustomerApp() {
       (err) => console.error("All Bookings fetch error:", err)
     );
 
+    const unsubStoreHolidays = onSnapshot(getAppCollection('store_holidays'), (snapshot) => {
+      setStoreHolidays(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => console.error("Store holidays fetch error:", err));
+
     return () => { 
       unsubCourses(); 
       unsubCustomers(); 
@@ -813,6 +862,7 @@ export default function CustomerApp() {
       unsubBranches();
       unsubAllBookings();
       unsubMarketingPromos();
+      unsubStoreHolidays();
     };
   }, [user]);
 
@@ -1077,6 +1127,20 @@ export default function CustomerApp() {
         return;
     }
 
+    // 🔒 0. ตรวจสอบว่าวันที่เลือกเป็นวันหยุดร้านหรือไม่
+    const isHoliday = storeHolidays.some(h => {
+        const matchesDate = h.date === bookingForm.date || h.id === bookingForm.date || String(h.id || '').startsWith(bookingForm.date);
+        if (!matchesDate) return false;
+        const hBranches = Array.isArray(h.branches) ? h.branches : (h.branch ? [h.branch] : ['all']);
+        if (hBranches.includes('all') || !bookingForm.branch) return true;
+        const cleanTarget = String(bookingForm.branch).replace(/^สาขา/, '').trim();
+        return hBranches.some(b => String(b).replace(/^สาขา/, '').trim() === cleanTarget || b === 'all');
+    });
+    if (isHoliday) {
+        setBookingError(`สาขา ${bookingForm.branch || 'ที่เลือก'} ปิดทำการในวันที่เลือก (วันหยุดร้าน) กรุณาเลือกวันอื่นค่ะ`);
+        return;
+    }
+
     const rawPhone = customerData ? customerData.cleanPhone : bookingForm.guestPhone;
     const cleanPhone = String(rawPhone || '').replace(/\D/g, '');
 
@@ -1184,6 +1248,20 @@ export default function CustomerApp() {
       e?.preventDefault();
       if (!bookingForm.date || !bookingForm.time) {
           setBookingError('กรุณาเลือกวันที่ และเวลาใหม่');
+          return;
+      }
+
+      // 🔒 ตรวจสอบว่าวันที่เลือกเป็นวันหยุดร้านหรือไม่
+      const isHoliday = storeHolidays.some(h => {
+          const matchesDate = h.date === bookingForm.date || h.id === bookingForm.date || String(h.id || '').startsWith(bookingForm.date);
+          if (!matchesDate) return false;
+          const hBranches = Array.isArray(h.branches) ? h.branches : (h.branch ? [h.branch] : ['all']);
+          if (hBranches.includes('all') || !bookingForm.branch) return true;
+          const cleanTarget = String(bookingForm.branch).replace(/^สาขา/, '').trim();
+          return hBranches.some(b => String(b).replace(/^สาขา/, '').trim() === cleanTarget || b === 'all');
+      });
+      if (isHoliday) {
+          setBookingError(`สาขา ${bookingForm.branch || 'ที่เลือก'} ปิดทำการในวันที่เลือก (วันหยุดร้าน) กรุณาเลือกวันอื่นค่ะ`);
           return;
       }
       setBookingError('');
@@ -1469,7 +1547,7 @@ export default function CustomerApp() {
             bookingDateList={bookingDateList}
             formatShortDate={formatShortDate}
             getLocalDateString={getLocalDateString}
-            storeHolidays={[]}
+            storeHolidays={storeHolidays}
             timeSlots={timeSlots}
             bookedTimeRanges={bookedTimeRanges}
             timeToMins={timeToMins}
@@ -1952,7 +2030,7 @@ export default function CustomerApp() {
                 setActiveCourseCategory={setShopCourseCategory}
                 dbProducts={dbProducts}
                 dbFirestoreProducts={dbProducts}
-                dbMasterCourses={dbMasterCourses}
+                dbMasterCourses={allShopMasterCourses}
                 wooImagesMap={new Map()}
                 customerData={customerData}
                 handleAddToCart={handleAddToCart}
@@ -3380,7 +3458,7 @@ export default function CustomerApp() {
             bookingDateList={bookingDateList}
             formatShortDate={formatShortDate}
             getLocalDateString={getLocalDateString}
-            storeHolidays={[]}
+            storeHolidays={storeHolidays}
             timeSlots={timeSlots}
             bookedTimeRanges={bookedTimeRanges}
             timeToMins={timeToMins}

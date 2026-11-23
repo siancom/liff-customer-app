@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin, Users, ShieldCheck } from 'lucide-react';
+import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin, Users, ShieldCheck, CalendarX } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import BookingCountdown from '../BookingCountdown';
 import { getFuzzyKey } from '../../utils/helpers';
@@ -57,6 +57,28 @@ export default function BookingModal({
     const totalDuration = useMemo(() => {
         return calculateBookingDuration(currentServiceName, bookingForm.guestsCount, bookingConfig);
     }, [currentServiceName, bookingForm.guestsCount, bookingConfig]);
+
+    const isDateHoliday = (targetDateStr, targetBranch = bookingForm.branch) => {
+        if (!targetDateStr) return false;
+        return storeHolidays.some(h => {
+            if (!h) return false;
+            const matchesDate = h.date === targetDateStr || h.id === targetDateStr || String(h.id || '').startsWith(`${targetDateStr}_`) || String(h.id || '').startsWith(targetDateStr);
+            if (!matchesDate) return false;
+
+            const hBranches = Array.isArray(h.branches) && h.branches.length > 0 
+                ? h.branches 
+                : (h.branch ? [h.branch] : ['all']);
+
+            if (hBranches.includes('all') || !targetBranch) return true;
+
+            const cleanTarget = String(targetBranch).replace(/^สาขา/, '').trim().toLowerCase();
+            return hBranches.some(b => {
+                if (b === 'all') return true;
+                const cleanB = String(b).replace(/^สาขา/, '').trim().toLowerCase();
+                return cleanB === cleanTarget;
+            });
+        });
+    };
     const getStatusUI = (status) => {
         const s = status || '';
         switch(s) {
@@ -291,13 +313,7 @@ export default function BookingModal({
                            {bookingDateList.map((d, i) => {
                                const shortDate = formatShortDate(d);
                                const isSelected = bookingForm.date === shortDate.fullValue;
-                               
-                               // Check if date is a holiday
-                               const isHoliday = storeHolidays.some(h => {
-                                   if (h.id === shortDate.fullValue) return true;
-                                   if (h.date === shortDate.fullValue) return true;
-                                   return false;
-                               });
+                               const isHoliday = isDateHoliday(shortDate.fullValue);
 
                                return (
                                    <button 
@@ -307,16 +323,16 @@ export default function BookingModal({
                                       onClick={() => setBookingForm({...bookingForm, date: shortDate.fullValue, time: ''})} 
                                       className={`snap-start shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-2xl border-2 transition-all ${
                                           isHoliday 
-                                              ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' 
+                                              ? 'bg-rose-50 border-rose-200 text-rose-300 cursor-not-allowed opacity-60' 
                                               : isSelected 
                                                   ? 'bg-teal-500 border-teal-600 text-white shadow-md scale-105' 
                                                   : 'bg-white border-gray-100 text-gray-600 hover:border-teal-300'
                                       }`}
                                    >
                                        <span className="text-[10px] font-bold opacity-90">{i === 0 ? 'วันนี้' : i === 1 ? 'พรุ่งนี้' : shortDate.dayName}</span>
-                                       <span className="text-2xl font-black">{shortDate.dateNum}</span>
+                                       <span className={`text-2xl font-black ${isHoliday ? 'text-rose-300' : ''}`}>{shortDate.dateNum}</span>
                                        <span className="text-[10px] font-medium">{shortDate.monthName}</span>
-                                       {isHoliday && <span className="text-[9px] font-bold text-red-500 mt-1">หยุด</span>}
+                                       {isHoliday && <span className="text-[9px] font-bold text-rose-500 bg-rose-100 px-1 rounded mt-0.5">วันหยุด</span>}
                                    </button>
                                )
                            })}
@@ -399,6 +415,7 @@ export default function BookingModal({
                     <div>
                        <div className="flex items-center justify-between mb-2 ml-1">
                           <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">เวลา (เลือกรอบเวลาที่ว่าง)</label>
+                          {!isDateHoliday(bookingForm.date) && (
                           <div className="flex items-center gap-2 text-[10px]">
                              <span className="flex items-center gap-1 font-semibold text-teal-600">
                                 <span className="w-2 h-2 rounded-full bg-teal-500 inline-block"></span> ว่าง
@@ -413,7 +430,19 @@ export default function BookingModal({
                                 <span className="w-2 h-2 rounded-full bg-gray-300 inline-block"></span> เต็ม
                              </span>
                           </div>
+                          )}
                        </div>
+                       {isDateHoliday(bookingForm.date) ? (
+                          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 animate-in fade-in my-1 shadow-sm">
+                             <CalendarX className="shrink-0 w-8 h-8 text-rose-500" />
+                             <div>
+                                <div className="font-bold text-sm">วันที่เลือกเป็นวันหยุดคลินิก (ปิดทำการ)</div>
+                                <div className="text-xs text-rose-600 mt-0.5">
+                                   {bookingForm.branch ? `${bookingForm.branch} ` : ""}ปิดให้บริการในวันที่คุณเลือก กรุณาเลือกวันอื่นค่ะ
+                                </div>
+                             </div>
+                          </div>
+                       ) : (
                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1">
                           {timeSlots.map(time => {
                               const slotStart = timeToMins(time);
@@ -490,6 +519,7 @@ export default function BookingModal({
                               );
                           })}
                        </div>
+                       )}
 
                        {/* แสดงข้อความแจ้งเตือนเมื่อเลือกรอบเวลาที่ตนเองเคยจองไว้แล้ว เพื่อยืนยันการจองเพิ่มอย่างยืดหยุ่น */}
                        {(() => {

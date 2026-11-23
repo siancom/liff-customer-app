@@ -4,21 +4,7 @@ import { getFuzzyKey, parseNumber, parseThaiDate } from '../utils/helpers';
 import { computeFinalPrice } from '../utils/priceUtils';
 import PriceCompareModal from '../components/modals/PriceCompareModal';
 
-const COURSE_FALLBACKS = [
-    'https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1519824145371-29689420aec5?auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1552693673-1bf958298935?auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1596178065887-1198b6148b2b?auto=format&fit=crop&w=500&q=80'
-];
 
-const PRODUCT_FALLBACKS = [
-    'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1599305090598-fe179d501227?auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1617897903246-719242758050?auto=format&fit=crop&w=500&q=80'
-];
 
 const Shop = ({
     setActiveNav,
@@ -89,6 +75,8 @@ const Shop = ({
         { id: 'machine', label: 'ลงเครื่อง' },
         { id: 'acne_sets', label: 'รักษาสิว/ฝ้า' },
         { id: 'nourish', label: 'บำรุงฟื้นฟู' },
+        { id: 'body', label: 'ผิวกาย' },
+        { id: 'single', label: 'รายครั้ง' },
         { id: 'ipl', label: 'IPL กำจัดขน' },
         { id: 'general', label: 'ทั่วไป' }
     ];
@@ -96,20 +84,103 @@ const Shop = ({
     // 🌟 ตรวจสอบว่าคอร์สหมดเขต / ปิดการใช้งานหรือไม่ (ไม่แสดงให้ลูกค้าเห็น)
     const isCourseExpired = (mc) => {
         if (!mc) return true;
+        if (mc.isAvailableInShop === false) return true;
         const status = String(getFuzzyKey(mc, ["สถานะ", "status", "การใช้งาน", "state"]) || '').trim();
         if (status === 'ร่าง' || status === 'draft' || status === 'ปิดใช้งาน' || status === 'ปิด' || status === 'ไม่แสดง' || status === 'ซ่อน' || status === 'หมดเขต' || status === 'หมดอายุ') {
             return true;
         }
-        const rawEnd = getFuzzyKey(mc, ["วันที่สิ้นสุด", "วันหมดเขต", "expireDate", "endDate", "col_10", "validUntil"]);
-        if (rawEnd) {
-            const parsedEnd = parseThaiDate(rawEnd);
-            if (parsedEnd) {
-                // สิ้นสุด ณ สิ้นวันของวันหมดเขต (23:59:59)
-                parsedEnd.setHours(23, 59, 59, 999);
-                if (parsedEnd.getTime() < Date.now()) {
-                    return true;
+        // ตรวจสอบวันหมดเขตเฉพาะเมื่อกำหนดไว้อย่างชัดเจนในระบบใหม่ (รูปแบบ YYYY-MM-DD)
+        const rawEnd = mc.endDate || mc.expireDate;
+        if (rawEnd && /^\d{4}-\d{2}-\d{2}$/.test(String(rawEnd).trim())) {
+            const end = new Date(rawEnd);
+            end.setHours(23, 59, 59, 999);
+            if (end.getTime() < Date.now()) return true;
+        }
+        return false;
+    };
+
+    // 🌟 ดึง URL รูปภาพของคอร์สที่ถูกต้อง (ต้องเป็นลิงก์ภาพจริงจากแอดมิน ไม่ใช่สต็อก Unsplash, บาร์โค้ด หรือตัวเลข/สตริงเก่า)
+    const getValidCourseImages = (mc) => {
+        if (!mc) return [];
+        const rawCandidates = [
+            mc.image,
+            mc["รูปภาพ"],
+            mc.firebaseImageUrl,
+            mc.img,
+            mc.photo,
+            mc["รูปโปรโมชั่น"],
+            ...(Array.isArray(mc.images) ? mc.images.map(img => typeof img === 'object' ? img?.src : img) : []),
+            mc.col_13
+        ];
+        const results = [];
+        for (const raw of rawCandidates) {
+            if (!raw || typeof raw !== 'string') continue;
+            const parts = raw.split(/[\n, ]+/).map(s => s.trim());
+            for (const s of parts) {
+                if ((s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/')) &&
+                    !s.includes('images.unsplash.com') &&
+                    !s.includes('unsplash') &&
+                    !s.includes('barcode.tec-it.com') &&
+                    !s.includes('placeholder') &&
+                    !s.includes('default')) {
+                    if (!results.includes(s)) results.push(s);
                 }
             }
+        }
+        return results;
+    };
+
+    const getValidCourseImage = (mc) => {
+        const list = getValidCourseImages(mc);
+        return list.length > 0 ? list[0] : '';
+    };
+
+    // 🌟 ตรวจสอบว่าคอร์สมีรูปภาพพร้อมเปิดขายหรือไม่
+    // (ตามคำสั่ง: ยกเครื่องใหม่ถ้าคอร์สไหนใส่รูปจากฝั่งแอดมินเรียบร้อย เปิดขายฝั่งลูกค้าได้เลย และรูปที่ระบบใส่มาเองไม่แสดง)
+    const hasCourseImage = (mc) => {
+        return Boolean(getValidCourseImage(mc));
+    };
+
+    // 🌟 ตรวจสอบว่าคอร์สนี้มีการอัปเดตหรือเพิ่มจากฝั่งแอดมินเท่านั้น (ตามคำสั่ง: แสดงเฉพาะที่มีการอัพเดทจากฝั่งแอดมินเท่านั้น)
+    const isAdminUpdatedCourse = (mc) => {
+        if (!mc) return false;
+        // 1. มี flag ระบุสร้าง/แก้ไขจากระบบใหม่ หรือเปิดขาย
+        if (mc.isNewSystem === true || mc.isAvailableInShop === true || mc.source === 'new_system') return true;
+        
+        // 2. มีการบันทึก updatedAt หรือ createdAt จากระบบแอดมิน
+        if (mc.updatedAt) return true;
+        if (mc.createdAt && typeof mc.createdAt === 'string' && mc.createdAt.includes('T')) return true;
+
+        // 3. มีตัวเลือกโปรโมชั่น (promoOptions) ที่สร้างจากแอดมิน
+        if (Array.isArray(mc.promoOptions) && mc.promoOptions.length > 0) return true;
+
+        // 4. รหัสเป็นรหัสโปรโมชั่นที่สร้างจากแอดมิน
+        const code = String(getFuzzyKey(mc, ["รหัสคอส", "รหัส", "col_1"]) || '').trim();
+        if (code.startsWith('PROMO-')) return true;
+
+        // 5. รูปภาพอัปโหลดเข้า Firebase Storage จากระบบแอดมิน
+        const img = getValidCourseImage(mc);
+        if (img.includes('firebasestorage.googleapis.com')) return true;
+
+        return false;
+    };
+
+    // 🌟 ตรวจสอบว่าคอร์สนี้ควรแสดงในแท็บไหน (courses = คอร์สแพ็กเกจ & โปรโมชั่น, single_courses = บริการรายครั้ง)
+    const isCourseForTab = (mc, currentTab) => {
+        const cat = getCourseCategory(mc);
+        if (cat === 'old_courses') return false;
+
+        const hasSingleOpt = Array.isArray(mc.promoOptions) && mc.promoOptions.some(o => String(o.sessions || '1') === '1');
+        const hasOptions = Array.isArray(mc.promoOptions) && mc.promoOptions.length > 0;
+        const qty = String(getFuzzyKey(mc, ["จำนวนครั้ง", "col_7"]) || '').trim();
+
+        if (currentTab === 'courses') {
+            // 🌟 คอร์สก่อนหน้านี้และคอร์สใหม่ทั้งหมดแสดงในแท็บคอร์สเสมอหากมีรูป
+            return true;
+        } else if (currentTab === 'single_courses') {
+            // บริการรายครั้ง: มี 1 ครั้ง หรือมีตัวเลือก 1 ครั้ง
+            if (hasOptions) return hasSingleOpt;
+            return qty === '1';
         }
         return false;
     };
@@ -123,6 +194,8 @@ const Shop = ({
         if (type === 'ลงเครื่อง') return 'machine';
         if (type === 'รักษาสิว/ฝ้า' || type === 'ดูแลสิว') return 'acne_sets';
         if (type === 'บำรุงฟื้นฟู') return 'nourish';
+        if (type === 'ผิวกาย') return 'body';
+        if (type === 'รายครั้ง') return 'single';
         if (type === 'IPL กำจัดขน') return 'ipl';
         if (type === 'ทั่วไป' || type === 'ประจำร้าน') return 'general';
         if (type === 'วอคอิน') return 'walkin';
@@ -199,21 +272,21 @@ const Shop = ({
     }, [dbProducts]);
 
     const courseCategoriesWithCounts = useMemo(() => {
-        const counts = { all: 0, promo: 0, facial: 0, acne_clear: 0, machine: 0, acne_sets: 0, nourish: 0, ipl: 0, general: 0, other: 0, walkin: 0, old_courses: 0 };
+        const counts = { all: 0, promo: 0, facial: 0, acne_clear: 0, machine: 0, acne_sets: 0, nourish: 0, body: 0, single: 0, ipl: 0, general: 0, other: 0, walkin: 0, old_courses: 0 };
         let total = 0;
         dbMasterCourses.forEach(mc => {
             const name = String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim();
             if (!name) return;
-            if (isCourseExpired(mc)) return; // 🌟 ซ่อนคอร์สที่หมดเขต!
-            
-            const qty = String(getFuzzyKey(mc, ["จำนวนครั้ง", "col_7"]) || '').trim();
-            if (shopTab === 'courses' && qty === '1') return;
-            if (shopTab === 'single_courses' && qty !== '1') return;
+            if (isCourseExpired(mc)) return; // 🌟 ซ่อนคอร์สที่หมดเขต/ปิดใช้งาน
+            if (!hasCourseImage(mc)) return; // 🌟 ทุกคอร์สที่มีการอัปเดตภาพ แสดงหมด!
+            if (!isCourseForTab(mc, shopTab)) return;
 
             const cat = getCourseCategory(mc);
             if (cat !== 'old_courses') {
                 if (counts[cat] !== undefined) {
                     counts[cat]++;
+                } else {
+                    counts[cat] = 1;
                 }
                 total++;
             }
@@ -262,16 +335,24 @@ const Shop = ({
                 let image = '';
 
                 if (p.images && p.images.length > 0) {
-                    imagesArray = p.images;
-                    image = typeof p.images[0] === 'object' ? p.images[0].src : p.images[0];
+                    imagesArray = p.images.map(img => typeof img === 'object' ? img?.src : img).filter(Boolean);
+                    image = imagesArray.length > 0 ? imagesArray[0] : '';
                 } else if (typeof imageRaw === 'string' && imageRaw.length > 5) {
                     imagesArray = imageRaw.split(/[\n, ]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
-                    image = imagesArray.length > 0 ? imagesArray[0] : imageRaw;
+                    image = imagesArray.length > 0 ? imagesArray[0] : '';
                 }
 
                 if (!image || image.length < 5) {
-                    image = (code ? wooImagesMap.get(code.toUpperCase()) : null) || wooImagesMap.get(name.toLowerCase());
-                    if (image) imagesArray = [image];
+                    const fallbackWoo = (code ? wooImagesMap.get(code.toUpperCase()) : null) || wooImagesMap.get(name.toLowerCase());
+                    if (fallbackWoo) {
+                        image = fallbackWoo;
+                        imagesArray = [image];
+                    }
+                }
+
+                if (typeof image === 'string' && (!image.startsWith('http') || image.includes('unsplash') || image.includes('barcode.tec-it.com') || image.includes('placeholder'))) {
+                    image = '';
+                    imagesArray = [];
                 }
 
                 let cat = '';
@@ -312,12 +393,9 @@ const Shop = ({
             items = dbMasterCourses.filter(mc => {
                 const name = String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim();
                 if (!name) return false;
-                if (isCourseExpired(mc)) return false; // 🌟 คอร์สที่หมดเขต จะไม่แสดงฝั่งลูกค้า!
-                
-                const qty = String(getFuzzyKey(mc, ["จำนวนครั้ง", "col_7"]) || '').trim();
-                if (shopTab === 'courses' && qty === '1') return false; // Hide single in package tab
-                if (shopTab === 'single_courses' && qty !== '1') return false; // Hide package in single tab
-                if (getCourseCategory(mc) === 'old_courses') return false;
+                if (isCourseExpired(mc)) return false; // 🌟 คอร์สที่หมดเขต/ปิดใช้งาน จะไม่แสดงฝั่งลูกค้า
+                if (!hasCourseImage(mc)) return false; // 🌟 ทุกคอร์สที่มีการอัปเดตภาพ แสดงหมด!
+                if (!isCourseForTab(mc, shopTab)) return false;
 
                 if ((shopTab === 'courses' || shopTab === 'single_courses') && activeCourseCategory !== 'all') {
                     if (getCourseCategory(mc) !== activeCourseCategory) return false;
@@ -350,9 +428,8 @@ const Shop = ({
 
                 const desc = String(getFuzzyKey(mc, ["รายละเอียดสินค้า", "รายละเอียด", "รายละเอียดสินค้า (ถ้ามี)", "description", "details"]) || mc.desc || '').trim();
 
-                const rawImage = String(getFuzzyKey(mc, ["รูปภาพ", "รูป", "image", "img", "col_13"]) || mc.image || '').trim();
-                const imagesArray = rawImage.split(/[\n, ]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
-                const mainImage = imagesArray.length > 0 ? imagesArray[0] : rawImage;
+                const imagesArray = getValidCourseImages(mc);
+                const mainImage = imagesArray.length > 0 ? imagesArray[0] : '';
 
                 const promoOptions = Array.isArray(mc.promoOptions) ? mc.promoOptions.filter(o => o && (o.name || o.price)) : [];
                 let priceRange = null;
@@ -388,11 +465,42 @@ const Shop = ({
             });
         }
 
-        // Shuffle the valid items first to keep it randomized
-        const shuffledItems = shuffleArray(items);
+        let resultItems = items;
+        if (shopTab === 'courses' || shopTab === 'single_courses') {
+            // 🌟 เรียงคอร์สล่าสุดขึ้นก่อนเสมอ
+            resultItems = [...items].sort((a, b) => {
+                const getTs = (item) => {
+                    if (item.updatedAt) {
+                        const t = typeof item.updatedAt === 'object' && item.updatedAt.seconds ? item.updatedAt.seconds * 1000 : new Date(item.updatedAt).getTime();
+                        if (!isNaN(t) && t > 0) return t;
+                    }
+                    if (item.createdAt) {
+                        const t = typeof item.createdAt === 'object' && item.createdAt.seconds ? item.createdAt.seconds * 1000 : new Date(item.createdAt).getTime();
+                        if (!isNaN(t) && t > 0) return t;
+                    }
+                    if (Array.isArray(item.promoOptions)) {
+                        for (const opt of item.promoOptions) {
+                            const optMatch = String(opt?.id || '').match(/opt_(\d+)/);
+                            if (optMatch) {
+                                const optTime = Number(optMatch[1]);
+                                if (!isNaN(optTime) && optTime > 0) return optTime;
+                            }
+                        }
+                    }
+                    return 0;
+                };
+                const tA = getTs(a);
+                const tB = getTs(b);
+                if (tA !== tB) return tB - tA;
+                return (b.id || '').localeCompare(a.id || '');
+            });
+        } else {
+            // Shuffle products for variety
+            resultItems = shuffleArray(items);
+        }
 
         // Filter by search term if it exists
-        const filtered = shuffledItems.filter(item => searchTerm === '' || item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        const filtered = resultItems.filter(item => searchTerm === '' || item.name.toLowerCase().includes(searchTerm.toLowerCase()));
         return filtered;
     }, [shopTab, dbProducts, dbFirestoreProducts, dbMasterCourses, searchTerm, activeCourseCategory, activeProductCategory, wooImagesMap]);
 
@@ -406,11 +514,15 @@ const Shop = ({
         myOrders.forEach(od => {
             const status = String(getFuzzyKey(od, ["สถานะ", "col_22"]) || "เรียบร้อย");
             const isProduct = String(getFuzzyKey(od, ["ประเภท", "col_4"])).includes("สินค้า");
+            const trackPhase = String(od.trackingInfo?.phase || '').toLowerCase();
+            const isDelivered = od.isDelivered || trackPhase === 'delivered' || od.fulfillment === 'delivered' || status.includes('จัดส่งสำเร็จ');
             
             if (status.includes('รอชำระเงิน')) {
                 counts.to_pay++;
             } else if (status.includes('ยกเลิก')) {
                 counts.cancelled++;
+            } else if (isDelivered) {
+                counts.completed++;
             } else if (isProduct) {
                 if (status.includes('กำลังจัดส่ง')) counts.to_receive++;
                 else if (status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) counts.completed++;
@@ -537,7 +649,7 @@ const Shop = ({
 
                 {(shopTab === 'courses' || shopTab === 'single_courses') && (
                     <div className="flex gap-2 overflow-x-auto hide-scrollbar mt-3 pb-1">
-                        {courseCategoriesWithCounts.map(cat => (
+                        {courseCategoriesWithCounts.filter(cat => cat.id === 'all' || cat.count > 0).map(cat => (
                             <button
                                 key={cat.id}
                                 onClick={() => setActiveCourseCategory(cat.id)}
@@ -803,10 +915,21 @@ const Shop = ({
                                                 </div>
                                             )}
                                             {item.image ? (
-                                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = COURSE_FALLBACKS[idx % COURSE_FALLBACKS.length]; }} />
-                                            ) : (
-                                                <img src={COURSE_FALLBACKS[idx % COURSE_FALLBACKS.length]} alt={item.name} className="w-full h-full object-contain mix-blend-multiply p-2" />
-                                            )}
+                                                <img 
+                                                    src={item.image} 
+                                                    alt={item.name} 
+                                                    className="w-full h-full object-contain p-1" 
+                                                    onError={(e) => { 
+                                                        e.target.style.display = 'none'; 
+                                                        const placeholder = e.target.parentElement?.querySelector('.course-img-placeholder');
+                                                        if (placeholder) placeholder.classList.remove('hidden');
+                                                    }} 
+                                                />
+                                            ) : null}
+                                            <div className={`course-img-placeholder w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 p-4 ${item.image ? 'hidden' : 'flex'}`}>
+                                                <HeartPulse size={36} className="stroke-[1.5] text-slate-300 mb-1" />
+                                                <span className="text-[10px] text-slate-400 font-medium text-center line-clamp-1 px-2">{item.name}</span>
+                                            </div>
                                             {Number(item.price) > 500 && (
                                                 <div className="absolute bottom-0 left-0 w-full flex h-6 text-[9px] font-black select-none z-10">
                                                     <div className="flex-[1.2] bg-[#0db09c] text-white flex items-center justify-center gap-0.5 px-1.5">
@@ -912,10 +1035,21 @@ const Shop = ({
 
                                     <div className="relative aspect-[4/3] bg-slate-50/50 p-2 border-b border-slate-50 overflow-hidden">
                                         {item.image ? (
-                                            <img src={item.image} alt={item.name} className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.target.onerror = null; e.target.src = PRODUCT_FALLBACKS[idx % PRODUCT_FALLBACKS.length]; }} />
-                                        ) : (
-                                            <img src={PRODUCT_FALLBACKS[idx % PRODUCT_FALLBACKS.length]} alt={item.name} className="w-full h-full object-contain mix-blend-multiply" />
-                                        )}
+                                            <img 
+                                                src={item.image} 
+                                                alt={item.name} 
+                                                className="w-full h-full object-contain mix-blend-multiply" 
+                                                onError={(e) => { 
+                                                    e.target.style.display = 'none'; 
+                                                    const placeholder = e.target.parentElement?.querySelector('.prod-img-placeholder');
+                                                    if (placeholder) placeholder.classList.remove('hidden');
+                                                }} 
+                                            />
+                                        ) : null}
+                                        <div className={`prod-img-placeholder w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 p-4 ${item.image ? 'hidden' : 'flex'}`}>
+                                            <Package size={36} className="stroke-[1.5] text-slate-300 mb-1" />
+                                            <span className="text-[10px] text-slate-400 font-medium text-center line-clamp-1 px-2">{item.name}</span>
+                                        </div>
                                         {Number(item.price) > 500 && (
                                             <div className="absolute bottom-0 left-0 w-full flex h-6 text-[9px] font-black select-none z-10">
                                                 <div className="flex-[1.2] bg-[#0db09c] text-white flex items-center justify-center gap-0.5 px-1.5">

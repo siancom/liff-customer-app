@@ -35,6 +35,23 @@ export default function OrderDetailModal({
 
     if (!selectedOrder) return null;
 
+    const trackPhase = String(selectedOrder.trackingInfo?.phase || '').toLowerCase();
+    const isDelivered = trackPhase === 'delivered' || 
+                        selectedOrder.fulfillment === 'delivered' || 
+                        selectedOrder.isDelivered || 
+                        (selectedOrder.status || '').includes('จัดส่งสำเร็จ') || 
+                        (selectedOrder.status || '').includes('จัดส่งแล้ว') || 
+                        (selectedOrder.status || '').includes('สำเร็จ');
+
+    const isPaid = isDelivered || 
+                   (selectedOrder.status || '').includes('ชำระ') || 
+                   (selectedOrder.status || '').includes('อนุมัติ') || 
+                   (selectedOrder.status || '').includes('กำลังจัดส่ง') || 
+                   (selectedOrder.status || '').includes('เรียบร้อย') || 
+                   (selectedOrder.status || '').includes('จัดส่ง');
+
+    const displayStatus = isDelivered ? 'จัดส่งสำเร็จ' : (selectedOrder.status || '');
+
     const handleDownloadReceipt = async () => {
         if (!receiptRef.current) return;
         try {
@@ -72,10 +89,11 @@ export default function OrderDetailModal({
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-xs font-mono text-gray-500 font-bold">#{selectedOrder.orderNo || selectedOrder.wooOrderId || selectedOrder.id}</span>
                             <span className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${
-                                (selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว') ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                (isDelivered || selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'จัดส่งสำเร็จ' || selectedOrder.status === 'เรียบร้อย' || selectedOrder.status === 'สำเร็จ') ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                selectedOrder.status === 'กำลังจัดส่ง' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
                                 (selectedOrder.status || '').includes('รอ') ? 'bg-orange-50 text-orange-600 border-orange-100' :
                                 (selectedOrder.status || '').includes('ยกเลิก') ? 'bg-red-50 text-red-600 border-red-100' : 'bg-gray-50 text-gray-600 border-gray-200'
-                            }`}>{selectedOrder.status}</span>
+                            }`}>{displayStatus}</span>
                         </div>
                         <p className="text-[11px] text-gray-400 font-medium mb-3"><Clock size={12} className="inline mr-1 mb-0.5"/> {selectedOrder.createdAtStr || new Date(selectedOrder.createdAt).toLocaleString('th-TH')}</p>
                         
@@ -92,8 +110,9 @@ export default function OrderDetailModal({
                                 <div className="flex justify-between items-center relative px-2">
                                     <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-gray-100 -z-10 -translate-y-1/2"></div>
                                     <div className={`absolute top-1/2 left-4 h-0.5 -z-10 -translate-y-1/2 transition-all duration-500 ${
-                                        selectedOrder.status === 'จัดส่งแล้ว' ? 'w-[calc(100%-2rem)] bg-teal-500' : 
-                                        (selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ') ? 'w-1/2 bg-teal-500' : 'w-0'
+                                        isDelivered ? 'w-[calc(100%-2rem)] bg-teal-500' : 
+                                        selectedOrder.status === 'กำลังจัดส่ง' ? 'w-3/4 bg-teal-500' :
+                                        isPaid ? 'w-1/2 bg-teal-500' : 'w-0'
                                     }`}></div>
 
                                     {/* Step 1: Pending */}
@@ -104,23 +123,23 @@ export default function OrderDetailModal({
 
                                     {/* Step 2: Paid / Approved */}
                                     <div className="flex flex-col items-center gap-1.5 bg-white px-2">
-                                        {(selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') ? 
+                                        {isPaid ? 
                                             <CheckCircle2 size={20} className="text-teal-500 fill-teal-50" /> : 
                                             <Circle size={20} className="text-gray-200 fill-white" />
                                         }
                                         <span className={`text-[9px] font-bold ${
-                                            (selectedOrder.status === 'ชำระแล้ว' || selectedOrder.status === 'อนุมัติ' || selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') ? 'text-gray-800' : 'text-gray-400'
+                                            isPaid ? 'text-gray-800' : 'text-gray-400'
                                         }`}>ชำระเงินแล้ว</span>
                                     </div>
 
                                     {/* Step 3: Shipped / Completed */}
                                     <div className="flex flex-col items-center gap-1.5 bg-white px-2">
-                                        {(selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') ? 
+                                        {isDelivered ? 
                                             <CheckCircle2 size={20} className="text-teal-500 fill-teal-50" /> : 
                                             <Circle size={20} className="text-gray-200 fill-white" />
                                         }
-                                        <span className={`text-[9px] font-bold ${(selectedOrder.status === 'จัดส่งแล้ว' || selectedOrder.status === 'เรียบร้อย') ? 'text-gray-800' : 'text-gray-400'}`}>
-                                            {selectedOrder.itemType === 'product' ? 'จัดส่งแล้ว' : 'เสร็จสิ้น'}
+                                        <span className={`text-[9px] font-bold ${isDelivered ? 'text-gray-800' : 'text-gray-400'}`}>
+                                            {selectedOrder.itemType === 'product' ? (isDelivered ? 'จัดส่งสำเร็จ' : 'จัดส่งแล้ว') : 'เสร็จสิ้น'}
                                         </span>
                                     </div>
                                 </div>

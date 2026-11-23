@@ -41,15 +41,24 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
      if (hRef && dbOrders.length > 0) {
          const matchingOrder = dbOrders.find(o => String(o.orderNo) === String(hRef) || String(o.id) === String(hRef));
          if (matchingOrder) {
-             const finalStatus = matchingOrder.status || h.status || getFuzzyKey(h, ["สถานะ", "col_22"]);
+             const trackPhase = String(matchingOrder.trackingInfo?.phase || '').toLowerCase();
+             const isDelivered = trackPhase === 'delivered' || 
+                                 matchingOrder.fulfillment === 'delivered' ||
+                                 String(matchingOrder.status || '').includes('จัดส่งแล้ว') ||
+                                 String(matchingOrder.status || '').includes('จัดส่งสำเร็จ');
+             
+             const rawStatus = matchingOrder.status || h.status || getFuzzyKey(h, ["สถานะ", "col_22"]);
+             const finalStatus = isDelivered ? 'จัดส่งสำเร็จ' : rawStatus;
+             
              return {
                  ...h,
                  status: finalStatus,
                  "สถานะ": finalStatus,
                  "col_22": finalStatus,
+                 isDelivered: isDelivered,
                  trackingNo: matchingOrder.trackingNo || h.trackingNo,
                  trackingInfo: matchingOrder.trackingInfo || h.trackingInfo,
-                 fulfillment: matchingOrder.fulfillment || h.fulfillment,
+                 fulfillment: isDelivered ? 'delivered' : (matchingOrder.fulfillment || h.fulfillment),
                  cartItems: matchingOrder.cartItems || h.cartItems
              };
          }

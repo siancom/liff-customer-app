@@ -76,12 +76,25 @@ export default function Orders({
         const rawStatus = String(od.status || getFuzzyKey(od, ["สถานะ", "col_22"]) || "เรียบร้อย");
         const itemType = String(getFuzzyKey(od, ["ประเภท", "col_4"])).includes("สินค้า") ? 'product' : 'course';
         
+        // 🌟 ตรวจสอบสถานะการจัดส่งพัสดุจากขนส่ง (17TRACK / carrier)
+        const trackPhase = String(od.trackingInfo?.phase || '').toLowerCase();
+        const isDelivered = trackPhase === 'delivered' || 
+                            od.fulfillment === 'delivered' ||
+                            od.isDelivered ||
+                            rawStatus.includes('จัดส่งแล้ว') || 
+                            rawStatus.includes('จัดส่งสำเร็จ') || 
+                            rawStatus.includes('ส่งสำเร็จ');
+
         // Check if there is already a created/active course for this customer
         const matchingCourse = itemType !== 'product' ? findMatchingCourse({ ...od, orderNo }, courses) : null;
         
-        // If course is already in customer's courses or status indicates paid, elevate to "ชำระเงินแล้ว"
         let effectiveStatus = rawStatus;
-        if (itemType !== 'product') {
+        if (itemType === 'product') {
+            if (isDelivered) {
+                effectiveStatus = 'จัดส่งสำเร็จ';
+            }
+        } else {
+            // If course is already in customer's courses or status indicates paid, elevate to "ชำระเงินแล้ว"
             if (matchingCourse) {
                 effectiveStatus = isPaidOrCompletedStatus(rawStatus) ? rawStatus : 'ชำระเงินแล้ว';
             } else if (isPaidOrCompletedStatus(rawStatus)) {
@@ -94,6 +107,7 @@ export default function Orders({
             orderNo: orderNo,
             status: effectiveStatus,
             rawStatus: rawStatus,
+            isDelivered: isDelivered,
             itemName: String(getFuzzyKey(od, ["สินค้า", "ชื่อคอส", "คอสที่ซื้อ", "รายการ", "col_18", "col_16"]) || 'รายการสั่งซื้อ'),
             paymentMethodStr: String(getFuzzyKey(od, ["ช่องทาง", "การชำระเงิน", "ประเภท", "col_4"]) || 'ชำระแล้วผ่านแอป'),
             createdAtStr: createdAtStr,
@@ -178,9 +192,10 @@ export default function Orders({
                  && !status.includes('กำลังจัดส่ง') && !status.includes('จัดส่งแล้ว') && !status.includes('สำเร็จ') && !status.includes('เรียบร้อย') && !status.includes('ยกเลิก');
       }
 
-      // 🚚 "ที่ต้องได้รับ": เฉพาะสินค้าพัสดุที่กำลังเดินทาง
+      // 🚚 "ที่ต้องได้รับ": เฉพาะสินค้าพัสดุที่กำลังเดินทาง (ยังไม่จัดส่งสำเร็จ)
       if (orderFilter === 'to_receive') {
           if (!isProduct) return false;
+          if (od.isDelivered || status.includes('จัดส่งสำเร็จ') || status.includes('จัดส่งแล้ว') || status.includes('สำเร็จ') || status.includes('เรียบร้อย')) return false;
           return status.includes('กำลังจัดส่ง');
       }
 
@@ -188,7 +203,7 @@ export default function Orders({
       if (orderFilter === 'completed') {
           if (status.includes('ยกเลิก')) return false;
           if (isProduct) {
-              return status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ');
+              return od.isDelivered || status.includes('จัดส่งสำเร็จ') || status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ');
           } else {
               // คอร์สที่ชำระเงินแล้ว หรือได้รับคอร์สในระบบแล้ว
               return isPaid;
@@ -209,13 +224,17 @@ export default function Orders({
           if (od.itemType !== 'product') return false;
           const s = od.status;
           return (s.includes('รอตรวจสอบ') || s.includes('รอจัดส่ง') || s.includes('รอดำเนินการ') || s.includes('ชำระแล้ว') || s.includes('ชำระเงินแล้ว') || s.includes('อนุมัติ')) 
-                 && !s.includes('กำลังจัดส่ง') && !s.includes('จัดส่งแล้ว') && !s.includes('สำเร็จ') && !s.includes('เรียบร้อย') && !s.includes('ยกเลิก');
+                 && !s.includes('กำลังจัดส่ง') && !s.includes('จัดส่งแล้ว') && !s.includes('จัดส่งสำเร็จ') && !s.includes('สำเร็จ') && !s.includes('เรียบร้อย') && !s.includes('ยกเลิก');
       }).length,
-      to_receive: mappedOrders.filter(od => od.itemType === 'product' && od.status.includes('กำลังจัดส่ง')).length,
+      to_receive: mappedOrders.filter(od => {
+          if (od.itemType !== 'product') return false;
+          if (od.isDelivered || od.status.includes('จัดส่งสำเร็จ') || od.status.includes('จัดส่งแล้ว') || od.status.includes('สำเร็จ') || od.status.includes('เรียบร้อย')) return false;
+          return od.status.includes('กำลังจัดส่ง');
+      }).length,
       completed: mappedOrders.filter(od => {
           if (od.status.includes('ยกเลิก')) return false;
           if (od.itemType === 'product') {
-              return od.status.includes('สำเร็จ') || od.status.includes('เรียบร้อย') || od.status.includes('จัดส่งแล้ว') || od.status.includes('ได้รับ');
+              return od.isDelivered || od.status.includes('จัดส่งสำเร็จ') || od.status.includes('สำเร็จ') || od.status.includes('เรียบร้อย') || od.status.includes('จัดส่งแล้ว') || od.status.includes('ได้รับ');
           } else {
               return isPaidOrCompletedStatus(od.status) || Boolean(od.matchingCourse);
           }
@@ -285,7 +304,7 @@ export default function Orders({
               const status = od.status;
               const isPaid = isPaidOrCompletedStatus(status) || Boolean(od.matchingCourse);
               
-              if (isPaid || status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) { 
+              if (od.isDelivered || isPaid || status.includes('จัดส่งสำเร็จ') || status.includes('สำเร็จ') || status.includes('เรียบร้อย') || status.includes('จัดส่งแล้ว') || status.includes('ได้รับ')) { 
                 statusColor = "bg-emerald-500"; 
                 statusBg = "bg-emerald-50 text-emerald-600 border-emerald-100"; 
               }
@@ -332,7 +351,7 @@ export default function Orders({
                        <span className="text-[9px] text-gray-400 flex items-center mt-1"><Clock size={9} className="mr-1"/>{od.createdAtStr}</span>
                     </div>
                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider shrink-0 ml-1 mt-0.5 ${statusBg}`}>
-                      {od.itemType !== 'product' && isPaid ? 'ชำระเงินแล้ว' : status}
+                      {od.isDelivered ? 'จัดส่งสำเร็จ' : (od.itemType !== 'product' && isPaid ? 'ชำระเงินแล้ว' : status)}
                     </span>
                  </div>
                  

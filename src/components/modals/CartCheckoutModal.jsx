@@ -80,12 +80,59 @@ export default function CartCheckoutModal({
     if (appliedCoupon) {
         if (appliedCoupon.type === 'percent') {
             discountAmount = (baseTotal * appliedCoupon.value) / 100;
+        } else if (appliedCoupon.type === 'course_percent') {
+            const targetName = (appliedCoupon.posItemName || appliedCoupon.courseName || '').toLowerCase().trim();
+            const matchedItem = cart.find(item => {
+                const iName = (item.name || '').toLowerCase().trim();
+                return iName.includes(targetName) || targetName.includes(iName);
+            });
+            if (matchedItem) {
+                const itemPrice = Number(matchedItem.price) || 0;
+                discountAmount = Math.round((itemPrice * Number(appliedCoupon.value || 0)) / 100);
+            } else {
+                discountAmount = 0;
+            }
+        } else if (appliedCoupon.type === 'course_fixed') {
+            const targetName = (appliedCoupon.posItemName || appliedCoupon.courseName || '').toLowerCase().trim();
+            const matchedItem = cart.find(item => {
+                const iName = (item.name || '').toLowerCase().trim();
+                return iName.includes(targetName) || targetName.includes(iName);
+            });
+            if (matchedItem) {
+                discountAmount = Math.min(Number(matchedItem.price) || 0, Number(appliedCoupon.value || 0));
+            } else {
+                discountAmount = 0;
+            }
         } else {
-            discountAmount = appliedCoupon.value;
+            discountAmount = Number(appliedCoupon.value) || 0;
         }
     }
     const finalPrice = Math.max(0, baseTotal - discountAmount);
-    const isCreditSufficient = totalCreditValue >= finalPrice;
+    const isCreditSufficient = totalCreditValue >= finalPrice && finalPrice > 0;
+
+    // Available payment methods based on omiseConfig
+    const availablePaymentMethods = React.useMemo(() => {
+        const methods = [];
+        if (omiseConfig?.enable_promptpay !== false) methods.push('promptpay');
+        if (omiseConfig?.enable_cash !== false) methods.push('cash');
+        if (omiseConfig?.enable_credit !== false && isCreditSufficient) methods.push('credit');
+        if (omiseConfig?.enabled && omiseConfig?.publicKey) {
+            if (omiseConfig?.enable_omise_promptpay !== false) methods.push('omise_promptpay');
+            if (omiseConfig?.enable_omise_mobile !== false) methods.push('omise_mobile');
+            if (omiseConfig?.enable_omise_creditcard !== false) methods.push('omise');
+            if (omiseConfig?.enable_omise_installment !== false && finalPrice >= (omiseConfig?.installmentMinAmount || 2000)) {
+                methods.push('omise_installment');
+            }
+            if (omiseConfig?.enable_omise_shopeepay !== false) methods.push('omise_shopeepay');
+        }
+        return methods;
+    }, [omiseConfig, isCreditSufficient, finalPrice]);
+
+    React.useEffect(() => {
+        if (availablePaymentMethods.length > 0 && !availablePaymentMethods.includes(paymentMethod)) {
+            setPaymentMethod(availablePaymentMethods[0]);
+        }
+    }, [availablePaymentMethods, paymentMethod]);
 
     if (!isOpen) return null;
 
@@ -417,6 +464,11 @@ export default function CartCheckoutModal({
                                                     className="w-36 shrink-0 bg-white rounded-xl p-2.5 border border-pink-100/80 shadow-2xs flex flex-col justify-between"
                                                 >
                                                     <div>
+                                                        {addon.image && (
+                                                            <div className="w-full aspect-[4/3] rounded-lg overflow-hidden bg-slate-50 mb-1.5 border border-slate-100 flex items-center justify-center">
+                                                                <img src={addon.image} alt={addon.name} className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
                                                         <div className="flex items-center justify-between mb-1">
                                                             <span className="text-[9px] font-bold text-slate-400">ลงเครื่อง</span>
                                                             <span className="text-xs font-black text-pink-600">฿{addon.price}</span>
@@ -801,6 +853,17 @@ export default function CartCheckoutModal({
                 applyCoupon={(code) => {
                     const found = MOCK_COUPONS.find(c => c.code === code);
                     if (found) {
+                        if (found.type === 'course_percent' || found.type === 'course_fixed') {
+                            const targetName = (found.posItemName || found.courseName || '').toLowerCase().trim();
+                            const matchedItem = cart.find(item => {
+                                const iName = (item.name || '').toLowerCase().trim();
+                                return iName.includes(targetName) || targetName.includes(iName);
+                            });
+                            if (!matchedItem) {
+                                alert(`คูปองนี้ใช้เป็นส่วนลดสำหรับ "${found.posItemName || found.courseName || 'คอร์สที่กำหนด'}" เท่านั้น กรุณาเพิ่มรายการดังกล่าวลงในตะกร้าก่อนใช้คูปอง`);
+                                return;
+                            }
+                        }
                         setAppliedCoupon(found);
                         setShowCouponSelector(false);
                         setErrorMsg('');

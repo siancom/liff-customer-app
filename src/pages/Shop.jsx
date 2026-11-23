@@ -29,7 +29,11 @@ const Shop = ({
     isPaginating,
     shopDisplayLimit,
     cart = [],
-    setIsCartModalOpen
+    setIsCartModalOpen,
+    onOpenSkinCheck,
+    mySingleCourses,
+    onShowCourseQR,
+    onOpenFacialTreatment
 }) => {
     const [localSelectedPackages, setLocalSelectedPackages] = useState({});
     const activeSelectedPackages = (selectedPackages && typeof selectedPackages === 'object' && Object.keys(selectedPackages).length > 0) ? selectedPackages : localSelectedPackages;
@@ -671,7 +675,12 @@ const Shop = ({
                         {courseCategoriesWithCounts.filter(cat => cat.id === 'all' || cat.count > 0).map(cat => (
                             <button
                                 key={cat.id}
-                                onClick={() => setActiveCourseCategory(cat.id)}
+                                onClick={() => {
+                                    setActiveCourseCategory(cat.id);
+                                    if (cat.id === 'facial' && typeof onOpenFacialTreatment === 'function') {
+                                        onOpenFacialTreatment();
+                                    }
+                                }}
                                 className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 ${activeCourseCategory === cat.id ? 'bg-rose-50 border-rose-200 text-rose-600 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                             >
                                 {cat.label}
@@ -777,8 +786,12 @@ const Shop = ({
                             <button
                                 type="button"
                                 onClick={() => {
-                                    if (shopTab !== 'courses') setShopTab('courses');
-                                    setActiveCourseCategory('facial');
+                                    if (typeof onOpenFacialTreatment === 'function') {
+                                        onOpenFacialTreatment();
+                                    } else {
+                                        if (shopTab !== 'courses') setShopTab('courses');
+                                        setActiveCourseCategory('facial');
+                                    }
                                 }}
                                 className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 text-slate-950 font-black text-xs flex items-center gap-1 shadow-md active:scale-95 transition-all shrink-0"
                             >
@@ -834,6 +847,48 @@ const Shop = ({
                     </div>
                 </a>
             </div>
+
+            {/* 🌟 การ์ดโปรแกรมทรีทเม้นท์ผิวหน้า 10 โปรแกรม (A - J) All-in-One 🌟 */}
+            {shopTab === 'courses' && (activeCourseCategory === 'all' || activeCourseCategory === 'facial') && (
+                <div 
+                    onClick={() => {
+                        if (typeof onOpenFacialTreatment === 'function') {
+                            onOpenFacialTreatment();
+                        } else {
+                            const found = dbMasterCourses.find(c => c.id === 'FACIAL-AJ' || (c.programs && c.programs.length >= 9));
+                            if (found) setSelectedProduct(found);
+                        }
+                    }}
+                    className="mb-3.5 bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 p-4 rounded-[22px] text-white shadow-lg shadow-pink-500/20 cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-between gap-3 relative overflow-hidden group border border-pink-400/30"
+                >
+                    <div className="absolute -right-3 -bottom-5 text-white/10 font-black text-7xl pointer-events-none select-none tracking-tighter">
+                        A-J
+                    </div>
+                    <div className="flex-1 min-w-0 relative z-10">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <span className="bg-white/20 backdrop-blur-xs text-white text-[9px] font-black px-2 py-0.5 rounded-full border border-white/30">
+                                ✨ รวม 10 โปรแกรม (A - J)
+                            </span>
+                            <span className="bg-amber-400 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                                ยอดนิยมอันดับ 1
+                            </span>
+                        </div>
+                        <h4 className="font-black text-sm sm:text-base text-white drop-shadow-xs truncate">
+                            โปรแกรมทรีทเม้นท์ผิวหน้า (Facial Treatment A-J)
+                        </h4>
+                        <p className="text-[10px] sm:text-[11px] text-white/90 font-medium mt-0.5 line-clamp-1">
+                            เลือกโปรแกรม A-J • เลือก 1/5/10 ครั้ง • เริ่มต้นเพียง ฿399.-
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        className="shrink-0 px-3.5 py-2.5 rounded-xl bg-white text-pink-600 font-black text-xs shadow-md flex items-center gap-1 hover:bg-pink-50 transition-colors relative z-10"
+                    >
+                        <span>เลือกโปรแกรม</span>
+                        <ChevronRight size={14} strokeWidth={3} />
+                    </button>
+                </div>
+            )}
 
             {/* 🌟 ส่วนแสดงโปรโมชั่นโบรชัวร์ (Fast Buy Courses) 🌟 */}
             {shopTab === 'courses' && currentTabItems.some(i => i.isBrochure) && (
@@ -1293,8 +1348,12 @@ const Shop = ({
                             <button
                                 onClick={() => {
                                     setShowCrmPosterModal(false);
-                                    if (shopTab !== 'courses') setShopTab('courses');
-                                    setActiveCourseCategory('facial');
+                                    if (typeof onOpenFacialTreatment === 'function') {
+                                        onOpenFacialTreatment();
+                                    } else {
+                                        if (shopTab !== 'courses') setShopTab('courses');
+                                        setActiveCourseCategory('facial');
+                                    }
                                 }}
                                 className="flex-[1.5] py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
                             >

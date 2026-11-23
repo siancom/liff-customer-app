@@ -146,8 +146,8 @@ export default function ProductDetailModal({
                         <button onClick={() => setSelectedProduct(null)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors"><X size={16} /></button>
                     </div>
                     
-                    {/* 🌟 แสดงรูปภาพคอร์สโปรโมชั่นแนวตั้ง (Vertical Course Image) 🌟 */}
-                    {selectedProduct.image && (
+                    {/* 🌟 แสดงรูปภาพคอร์สโปรโมชั่นแนวตั้ง (Vertical Course Image) - ยกเว้น All-in-One A-J เพื่อให้เปิดมาเห็นตัวเลือกทันที 🌟 */}
+                    {selectedProduct.image && !hasPrograms && (
                         <div className="w-full bg-slate-50 relative flex items-center justify-center border-b border-gray-100 overflow-hidden max-h-[380px]">
                             <img 
                                 src={selectedProduct.image} 

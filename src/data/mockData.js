@@ -110,3 +110,5 @@ export const PROMO_COURSES = [
   { id: 'machine-ridpigment', name: 'ริดพิคเม้น', desc: 'ลงเครื่องรายครั้ง', price: 250, originalPrice: 0, type: 'course', image: null },
   { id: 'machine-nanowhite', name: 'นาโนไวท์', desc: 'ลงเครื่องรายครั้ง', price: 250, originalPrice: 0, type: 'course', image: null },
 ];
+
+export { FACIAL_AJ_MASTER_COURSE } from './facialAjMasterCourse';

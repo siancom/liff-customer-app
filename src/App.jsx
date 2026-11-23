@@ -23,7 +23,7 @@ import ProductDetailModal from './components/modals/ProductDetailModal';
 import OrderDetailModal from './components/modals/OrderDetailModal';
 import PromotionModal from './components/modals/PromotionModal';
 import { fetchWithProxy, WOO_CFG } from './utils/wooProxy';
-import { BROCHURE_COURSES } from './data/mockData';
+import { BROCHURE_COURSES, FACIAL_AJ_MASTER_COURSE } from './data/mockData';
 import { getFullPrice, computeFinalPrice } from './utils/priceUtils';
 
 // --- 🌟 SKIN AI MODALS 🌟 ---
@@ -705,6 +705,33 @@ export default function CustomerApp() {
       return true;
     });
   }, [dbMasterCourses, dbProducts]);
+
+  // 🌟 ดึงข้อมูลคอร์สรวมทรีทเม้นท์ผิวหน้า 10 โปรแกรม (A - J All-in-One Master Course)
+  const getFacialAjMasterCourse = useCallback(() => {
+    const list = allShopMasterCourses?.length > 0 ? allShopMasterCourses : (dbMasterCourses || []);
+    const found = list.find(c => 
+      c.id === 'FACIAL-AJ' || 
+      c["รหัสคอส"] === 'FACIAL-AJ' || 
+      c.col_1 === 'FACIAL-AJ' ||
+      (Array.isArray(c.programs) && c.programs.length >= 9)
+    );
+    if (found) {
+      return {
+        ...found,
+        type: 'course',
+        image: found.image || '/posters/facial_treatment_poster.jpg',
+        images: (found.images && found.images.length > 0) ? found.images : ['/posters/facial_treatment_poster.jpg']
+      };
+    }
+    return {
+      ...FACIAL_AJ_MASTER_COURSE,
+      type: 'course'
+    };
+  }, [allShopMasterCourses, dbMasterCourses]);
+
+  const openFacialTreatmentModal = useCallback(() => {
+    setSelectedProduct(getFacialAjMasterCourse());
+  }, [getFacialAjMasterCourse]);
 
   // 1. โหลดและ Initialize LINE LIFF SDK
   useEffect(() => {
@@ -1985,6 +2012,10 @@ export default function CustomerApp() {
                 handleCollectCoupon={handleCollectCoupon}
                 MOCK_COUPONS={systemCoupons}
                 onNavigateToCategory={(catId, tabId = 'courses') => {
+                  if (catId === 'facial') {
+                    openFacialTreatmentModal();
+                    return;
+                  }
                   setShopTab(tabId);
                   setShopCourseCategory(catId);
                   setActiveNav('shop');
@@ -2047,6 +2078,7 @@ export default function CustomerApp() {
                 selectedPackages={null}
                 setSelectedPackages={() => {}}
                 setSelectedProduct={setSelectedProduct}
+                onOpenFacialTreatment={openFacialTreatmentModal}
                 MOCK_COUPONS={systemCoupons}
                 buyAgainItems={buyAgainItems}
                 handleCollectCoupon={handleCollectCoupon}

@@ -11,7 +11,7 @@ import {
 // --- FIREBASE IMPORTS ---
 import { auth, app, getAppCollection, getAppDoc, db } from './config/firebase';
 import { signInAnonymously, onAuthStateChanged, signInWithCustomToken, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
-import { onSnapshot, addDoc, writeBatch, doc, query, where, updateDoc } from 'firebase/firestore';
+import { onSnapshot, addDoc, writeBatch, doc, query, where, updateDoc, arrayUnion } from 'firebase/firestore';
 
 import Shop from './pages/Shop';
 import Orders from './pages/Orders';
@@ -342,6 +342,52 @@ export default function CustomerApp() {
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3200);
+  };
+
+  // 🌟 รวมคูปองจากระบบ Firestore + Fallback Mock Data 🌟
+  const combinedCoupons = useMemo(() => {
+    const list = [...(dbCoupons || [])];
+    MOCK_COUPONS.forEach(mc => {
+      if (!list.some(c => String(c.code).toUpperCase() === String(mc.code).toUpperCase())) {
+        list.push(mc);
+      }
+    });
+    return list;
+  }, [dbCoupons]);
+
+  // 🌟 เก็บโค้ดคูปองเข้าบัญชีลูกค้า (Firestore + Local State) 🌟
+  const handleCollectCoupon = async (code) => {
+    if (!code) return false;
+    const upperCode = String(code).toUpperCase().trim();
+    if (customerData?.id) {
+      try {
+        const customerRef = getAppDoc('customers', customerData.id);
+        await updateDoc(customerRef, {
+          collectedCoupons: arrayUnion(upperCode)
+        });
+        setCustomerData(prev => ({
+          ...prev,
+          collectedCoupons: Array.from(new Set([...(prev?.collectedCoupons || []), upperCode]))
+        }));
+        showToast(`เก็บคูปอง ${upperCode} เรียบร้อยแล้ว! ใช้ตอนชำระเงินได้ทันที 🎟️`, 'success');
+        return true;
+      } catch (e) {
+        console.error("Error saving collected coupon:", e);
+        setCustomerData(prev => ({
+          ...prev,
+          collectedCoupons: Array.from(new Set([...(prev?.collectedCoupons || []), upperCode]))
+        }));
+        showToast(`เก็บคูปอง ${upperCode} เรียบร้อยแล้ว! 🎟️`, 'success');
+        return true;
+      }
+    } else {
+      setCustomerData(prev => ({
+        ...prev,
+        collectedCoupons: Array.from(new Set([...(prev?.collectedCoupons || []), upperCode]))
+      }));
+      showToast(`เก็บคูปอง ${upperCode} เรียบร้อยแล้ว! 🎟️`, 'success');
+      return true;
+    }
   };
 
   // 🌟 บันทึกผลสแกนผิวเข้าประวัติ (skinScans) — ใช้โดย SkinProgressModal ทันที
@@ -1986,6 +2032,9 @@ export default function CustomerApp() {
                 setShowCancelConfirm={setShowCancelConfirm}
                 setBookingError={setBookingError}
                 activeCourses={activeCourses}
+                customerData={customerData}
+                handleCollectCoupon={handleCollectCoupon}
+                MOCK_COUPONS={combinedCoupons}
                 onNavigateToCategory={(catId, tabId = 'courses') => {
                   setShopTab(tabId);
                   setShopCourseCategory(catId);
@@ -2044,9 +2093,9 @@ export default function CustomerApp() {
                 selectedPackages={null}
                 setSelectedPackages={() => {}}
                 setSelectedProduct={setSelectedProduct}
-                MOCK_COUPONS={MOCK_COUPONS}
+                MOCK_COUPONS={combinedCoupons}
                 buyAgainItems={buyAgainItems}
-                handleCollectCoupon={() => {}}
+                handleCollectCoupon={handleCollectCoupon}
                 isPaginating={false}
                 shopDisplayLimit={50}
                 cart={cart}
@@ -2112,11 +2161,9 @@ export default function CustomerApp() {
                 handleRedeemReward={async (reward) => {
                   return { success: true }; 
                 }}
-                MOCK_COUPONS={dbCoupons}
+                MOCK_COUPONS={combinedCoupons}
                 marketingPromotions={dbMarketingPromotions}
-                handleCollectCoupon={(code) => {
-                  showToast('เก็บคูปอง ' + code + ' เรียบร้อยแล้ว!', 'success');
-                }}
+                handleCollectCoupon={handleCollectCoupon}
                 dbLuckyPrizes={dbLuckyPrizes}
                 dbRedeemTiers={dbRedeemTiers}
                 showToast={showToast}
@@ -2419,7 +2466,7 @@ export default function CustomerApp() {
              totals={calculateCartTotals()}
              customerData={customerData}
              lineProfile={lineProfile}
-             MOCK_COUPONS={MOCK_COUPONS}
+             MOCK_COUPONS={combinedCoupons}
              dbBranches={dbBranches}
              omiseConfig={omiseConfig}
              onConfirmOrder={async (orderData) => {

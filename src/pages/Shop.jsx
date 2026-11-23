@@ -698,6 +698,41 @@ const Shop = ({
                                         🏷️ ซื้อคอร์สออนไลน์: ลดทันที 20%*
                                     </span>
                                 </div>
+
+                                {/* 🎟️ 1-TAP COUPON COLLECT BUTTONS 🎟️ */}
+                                {(() => {
+                                    const collectedCodes = (customerData?.collectedCoupons || []).map(c => String(c).toUpperCase());
+                                    const isCrm20Collected = collectedCodes.includes('CRM20');
+                                    const isBook10Collected = collectedCodes.includes('BOOK10');
+                                    return (
+                                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCollectCoupon && handleCollectCoupon('CRM20')}
+                                                disabled={isCrm20Collected}
+                                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 transition-all shadow-xs ${
+                                                    isCrm20Collected
+                                                        ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/40 cursor-default'
+                                                        : 'bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 text-slate-950 active:scale-95'
+                                                }`}
+                                            >
+                                                <span>{isCrm20Collected ? '✓ เก็บแล้ว (ลด 20%)' : '🎁 เก็บโค้ดลด 20% ซื้อคอร์ส'}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCollectCoupon && handleCollectCoupon('BOOK10')}
+                                                disabled={isBook10Collected}
+                                                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-all ${
+                                                    isBook10Collected
+                                                        ? 'bg-white/10 text-slate-300 border border-white/20 cursor-default'
+                                                        : 'bg-white/15 text-white hover:bg-white/25 active:scale-95 border border-white/30'
+                                                }`}
+                                            >
+                                                <span>{isBook10Collected ? '✓ เก็บโค้ดจอง 10% แล้ว' : '🎟️ เก็บโค้ดจอง 10%'}</span>
+                                            </button>
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             <div 

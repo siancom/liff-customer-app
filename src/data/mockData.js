@@ -1,7 +1,10 @@
 export const MOCK_COUPONS = [
-  { code: 'WELCOME100', type: 'fixed', value: 100, desc: 'ลด 100.- ลูกค้าใหม่' },
-  { code: 'SALE10', type: 'percent', value: 10, desc: 'ลด 10% ทุกรายการ' },
-  { code: 'FREESHIP', type: 'fixed', value: 50, desc: 'ส่วนลดค่าจัดส่ง 50.-' }
+  { code: 'CRM20', name: 'ส่วนลด 20% ซื้อคอร์สออนไลน์ CRM', desc: 'ลด 20% ทันทีเมื่อสั่งซื้อคอร์สออนไลน์ด้วยตนเองผ่านระบบ CRM', type: 'percent', value: 20, minSpend: 0, isActive: true },
+  { code: 'BOOK10', name: 'ส่วนลด 10% จองคิวล่วงหน้า CRM', desc: 'ลด 10% เมื่อจองคิวบริการล่วงหน้าผ่านระบบออนไลน์', type: 'percent', value: 10, minSpend: 0, isActive: true },
+  { code: 'WALKIN10', name: 'ส่วนลด 10% ลูกค้าใหม่/Walk-in หน้าร้าน', desc: 'ลดทันที 10% สำหรับลูกค้าใหม่หรือ Walk-in สแกนเข้าระบบหน้าร้านครั้งแรก', type: 'percent', value: 10, minSpend: 0, isActive: true },
+  { code: 'WELCOME100', type: 'fixed', value: 100, desc: 'ลด 100.- ลูกค้าใหม่', isActive: true },
+  { code: 'SALE10', type: 'percent', value: 10, desc: 'ลด 10% ทุกรายการ', isActive: true },
+  { code: 'FREESHIP', type: 'fixed', value: 50, desc: 'ส่วนลดค่าจัดส่ง 50.-', isActive: true }
 ];
 
 export const BROCHURE_COURSES = [

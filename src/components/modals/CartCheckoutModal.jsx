@@ -851,7 +851,8 @@ export default function CartCheckoutModal({
                 customerData={customerData}
                 MOCK_COUPONS={MOCK_COUPONS}
                 applyCoupon={(code) => {
-                    const found = MOCK_COUPONS.find(c => c.code === code);
+                    const cleanCode = String(code || '').trim().toUpperCase();
+                    const found = (MOCK_COUPONS || []).find(c => String(c.code || '').trim().toUpperCase() === cleanCode);
                     if (found) {
                         if (found.type === 'course_percent' || found.type === 'course_fixed') {
                             const targetName = (found.posItemName || found.courseName || '').toLowerCase().trim();

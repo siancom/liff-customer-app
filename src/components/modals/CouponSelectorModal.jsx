@@ -76,11 +76,21 @@ export default function CouponSelectorModal({
                                             <Percent size={18} className="text-rose-500"/>
                                         </div>
                                         <div className="flex-1 min-w-0 pr-2">
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex flex-wrap items-center gap-1.5">
                                                 <p className="font-black text-rose-600 text-sm">{cInfo.code}</p>
                                                 {cInfo.type === 'percent' && (
                                                     <span className="text-[10px] font-bold bg-rose-50 text-rose-600 px-1.5 py-0.2 rounded border border-rose-100">
-                                                        ลด {cInfo.value}%
+                                                        ลด {cInfo.value}% ทั้งบิล
+                                                    </span>
+                                                )}
+                                                {(cInfo.type === 'course_percent' || cInfo.type === 'course_fixed') && (
+                                                    <span className="text-[10px] font-bold bg-rose-50 text-rose-600 px-1.5 py-0.2 rounded border border-rose-100">
+                                                        {cInfo.type === 'course_percent' ? `ลด ${cInfo.value}%` : `ลด ฿${cInfo.value}`}
+                                                        {cInfo.scope === 'all_courses' || cInfo.posItemName === 'ทุกคอร์ส'
+                                                            ? ' (ทุกคอร์ส)'
+                                                            : cInfo.scope === 'category'
+                                                            ? ` (หมวด ${cInfo.targetCategoryLabel || cInfo.targetCategory})`
+                                                            : ` (${cInfo.posItemName || 'เฉพาะคอร์ส'})`}
                                                     </span>
                                                 )}
                                             </div>
@@ -118,11 +128,21 @@ export default function CouponSelectorModal({
                                             <Sparkles size={18} className="text-amber-600"/>
                                         </div>
                                         <div className="flex-1 min-w-0 pr-2">
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex flex-wrap items-center gap-1.5">
                                                 <p className="font-black text-amber-700 text-sm">{cInfo.code}</p>
                                                 {cInfo.type === 'percent' && (
                                                     <span className="text-[10px] font-black bg-amber-200/80 text-amber-900 px-1.5 py-0.2 rounded">
-                                                        ลด {cInfo.value}%
+                                                        ลด {cInfo.value}% ทั้งบิล
+                                                    </span>
+                                                )}
+                                                {(cInfo.type === 'course_percent' || cInfo.type === 'course_fixed') && (
+                                                    <span className="text-[10px] font-black bg-amber-200/80 text-amber-900 px-1.5 py-0.2 rounded">
+                                                        {cInfo.type === 'course_percent' ? `ลด ${cInfo.value}%` : `ลด ฿${cInfo.value}`}
+                                                        {cInfo.scope === 'all_courses' || cInfo.posItemName === 'ทุกคอร์ส'
+                                                            ? ' (ทุกคอร์ส)'
+                                                            : cInfo.scope === 'category'
+                                                            ? ` (หมวด ${cInfo.targetCategoryLabel || cInfo.targetCategory})`
+                                                            : ` (${cInfo.posItemName || 'เฉพาะคอร์ส'})`}
                                                     </span>
                                                 )}
                                             </div>

@@ -80,28 +80,44 @@ export default function CartCheckoutModal({
     if (appliedCoupon) {
         if (appliedCoupon.type === 'percent') {
             discountAmount = (baseTotal * appliedCoupon.value) / 100;
-        } else if (appliedCoupon.type === 'course_percent') {
-            const targetName = (appliedCoupon.posItemName || appliedCoupon.courseName || '').toLowerCase().trim();
-            const matchedItem = cart.find(item => {
-                const iName = (item.name || '').toLowerCase().trim();
-                return iName.includes(targetName) || targetName.includes(iName);
-            });
-            if (matchedItem) {
-                const itemPrice = Number(matchedItem.price) || 0;
-                discountAmount = Math.round((itemPrice * Number(appliedCoupon.value || 0)) / 100);
+        } else if (appliedCoupon.type === 'course_percent' || appliedCoupon.type === 'course_fixed') {
+            const scope = appliedCoupon.scope || (appliedCoupon.targetCategory ? 'category' : (appliedCoupon.posItemName === 'ทุกคอร์ส' || !appliedCoupon.posItemName ? 'all_courses' : 'specific'));
+            const isPercent = appliedCoupon.type === 'course_percent';
+            const val = Number(appliedCoupon.value || appliedCoupon.coursePercent || 0);
+
+            if (scope === 'all_courses') {
+                const courseItems = cart.filter(item => item.type === 'course' || item.type === 'service' || item.isCourse);
+                const eligibleTotal = courseItems.length > 0
+                    ? courseItems.reduce((s, item) => s + (Number(item.price || 0) * Number(item.qty || 1)), 0)
+                    : baseTotal;
+                discountAmount = isPercent ? Math.round((eligibleTotal * val) / 100) : Math.min(eligibleTotal, val);
+            } else if (scope === 'category') {
+                const targetCat = String(appliedCoupon.targetCategory || '').toLowerCase();
+                const targetLabel = String(appliedCoupon.targetCategoryLabel || '').toLowerCase();
+                const matchedItems = cart.filter(item => {
+                    const itemCat = String(item.category || item.itemCategory || item.targetCategory || '').toLowerCase();
+                    const itemName = String(item.name || '').toLowerCase();
+                    return itemCat === targetCat || (targetCat && itemCat.includes(targetCat)) || 
+                           (targetLabel && (itemName.includes(targetLabel) || itemCat.includes(targetLabel))) ||
+                           (targetCat === 'facial' && (itemName.includes('นวดหน้า') || itemName.includes('ผิวหน้า') || /^\[?[a-j]\]?/i.test(itemName))) ||
+                           (targetCat === 'acne_clear' && itemName.includes('สิว')) ||
+                           (targetCat === 'machine' && (itemName.includes('เครื่อง') || itemName.includes('rf') || itemName.includes('ไครโอ'))) ||
+                           (targetCat === 'ipl' && itemName.includes('ipl'));
+                });
+                const matchedTotal = matchedItems.reduce((s, item) => s + (Number(item.price || 0) * Number(item.qty || 1)), 0);
+                discountAmount = isPercent ? Math.round((matchedTotal * val) / 100) : Math.min(matchedTotal, val);
             } else {
-                discountAmount = 0;
-            }
-        } else if (appliedCoupon.type === 'course_fixed') {
-            const targetName = (appliedCoupon.posItemName || appliedCoupon.courseName || '').toLowerCase().trim();
-            const matchedItem = cart.find(item => {
-                const iName = (item.name || '').toLowerCase().trim();
-                return iName.includes(targetName) || targetName.includes(iName);
-            });
-            if (matchedItem) {
-                discountAmount = Math.min(Number(matchedItem.price) || 0, Number(appliedCoupon.value || 0));
-            } else {
-                discountAmount = 0;
+                const targetName = (appliedCoupon.posItemName || appliedCoupon.courseName || '').toLowerCase().trim();
+                const matchedItem = cart.find(item => {
+                    const iName = (item.name || '').toLowerCase().trim();
+                    return iName.includes(targetName) || targetName.includes(iName);
+                });
+                if (matchedItem) {
+                    const itemPrice = Number(matchedItem.price) || 0;
+                    discountAmount = isPercent ? Math.round((itemPrice * val) / 100) : Math.min(itemPrice, val);
+                } else {
+                    discountAmount = 0;
+                }
             }
         } else {
             discountAmount = Number(appliedCoupon.value) || 0;
@@ -855,14 +871,34 @@ export default function CartCheckoutModal({
                     const found = (MOCK_COUPONS || []).find(c => String(c.code || '').trim().toUpperCase() === cleanCode);
                     if (found) {
                         if (found.type === 'course_percent' || found.type === 'course_fixed') {
-                            const targetName = (found.posItemName || found.courseName || '').toLowerCase().trim();
-                            const matchedItem = cart.find(item => {
-                                const iName = (item.name || '').toLowerCase().trim();
-                                return iName.includes(targetName) || targetName.includes(iName);
-                            });
-                            if (!matchedItem) {
-                                alert(`คูปองนี้ใช้เป็นส่วนลดสำหรับ "${found.posItemName || found.courseName || 'คอร์สที่กำหนด'}" เท่านั้น กรุณาเพิ่มรายการดังกล่าวลงในตะกร้าก่อนใช้คูปอง`);
-                                return;
+                            const scope = found.scope || (found.targetCategory ? 'category' : (found.posItemName === 'ทุกคอร์ส' || !found.posItemName ? 'all_courses' : 'specific'));
+                            if (scope === 'specific') {
+                                const targetName = (found.posItemName || found.courseName || '').toLowerCase().trim();
+                                const matchedItem = cart.find(item => {
+                                    const iName = (item.name || '').toLowerCase().trim();
+                                    return iName.includes(targetName) || targetName.includes(iName);
+                                });
+                                if (!matchedItem) {
+                                    alert(`คูปองนี้ใช้เป็นส่วนลดสำหรับ "${found.posItemName || found.courseName || 'คอร์สที่กำหนด'}" เท่านั้น กรุณาเพิ่มรายการดังกล่าวลงในตะกร้าก่อนใช้คูปอง`);
+                                    return;
+                                }
+                            } else if (scope === 'category') {
+                                const targetCat = String(found.targetCategory || '').toLowerCase();
+                                const targetLabel = String(found.targetCategoryLabel || '').toLowerCase();
+                                const matched = cart.some(item => {
+                                    const itemCat = String(item.category || item.itemCategory || item.targetCategory || '').toLowerCase();
+                                    const itemName = String(item.name || '').toLowerCase();
+                                    return itemCat === targetCat || (targetCat && itemCat.includes(targetCat)) || 
+                                           (targetLabel && (itemName.includes(targetLabel) || itemCat.includes(targetLabel))) ||
+                                           (targetCat === 'facial' && (itemName.includes('นวดหน้า') || itemName.includes('ผิวหน้า') || /^\[?[a-j]\]?/i.test(itemName))) ||
+                                           (targetCat === 'acne_clear' && itemName.includes('สิว')) ||
+                                           (targetCat === 'machine' && (itemName.includes('เครื่อง') || itemName.includes('rf') || itemName.includes('ไครโอ'))) ||
+                                           (targetCat === 'ipl' && itemName.includes('ipl'));
+                                });
+                                if (!matched) {
+                                    alert(`คูปองนี้ใช้เป็นส่วนลดสำหรับหมวด "${found.targetCategoryLabel || found.targetCategory}" เท่านั้น กรุณาเลือกคอร์สในหมวดนี้ลงตะกร้าก่อน`);
+                                    return;
+                                }
                             }
                         }
                         setAppliedCoupon(found);

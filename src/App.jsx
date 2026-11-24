@@ -2091,6 +2091,8 @@ export default function CustomerApp() {
                 onOpenSkinCheck={featureFlags.skinCheck !== false ? () => setShowSkinCheck(true) : undefined}
                 mySingleCourses={mySingleCourses}
                 onShowCourseQR={(course) => setShowQR(course)}
+                dbOrders={dbOrders}
+                dbHistories={dbHistories}
              />
           )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Image as ImageIcon, ArrowRight, Sparkles, ShoppingCart, Ticket, HeartPulse, ShoppingBag, Loader2, HistoryIcon, Star, Truck, Percent, Search, X, Gift, ShieldCheck, MessageCircle, CheckCircle2, Zap, LayoutGrid, Wallet, Package, ClipboardList, XCircle, ChevronRight, Award, ExternalLink } from 'lucide-react';
+import { Image as ImageIcon, ArrowRight, Sparkles, ShoppingCart, Ticket, HeartPulse, ShoppingBag, Loader2, HistoryIcon, Star, Truck, Percent, Search, X, Gift, ShieldCheck, MessageCircle, CheckCircle2, Zap, LayoutGrid, Wallet, Package, ClipboardList, XCircle, ChevronRight, Award, ExternalLink, Flame } from 'lucide-react';
 import { getFuzzyKey, parseNumber, parseThaiDate } from '../utils/helpers';
 import { computeFinalPrice } from '../utils/priceUtils';
 import PriceCompareModal from '../components/modals/PriceCompareModal';
@@ -33,7 +33,9 @@ const Shop = ({
     onOpenSkinCheck,
     mySingleCourses,
     onShowCourseQR,
-    onOpenFacialTreatment
+    onOpenFacialTreatment,
+    dbOrders = [],
+    dbHistories = []
 }) => {
     const [localSelectedPackages, setLocalSelectedPackages] = useState({});
     const activeSelectedPackages = (selectedPackages && typeof selectedPackages === 'object' && Object.keys(selectedPackages).length > 0) ? selectedPackages : localSelectedPackages;
@@ -263,6 +265,92 @@ const Shop = ({
         return false;
     };
 
+    // 🌟 คำนวณสถิติยอดขายสินค้า/คอร์สจาก dbOrders และ dbHistories เพื่อติดป้าย "ขายดี" และเรียงขึ้นก่อน
+    const normProductStr = (s) => String(s || '').toLowerCase().replace(/[\s\-_()（）[\]]/g, '');
+
+    const productSalesMap = useMemo(() => {
+        const counts = new Map();
+
+        const addCount = (key, qty) => {
+            if (!key) return;
+            const k = String(key).trim();
+            if (!k) return;
+            const q = Number(qty || 1);
+            const val = isNaN(q) ? 1 : q;
+            counts.set(k, (counts.get(k) || 0) + val);
+            const norm = normProductStr(k);
+            if (norm && norm !== k) {
+                counts.set(norm, (counts.get(norm) || 0) + val);
+            }
+        };
+
+        // 1. จาก dbOrders (คำสั่งซื้อออนไลน์ของลูกค้า)
+        (dbOrders || []).forEach(o => {
+            const status = String(o.status || '').trim();
+            if (status === 'ยกเลิก' || status === 'cancelled' || status === 'refunded') return;
+
+            const items = Array.isArray(o.cartItems) ? o.cartItems : 
+                          Array.isArray(o.items) ? o.items : 
+                          Array.isArray(o.line_items) ? o.line_items : [];
+
+            if (items.length > 0) {
+                items.forEach(it => {
+                    const qty = Number(it.qty || it.quantity || 1);
+                    if (it.id) addCount(it.id, qty);
+                    if (it.productId) addCount(it.productId, qty);
+                    if (it.code) addCount(it.code, qty);
+                    if (it.sku) addCount(it.sku, qty);
+                    if (it.name) addCount(it.name, qty);
+                });
+            } else {
+                const pId = o.productId || o.id;
+                const pName = o.productName || o.name;
+                const qty = Number(o.qty || o.quantity || 1);
+                if (pId) addCount(pId, qty);
+                if (pName) addCount(pName, qty);
+            }
+        });
+
+        // 2. จาก dbHistories (ยอดขายหน้าร้าน POS)
+        (dbHistories || []).forEach(h => {
+            const hStatus = String(getFuzzyKey(h, ["สถานะ", "col_7", "col_8", "col_9"]) || '').trim();
+            if (h.isCancelled || hStatus === 'ยกเลิก') return;
+
+            if (Array.isArray(h.cartItems) && h.cartItems.length > 0) {
+                h.cartItems.forEach(it => {
+                    const qty = Number(it.qty || it.quantity || 1);
+                    if (it.id) addCount(it.id, qty);
+                    if (it.productId) addCount(it.productId, qty);
+                    if (it.code) addCount(it.code, qty);
+                    if (it.name) addCount(it.name, qty);
+                });
+            } else {
+                const name = String(getFuzzyKey(h, ["รายการ", "ชื่อสินค้า", "สินค้า", "item", "col_8", "col_4"]) || '').trim();
+                const code = String(getFuzzyKey(h, ["รหัสสินค้า", "รหัส", "code", "col_2"]) || '').trim();
+                const qty = Number(getFuzzyKey(h, ["จำนวน", "qty", "col_5"]) || 1);
+                if (code) addCount(code, qty);
+                if (name) addCount(name, qty);
+            }
+        });
+
+        return counts;
+    }, [dbOrders, dbHistories]);
+
+    const getProductSalesScore = useCallback((p) => {
+        if (!p) return 0;
+        const id = p.id;
+        const name = String(getFuzzyKey(p, ["ชื่อสินค้า", "col_2", "ชื่อ", "name", "ชื่อคอส", "col_4"]) || p.name || '').trim();
+        const code = String(getFuzzyKey(p, ["รหัส", "col_1", "code", "sku", "รหัสคอส"]) || p.sku || '').trim();
+        const norm = normProductStr(name);
+
+        let score = 0;
+        if (id && productSalesMap.has(id)) score = Math.max(score, productSalesMap.get(id));
+        if (code && productSalesMap.has(code)) score = Math.max(score, productSalesMap.get(code));
+        if (name && productSalesMap.has(name)) score = Math.max(score, productSalesMap.get(name));
+        if (norm && productSalesMap.has(norm)) score = Math.max(score, productSalesMap.get(norm));
+        return score;
+    }, [productSalesMap]);
+
     // Extract dynamic product categories based on active dbProducts
     const PRODUCT_CATEGORIES = useMemo(() => {
         const cats = new Map();
@@ -402,6 +490,7 @@ const Shop = ({
                     isBrochure: p.isBrochure || false,
                     category: cat,
                     isWoo: !!p.wooId,
+                    salesScore: getProductSalesScore(p),
                     desc: desc
                 };
             });
@@ -483,6 +572,7 @@ const Shop = ({
                     isUsingMemberPrice: isUsingMemberPrice,
                     type: 'course',
                     isBrochure: mc.isBrochure || false,
+                    salesScore: getProductSalesScore(mc),
                     desc: desc
                 };
             });
@@ -518,14 +608,19 @@ const Shop = ({
                 return (b.id || '').localeCompare(a.id || '');
             });
         } else {
-            // Shuffle products for variety
-            resultItems = shuffleArray(items);
+            // 🌟 เรียงสินค้าขายดีขึ้นก่อนเสมอ (Bestseller first)
+            resultItems = [...items].sort((a, b) => {
+                const scoreA = Number(a.salesScore || 0);
+                const scoreB = Number(b.salesScore || 0);
+                if (scoreA !== scoreB) return scoreB - scoreA;
+                return (a.name || '').localeCompare(b.name || '');
+            });
         }
 
         // Filter by search term if it exists
         const filtered = resultItems.filter(item => searchTerm === '' || item.name.toLowerCase().includes(searchTerm.toLowerCase()));
         return filtered;
-    }, [shopTab, dbProducts, dbFirestoreProducts, dbMasterCourses, searchTerm, activeCourseCategory, activeProductCategory, wooImagesMap]);
+    }, [shopTab, dbProducts, dbFirestoreProducts, dbMasterCourses, searchTerm, activeCourseCategory, activeProductCategory, wooImagesMap, getProductSalesScore]);
 
     // Compute Order Counts for Widget
     const orderCounts = useMemo(() => {
@@ -1056,11 +1151,19 @@ const Shop = ({
                                 return (
                                     <div key={idx} onClick={() => setSelectedProduct(item)} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col relative transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer pb-2">
                                         <div className="relative aspect-[3/4] bg-slate-50 border-b border-slate-50 overflow-hidden flex items-center justify-center">
-                                            {item.promoOptions && item.promoOptions.length > 1 && (
-                                                <div className="absolute top-2 left-2 bg-gradient-to-r from-red-500 to-pink-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md z-20 flex items-center gap-1">
-                                                    <Sparkles size={9} /> มี {item.promoOptions.length} โปรโมชั่น
-                                                </div>
-                                            )}
+                                            <div className="absolute top-2 left-2 z-20 flex flex-col items-start gap-1">
+                                                {Number(item.salesScore) > 0 && (
+                                                    <div className="bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-0.5 animate-in fade-in duration-200">
+                                                        <Flame size={10} className="fill-white" />
+                                                        <span>ขายดี {Number(item.salesScore) > 1 ? `(${item.salesScore})` : ''}</span>
+                                                    </div>
+                                                )}
+                                                {item.promoOptions && item.promoOptions.length > 1 && (
+                                                    <div className="bg-gradient-to-r from-red-500 to-pink-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">
+                                                        <Sparkles size={9} /> มี {item.promoOptions.length} โปรโมชั่น
+                                                    </div>
+                                                )}
+                                            </div>
                                             {item.image ? (
                                                 <img 
                                                     src={item.image} 
@@ -1154,20 +1257,29 @@ const Shop = ({
                             
                             return (
                                 <div key={idx} onClick={() => setSelectedProduct(item)} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col relative transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer pb-2">
-                                    {/* Thaimart Free Shipping Badge */}
-                                    <div className="absolute top-0 left-0 bg-[#E11D48] text-white text-[8px] font-black px-2 py-0.5 rounded-br-xl shadow-sm z-20 flex items-center gap-1">
-                                        <svg viewBox="0 0 64 64" className="w-3.5 h-3.5">
-                                            <path 
-                                                d="M46,38 C46,26 38,18 28,18 C18,18 14,24 14,32 C14,37 17,41 20,43 C22,44 24,43 24,41 C24,37 19,35 19,32 C19,27 23,22 28,22 C33,22 37,27 37,32 C37,38 31,43 25,43 C22,43 20,41 19,39 C18,37 16,38 16,40 C16,44 20,47 25,47 C34,47 46,38 46,32" 
-                                                fill="none" 
-                                                stroke="white" 
-                                                strokeWidth="5" 
-                                                strokeLinecap="round" 
-                                                strokeLinejoin="round" 
-                                            />
-                                            <circle cx="23" cy="28" r="3.5" fill="white" />
-                                        </svg>
-                                        <span>ส่งฟรี</span>
+                                    {/* Top Left Badges: ส่งฟรี + ขายดี */}
+                                    <div className="absolute top-0 left-0 z-20 flex flex-col items-start gap-1">
+                                        <div className="bg-[#E11D48] text-white text-[8px] font-black px-2 py-0.5 rounded-br-xl shadow-sm flex items-center gap-1">
+                                            <svg viewBox="0 0 64 64" className="w-3.5 h-3.5">
+                                                <path 
+                                                    d="M46,38 C46,26 38,18 28,18 C18,18 14,24 14,32 C14,37 17,41 20,43 C22,44 24,43 24,41 C24,37 19,35 19,32 C19,27 23,22 28,22 C33,22 37,27 37,32 C37,38 31,43 25,43 C22,43 20,41 19,39 C18,37 16,38 16,40 C16,44 20,47 25,47 C34,47 46,38 46,32" 
+                                                    fill="none" 
+                                                    stroke="white" 
+                                                    strokeWidth="5" 
+                                                    strokeLinecap="round" 
+                                                    strokeLinejoin="round" 
+                                                />
+                                                <circle cx="23" cy="28" r="3.5" fill="white" />
+                                            </svg>
+                                            <span>ส่งฟรี</span>
+                                        </div>
+
+                                        {Number(item.salesScore) > 0 && (
+                                            <div className="bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-r-lg shadow-sm flex items-center gap-0.5 animate-in fade-in duration-200">
+                                                <Flame size={10} className="fill-white" />
+                                                <span>ขายดี {Number(item.salesScore) > 1 ? `(${item.salesScore})` : ''}</span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Tags */}

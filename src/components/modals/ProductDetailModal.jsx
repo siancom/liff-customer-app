@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, HeartPulse, ShoppingBag, Loader2, Minus, Plus, ShoppingCart, FileText, CreditCard, Hourglass, Sparkles, Check, Zap } from 'lucide-react';
+import { X, HeartPulse, ShoppingBag, Loader2, Minus, Plus, ShoppingCart, FileText, CreditCard, Hourglass, Sparkles, Check, Zap, Flame } from 'lucide-react';
 import { ProductImage } from '../ui/ProductImage';
 import { MACHINE_TREATMENT_ADDONS } from '../../data/machineAddons';
 
@@ -635,14 +635,27 @@ export default function ProductDetailModal({
                    ) : (
                        <ProductImage src={selectedProduct.image} alt={productDisplayName} fallbackIcon={selectedProduct.type === 'course' ? HeartPulse : ShoppingBag} />
                    )}
+                   {Number(selectedProduct.salesScore) > 0 && (
+                       <div className="absolute top-4 left-4 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-md z-20 flex items-center gap-1 animate-in fade-in duration-200">
+                           <Flame size={13} className="fill-white" />
+                           <span>ขายดี {Number(selectedProduct.salesScore) > 1 ? `(${selectedProduct.salesScore})` : ''}</span>
+                       </div>
+                   )}
                </div>
 
                <div className="p-5 flex-1 bg-white rounded-t-[32px] -mt-6 relative z-10 shadow-[0_-8px_20px_rgba(0,0,0,0.05)]">
-                   {selectedProduct.brand && (
-                       <span className={`text-[10px] font-black px-2 py-1 rounded border mb-2 inline-block ${selectedProduct.brand.color}`}>
-                           {selectedProduct.brand.name}
-                       </span>
-                   )}
+                   <div className="flex items-center gap-2 mb-2 flex-wrap">
+                       {selectedProduct.brand && (
+                           <span className={`text-[10px] font-black px-2 py-1 rounded border inline-block ${selectedProduct.brand.color}`}>
+                               {selectedProduct.brand.name}
+                           </span>
+                       )}
+                       {Number(selectedProduct.salesScore) > 0 && (
+                           <span className="bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs inline-flex items-center gap-1 animate-in fade-in duration-200">
+                               <Flame size={11} className="fill-white" /> ขายดี {Number(selectedProduct.salesScore) > 1 ? `(${selectedProduct.salesScore})` : ''}
+                           </span>
+                       )}
+                   </div>
                    <h2 className="text-xl font-black text-gray-900 mb-2 leading-tight">{productDisplayName}</h2>
                    {/* 🌟 ช่วงราคาสมาชิกของเซต — คำนวณจากราคาสมาชิกแต่ละชิ้นในเซต */}
                    {(() => {

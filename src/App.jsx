@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { 
   QrCode, Clock, CheckCircle, CreditCard, ChevronRight, User, 
@@ -133,6 +133,9 @@ export default function CustomerApp() {
   const [dbCourses, setDbCourses] = useState([]);
   const [dbCustomersRaw, setDbCustomersRaw] = useState([]);
   const [dbHistories, setDbHistories] = useState([]);
+  const [isCustomersLoaded, setIsCustomersLoaded] = useState(false);
+  const [showCoursePromptModal, setShowCoursePromptModal] = useState(false);
+  const phoneInputRef = useRef(null);
 
   const [activeNav, setActiveNav] = useState(() => getLiffDeepLinkParams().isBooking ? 'booking' : 'home'); 
   const [dashboardTab, setDashboardTab] = useState('courses');
@@ -758,10 +761,8 @@ export default function CustomerApp() {
               const savedPhone = localStorage.getItem(`liff_phone_${profile.userId}`);
               if (savedPhone) {
                   setPhoneNumber(savedPhone);
-                  setAppState('auto_login');
-              } else {
-                  setAppState('login'); 
               }
+              // 🌟 ไม่เปลี่ยนเป็น 'login' ทันที ให้รอตรวจสอบกับฐานข้อมูล customers ก่อน
             } else {
               window.liff.login();
             }
@@ -785,10 +786,8 @@ export default function CustomerApp() {
       const savedPhone = localStorage.getItem(`liff_phone_mock_user`);
       if (savedPhone) {
           setPhoneNumber(savedPhone);
-          setAppState('auto_login');
-      } else {
-          setTimeout(() => setAppState('login'), 1000);
       }
+      // 🌟 ไม่เปลี่ยนเป็น 'login' ทันที รอตรวจสอบกับฐานข้อมูล customers ก่อน
     };
 
     initLiff();
@@ -829,7 +828,11 @@ export default function CustomerApp() {
     // 2.2 ดึงข้อมูลลูกค้า
     const unsubCustomers = onSnapshot(getAppCollection('customers'), (snapshot) => {
       setDbCustomersRaw(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (err) => console.error("Customer fetch error:", err));
+      setIsCustomersLoaded(true);
+    }, (err) => {
+      console.error("Customer fetch error:", err);
+      setIsCustomersLoaded(true);
+    });
 
     // 2.3 ดึงประวัติ
     const unsubHistories = onSnapshot(getAppCollection('histories'), (snapshot) => {
@@ -945,45 +948,71 @@ export default function CustomerApp() {
   }, [user]);
 
 
+  // 🌟 ตรวจสอบการเชื่อมต่อกับระบบ: รอจนกว่าจะดึงข้อมูล LINE Profile และ Firestore customers เสร็จสมบูรณ์
   useEffect(() => {
-     if (appState === 'auto_login' || appState === 'login') {
-         if (dbCustomersRaw.length > 0 && lineProfile?.userId) {
-             const linkedCustomer = dbCustomersRaw.find(c => c.lineUid === lineProfile.userId);
-             
-             if (linkedCustomer || appState === 'auto_login') {
-                 const targetCustomer = linkedCustomer || dbCustomersRaw.find(c => getFuzzyKey(c, "เบอร์โทร") === phoneNumber.trim());
-                 if (targetCustomer) {
-                     const cleanPhone = getFuzzyKey(targetCustomer, "เบอร์โทร");
-                     setPhoneNumber(cleanPhone);
-                     const builtData = buildCustomerData(targetCustomer, cleanPhone, dbHistories, dbCourses, dbOrders);
-                     
-                     if (!targetCustomer.lineUid) {
-                         try { updateDoc(doc(getAppCollection('customers'), targetCustomer.id), { lineUid: lineProfile.userId }); } catch(e) {}
-                     }
+     // ทำงานเฉพาะตอนที่กำลังโหลดหรือรอตรวจสอบ (loading หรือ auto_login)
+     if (appState !== 'loading' && appState !== 'auto_login') return;
+     if (!lineProfile || !isCustomersLoaded) return;
 
-                     setCustomerData({
-                         ...builtData,
-                         lineDisplayName: lineProfile?.displayName,
-                         lineProfilePic: lineProfile?.pictureUrl
-                     });
-                     setAppState('dashboard');
-                     const deepLink = getLiffDeepLinkParams();
-                     if (deepLink.isBooking) {
-                         setActiveNav('booking');
-                         setIsBookingModalOpen(true);
-                     } else {
-                         setActiveNav('home');
-                     }
-                     if (deepLink.isSkinCheck) {
-                         setShowSkinCheck(true);
-                     }
-                 } else {
-                     if (appState === 'auto_login') setAppState('login');
-                 }
+     // 1. ตรวจสอบว่าบัญชี LINE UID นี้ผูกกับลูกค้าในระบบไว้แล้วหรือยัง
+     const linkedCustomer = lineProfile.userId && lineProfile.userId !== 'mock_user'
+       ? dbCustomersRaw.find(c => c.lineUid && String(c.lineUid) === String(lineProfile.userId))
+       : null;
+
+     // 2. ตรวจสอบจากเบอร์โทรศัพท์ที่เคยบันทึกไว้ในเครื่อง (localStorage)
+     const savedPhone = (lineProfile.userId ? localStorage.getItem(`liff_phone_${lineProfile.userId}`) : null) || phoneNumber;
+     const cleanSavedDigits = String(savedPhone || '').replace(/\D/g, '');
+     const phoneMatchedCustomer = (!linkedCustomer && cleanSavedDigits && cleanSavedDigits.length >= 9)
+       ? dbCustomersRaw.find(c => {
+           const p = String(getFuzzyKey(c, ["เบอร์โทร", "phone"]) || '').replace(/\D/g, '');
+           return p && (p === cleanSavedDigits || p.endsWith(cleanSavedDigits.slice(-9)));
+         })
+       : null;
+
+     const targetCustomer = linkedCustomer || phoneMatchedCustomer;
+
+     if (targetCustomer) {
+         // 🌟 ลูกค้าเชื่อมต่อกับระบบแล้ว -> เข้าสู่หน้าแดชบอร์ดทันที ไม่แสดงหน้าล็อกอิน!
+         const cleanPhone = getFuzzyKey(targetCustomer, "เบอร์โทร") || savedPhone;
+         setPhoneNumber(cleanPhone);
+         if (lineProfile.userId) {
+             try { localStorage.setItem(`liff_phone_${lineProfile.userId}`, cleanPhone); } catch(e) {}
+         }
+
+         // ถ้าลูกค้ายังไม่มี lineUid ในฐานข้อมูล ให้บันทึกเชื่อมต่ออัตโนมัติ
+         if (!targetCustomer.lineUid && lineProfile.userId && lineProfile.userId !== 'mock_user') {
+             try {
+                 updateDoc(doc(getAppCollection('customers'), targetCustomer.id), { lineUid: lineProfile.userId });
+             } catch(e) {
+                 console.error("Auto-link lineUid error:", e);
              }
          }
+
+         const builtData = buildCustomerData(targetCustomer, cleanPhone, dbHistories, dbCourses, dbOrders);
+         setCustomerData({
+             ...builtData,
+             lineDisplayName: lineProfile?.displayName,
+             lineProfilePic: lineProfile?.pictureUrl
+         });
+         setAppState('dashboard');
+
+         const deepLink = getLiffDeepLinkParams();
+         if (deepLink.isBooking) {
+             setActiveNav('booking');
+             setIsBookingModalOpen(true);
+         } else {
+             setActiveNav('home');
+         }
+         if (deepLink.isSkinCheck) {
+             setShowSkinCheck(true);
+         }
+     } else {
+         // 🌟 แน่ใจ 100% ว่าเป็นลูกค้าใหม่หรือยังไม่เคยเชื่อมต่อกับระบบ -> ค่อยแสดงหน้า Login/ยืนยันเบอร์
+         setAppState('login');
+         // แสดงป๊อปอัพแนะนำให้ลูกค้าที่เคยซื้อคอร์สทรีทเม้นท์เชื่อมต่อระบบ
+         setShowCoursePromptModal(true);
      }
-  }, [appState, dbCustomersRaw, lineProfile]);
+  }, [appState, isCustomersLoaded, lineProfile, dbCustomersRaw, phoneNumber, dbHistories, dbCourses, dbOrders]);
 
 
   // 3. ฟังก์ชันตรวจสอบเบอร์โทรศัพท์ และส่ง OTP
@@ -1472,9 +1501,17 @@ export default function CustomerApp() {
                     </span>
                   </div>
                   <p className="text-[10.5px] text-amber-950 font-medium leading-relaxed">
-                    ปัจจุบันระบบเปิดให้บริการเฉพาะ <strong className="text-emerald-700 font-black">"จองคิวรับบริการ"</strong> และ <strong className="text-purple-700 font-black">"AI วิเคราะห์สภาพผิว"</strong> ค่ะ สำหรับระบบสมาชิก คอร์ส และร้านค้า อยู่ระหว่างการพัฒนาเพิ่มเติมนะคะ ✨
+                    ✨ <strong>สำหรับลูกค้าที่มีคอร์สทรีทเม้นท์</strong>: กรุณายืนยันเบอร์โทรศัพท์เพื่อเชื่อมต่อและตรวจสอบคอร์สคงเหลือ, ประวัติบริการ และสิทธิประโยชน์สมาชิกของคุณได้ทันทีค่ะ
                   </p>
-                  <div className="flex items-center gap-2 mt-2.5">
+                  <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setShowCoursePromptModal(true)}
+                      className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white text-[9.5px] font-black px-2.5 py-1.5 rounded-lg shadow-xs flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <HeartPulse size={11} />
+                      <span>สิทธิประโยชน์คอร์สทรีทเม้นท์</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIsBookingModalOpen(true)}
@@ -1511,6 +1548,7 @@ export default function CustomerApp() {
               <div className="relative">
                 <Phone size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-600" />
                 <input 
+                  ref={phoneInputRef}
                   type="tel" 
                   placeholder="กรอกเบอร์โทรศัพท์ (เช่น 0812345678)"
                   value={phoneNumber}
@@ -1679,6 +1717,95 @@ export default function CustomerApp() {
           isOpen={isHelpCenterOpen}
           onClose={() => setIsHelpCenterOpen(false)}
         />
+        {/* 🌟 POPUP: แนะนำลูกค้าที่เคยซื้อคอร์สทรีทเม้นท์ให้ลงทะเบียน/เชื่อมต่อระบบ 🌟 */}
+        {showCoursePromptModal && (
+          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-[32px] p-6 w-full max-w-sm shadow-2xl relative overflow-hidden flex flex-col items-center text-center animate-in zoom-in-95 duration-200 border border-slate-100">
+              {/* Close Button */}
+              <button 
+                type="button"
+                onClick={() => setShowCoursePromptModal(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+
+              {/* Decorative top icon */}
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/25 mb-3 shrink-0">
+                <HeartPulse size={36} className="stroke-[2.2]" />
+              </div>
+
+              <div className="inline-flex items-center gap-1 bg-pink-50 border border-pink-200 text-pink-700 text-[10px] font-black px-2.5 py-0.5 rounded-full mb-2">
+                <Sparkles size={11} className="fill-pink-500 text-pink-500" />
+                <span>สิทธิประโยชน์ลูกค้าคลินิก</span>
+              </div>
+
+              <h3 className="text-lg font-black text-slate-800 leading-tight mb-2">
+                เคยซื้อคอร์สทรีทเม้นท์<br/>กับทางคลินิกไว้แล้วหรือยังคะ?
+              </h3>
+
+              <p className="text-xs text-slate-600 leading-relaxed mb-4 px-1 font-medium">
+                เพียงยืนยันเบอร์โทรศัพท์ที่เคยแจ้งไว้กับทางสาขา ระบบจะ <strong className="text-pink-600 font-bold">ดึงข้อมูลคอร์สคงเหลือและสิทธิพิเศษ</strong> ของคุณมาแสดงให้อัตโนมัติทันทีค่ะ ✨
+              </p>
+
+              {/* 3 Key Benefits */}
+              <div className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-3 mb-5 text-left space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-xs font-black mt-0.5">
+                    ✓
+                  </div>
+                  <div className="text-[11px] leading-tight text-slate-700">
+                    <strong className="text-slate-900 block font-bold">เช็กจำนวนครั้งคอร์สคงเหลือ</strong>
+                    ดูจำนวนครั้ง วันหมดอายุ และประวัติบริการ 24 ชม.
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center shrink-0 text-xs font-black mt-0.5">
+                    ✓
+                  </div>
+                  <div className="text-[11px] leading-tight text-slate-700">
+                    <strong className="text-slate-900 block font-bold">สแกน QR ใช้งานที่หน้าร้าน</strong>
+                    ไม่ต้องพกบัตรคอร์ส เพียงเปิด QR Code ให้สาขาสแกนได้ทันที
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 text-xs font-black mt-0.5">
+                    ✓
+                  </div>
+                  <div className="text-[11px] leading-tight text-slate-700">
+                    <strong className="text-slate-900 block font-bold">ราคาสมาชิกและสะสมแต้ม</strong>
+                    รับส่วนลดสมาชิกและสิทธิ์ซื้อคอร์ส/ครีมในราคาพิเศษ
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCoursePromptModal(false);
+                  setTimeout(() => {
+                    phoneInputRef.current?.focus();
+                  }, 150);
+                }}
+                className="w-full py-3.5 bg-gradient-to-r from-teal-500 via-emerald-500 to-teal-600 text-white font-black text-sm rounded-2xl shadow-lg shadow-teal-500/25 hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Phone size={16} />
+                <span>ยืนยันเบอร์โทรเชื่อมต่อคอร์สทันที</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCoursePromptModal(false)}
+                className="mt-2.5 text-xs text-slate-400 font-bold hover:text-slate-600 transition-colors py-1 cursor-pointer"
+              >
+                เข้าสู่ระบบภายหลัง / ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        )}
         {/* --- TOAST --- */}
         {toast && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] animate-in fade-in slide-in-from-bottom-4 duration-300 px-4 w-full max-w-md pointer-events-none">

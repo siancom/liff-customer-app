@@ -1,8 +1,17 @@
-import React, { useState } from 'react';
-import { X, BookOpen, Star, CalendarDays, HelpCircle, ChevronRight, MessageCircle, AlertCircle, ShoppingBag, Wallet, Package, Truck, CheckCircle2, XCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  X, BookOpen, Star, CalendarDays, HelpCircle, ChevronRight, MessageCircle, AlertCircle, 
+  ShoppingBag, Wallet, Package, Truck, CheckCircle2, XCircle, Gift, Sparkles, Zap, Cake, Ticket, TrendingUp, Calendar
+} from 'lucide-react';
 
-export default function HelpCenterModal({ isOpen, onClose }) {
-  const [activeTopic, setActiveTopic] = useState(null);
+export default function HelpCenterModal({ isOpen, onClose, initialTopic = null }) {
+  const [activeTopic, setActiveTopic] = useState(initialTopic);
+
+  useEffect(() => {
+    if (initialTopic) {
+      setActiveTopic(initialTopic);
+    }
+  }, [initialTopic, isOpen]);
 
   if (!isOpen) return null;
 
@@ -74,17 +83,101 @@ export default function HelpCenterModal({ isOpen, onClose }) {
     {
       id: 'points',
       icon: <Star className="text-amber-500" />,
-      title: 'การสะสมคะแนนและแลกรางวัล',
+      title: 'การสะสมคะแนนและแลกรางวัล (Iris Points Guide)',
       content: (
-        <div className="space-y-3 text-sm text-gray-600">
-          <p><strong>วิธีสะสมคะแนน:</strong></p>
-          <p>ทุกยอดการชำระเงินของคุณจะถูกนำมาคำนวณเป็นคะแนนสะสมโดยอัตโนมัติ (ยอดที่ชำระด้วยเงินสด โอน หรือบัตรเครดิต)</p>
-          <p><strong>การใช้คะแนน:</strong></p>
-          <p>สามารถนำคะแนนไปแลกเป็นคูปองส่วนลด คอร์สฟรี หรือของรางวัลอื่นๆ ได้ที่เมนู <strong className="text-teal-600">สิทธิพิเศษ</strong></p>
-          <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 mt-2">
-            <p className="text-xs text-amber-800 flex items-start gap-1.5">
-              <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              <span>คะแนนสะสมอาจมีวันหมดอายุ กรุณาตรวจสอบรายละเอียดในหน้าสิทธิพิเศษ</span>
+        <div className="space-y-4 text-xs sm:text-sm text-slate-700">
+          {/* Header Highlight Banner */}
+          <div className="bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-600 rounded-2xl p-4 text-white shadow-sm relative overflow-hidden">
+            <span className="bg-white/20 text-white text-[10px] font-black px-2 py-0.5 rounded-full inline-flex items-center gap-1 mb-1.5">
+              <Sparkles size={11} className="text-yellow-300 fill-yellow-300" /> สิทธิประโยชน์สมาชิก Iris Clinic
+            </span>
+            <h4 className="text-base font-black text-white leading-snug">
+              ทุกยอดการชำระเงิน เปลี่ยนเป็นความคุ้มค่า!
+            </h4>
+            <p className="text-[11px] text-teal-50 mt-1 opacity-90 leading-relaxed">
+              ทุกครั้งที่คุณใช้บริการ ระบบจะคำนวณคะแนนสะสมให้อัตโนมัติทันที <strong>100 บาท = 1 Iris Point</strong>
+            </p>
+          </div>
+
+          {/* 3 Step Visual Diagram */}
+          <div className="space-y-2.5">
+            <div className="font-black text-slate-800 text-xs flex items-center gap-1.5">
+              <TrendingUp size={14} className="text-teal-600" /> ขั้นตอนการสะสมและแลกรับรางวัล
+            </div>
+
+            {/* Step 1 */}
+            <div className="bg-teal-50/70 border border-teal-200/80 rounded-xl p-3 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+                1
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <strong className="text-teal-950 font-black text-xs">ชำระค่าบริการ / ซื้อสินค้า</strong>
+                  <span className="text-[10px] font-black bg-teal-200/80 text-teal-800 px-2 py-0.2 rounded-full">100 ฿ = 1 แต้ม</span>
+                </div>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  ชำระผ่านเงินสด โอนเงิน หรือบัตรเครดิต รับแต้มสะสมอัตโนมัติ (เช่น ยอด 2,000 บ. = 20 แต้ม)
+                </p>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+                2
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <strong className="text-amber-950 font-black text-xs">รับคะแนนคูณสอง (Double Points x2)</strong>
+                  <span className="text-[10px] font-black bg-amber-200 text-amber-900 px-2 py-0.2 rounded-full">แต้ม x2</span>
+                </div>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  🌟 <strong>วันเลขเบิ้ล:</strong> (1/1, 2/2, 3/3, 11/11, 12/12) รับแต้ม 2 เท่าทุกบิล!<br />
+                  🎂 <strong>ตลอดทั้งเดือนเกิดของคุณ:</strong> ทุกยอดซื้อในเดือนเกิด รับคะแนน 2 เท่าอัตโนมัติ
+                </p>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+                3
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <strong className="text-indigo-950 font-black text-xs">แลกรับของรางวัลที่เมนู "สิทธิพิเศษ"</strong>
+                  <span className="text-[10px] font-black bg-indigo-200 text-indigo-900 px-2 py-0.2 rounded-full">สิทธิพิเศษ</span>
+                </div>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  นำคะแนนไปแลกเป็น <strong>คูปองส่วนลด, ทรีตเมนต์/มาร์คหน้าฟรี, หมุนวงล้อลุ้นโชค</strong> หรือรับผลิตภัณฑ์เวชสำอางกลับบ้าน
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Member Tiers summary */}
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-1.5">
+            <strong className="text-slate-800 block text-xs font-black">ระดับสมาชิก Iris Member Tiers:</strong>
+            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+              <div className="bg-white p-2 rounded-lg border border-slate-200/60">
+                <span className="font-bold text-slate-800">🥉 Member:</span> สมาชิกแรกเข้า สะสมแต้มได้ทันที
+              </div>
+              <div className="bg-white p-2 rounded-lg border border-slate-200/60">
+                <span className="font-bold text-blue-700">🥈 Silver:</span> ยอด 10,000+ จองคิว Priority
+              </div>
+              <div className="bg-white p-2 rounded-lg border border-slate-200/60">
+                <span className="font-bold text-amber-700">🥇 Gold:</span> ยอด 30,000+ ลด 10% + ของขวัญ
+              </div>
+              <div className="bg-white p-2 rounded-lg border border-slate-200/60">
+                <span className="font-bold text-purple-700">👑 VIP:</span> ยอด 100,000+ สิทธิพิเศษสูงสุด
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 p-3 rounded-xl border border-amber-200/80">
+            <p className="text-xs text-amber-900 flex items-start gap-1.5">
+              <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600" />
+              <span>คะแนนสะสมและสถานะสมาชิกคำนวณจากยอดชำระจริง ตรวจสอบประวัติคะแนนได้ตลอดเวลาที่เมนูสิทธิพิเศษ</span>
             </p>
           </div>
         </div>

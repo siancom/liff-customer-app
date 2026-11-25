@@ -3,10 +3,12 @@ import { Gift, Sparkles, Star, Heart, ArrowRight, Loader2, Ticket, CheckCircle2,
 import { parseThaiDate, getFuzzyKey } from '../utils/helpers';
 import { QRCodeSVG } from 'qrcode.react';
 import Gamification from './Gamification';
+import PointsArticleModal from '../components/modals/PointsArticleModal';
 
 export default function Privileges({ customerData, parseNumber, handleRedeemReward, MOCK_COUPONS, marketingPromotions, handleCollectCoupon, dbLuckyPrizes, dbRedeemTiers, showToast, handleRequestVIPUpgrade }) {
   const tier = customerData?.memberStatus || 'Member';
   const [activeSubTab, setActiveSubTab] = useState('rewards');
+  const [isPointsArticleOpen, setIsPointsArticleOpen] = useState(false);
 
   // Calculate birthday month
   const birthdayVal = customerData ? (getFuzzyKey(customerData, ["วันเกิด", "birthday"]) || '') : '';
@@ -163,7 +165,17 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
       <div className="bg-gradient-to-br from-teal-500 via-teal-600 to-teal-700 rounded-[32px] p-6 text-white shadow-lg relative overflow-hidden -mx-4 -mt-6 rounded-t-none">
         <div className="absolute right-0 top-0 w-48 h-48 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
         <div className="relative z-10">
-            <h2 className="text-[11px] uppercase tracking-widest font-bold text-teal-100 mb-1">สิทธิพิเศษ & ของรางวัล</h2>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-[11px] uppercase tracking-widest font-bold text-teal-100">สิทธิพิเศษ & ของรางวัล</h2>
+              <button 
+                type="button"
+                onClick={() => setIsPointsArticleOpen(true)}
+                className="bg-white/20 hover:bg-white/30 text-white text-[10px] font-black px-2.5 py-1 rounded-full border border-white/30 backdrop-blur-md flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-xs"
+              >
+                <Sparkles size={11} className="text-yellow-300 fill-yellow-300" />
+                <span>คู่มือการสะสมแต้ม</span>
+              </button>
+            </div>
             <p className="text-3xl font-black mb-2 flex items-center">
                 {points.toLocaleString()} <Star size={24} className="ml-2 text-yellow-300 fill-yellow-300 drop-shadow-sm" />
             </p>
@@ -276,16 +288,65 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
       <>
       {/* Promos Banner Carousel */}
       <div className="mb-6 mt-4">
-         <h3 className="text-sm font-black text-gray-800 flex items-center mb-3 px-1">
-             <Sparkles size={18} className="mr-2 text-teal-600"/> แบนเนอร์โปรโมชั่น & สิทธิพิเศษ
-         </h3>
+         <div className="flex items-center justify-between mb-3 px-1">
+           <h3 className="text-sm font-black text-gray-800 flex items-center">
+               <Sparkles size={18} className="mr-2 text-teal-600"/> แบนเนอร์โปรโมชั่น & สิทธิพิเศษ
+           </h3>
+           <button 
+             type="button"
+             onClick={() => setIsPointsArticleOpen(true)}
+             className="text-xs font-bold text-teal-600 hover:text-teal-700 flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+           >
+             <span>ดูคู่มือสะสมแต้ม</span>
+             <ChevronRight size={14} />
+           </button>
+         </div>
          <div className="flex overflow-x-auto pb-3 gap-3.5 scrollbar-hide px-1 snap-x">
-             {activePromos && activePromos.length > 0 ? (
-                 activePromos.map(promo => (
-                     <div key={promo.id} className="w-[280px] sm:w-[320px] shrink-0 bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden relative group snap-start transition-all hover:shadow-md">
+             {(() => {
+                 const pointsGuideBanner = {
+                     id: 'points-guide-article-banner',
+                     title: 'คู่มือการสะสมคะแนน & แลกรางวัล (Iris Points Guide)',
+                     desc: 'ทุก 100 บาท = 1 แต้ม • รับคะแนน 2 เท่าวันเลขเบิ้ล & ตลอดเดือนเกิด แตะเพื่ออ่านวิธีสะสมและแลกรับของรางวัล',
+                     badge: 'คู่มือสมาชิก',
+                     isPointsArticle: true,
+                     isCustomBanner: true
+                 };
+                 const displayBanners = [pointsGuideBanner, ...(activePromos || []).filter(p => p.id !== 'points-guide-article-banner')];
+                 
+                 return displayBanners.map(promo => (
+                     <div 
+                         key={promo.id} 
+                         onClick={() => {
+                             if (promo.isPointsArticle || promo.id === 'points-guide-article-banner') {
+                                 setIsPointsArticleOpen(true);
+                             }
+                         }}
+                         className="w-[280px] sm:w-[320px] shrink-0 bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden relative group snap-start transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                     >
                          <div className="h-36 w-full overflow-hidden relative bg-slate-100">
-                             <img src={promo.image} alt={promo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                             {promo.badge && (
+                             {promo.isPointsArticle ? (
+                                 <div className="w-full h-full bg-gradient-to-br from-teal-500 via-teal-600 to-indigo-700 p-4 text-white flex flex-col justify-between relative overflow-hidden">
+                                     <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none" />
+                                     <div className="flex items-center justify-between relative z-10">
+                                         <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-black px-2.5 py-0.5 rounded-full border border-white/30 flex items-center gap-1">
+                                             <Sparkles size={10} className="text-yellow-300 fill-yellow-300" /> คู่มือสมาชิก
+                                         </span>
+                                         <span className="text-[10px] bg-yellow-400 text-yellow-950 font-black px-2 py-0.5 rounded-full shadow-xs">
+                                             100 ฿ = 1 แต้ม
+                                         </span>
+                                     </div>
+                                     <div className="relative z-10">
+                                         <div className="text-base font-black leading-tight text-white flex items-center gap-1.5">
+                                             <span>สะสมคะแนนแลกรางวัล</span>
+                                             <Star size={16} className="fill-yellow-300 text-yellow-300" />
+                                         </div>
+                                         <p className="text-[11px] text-teal-100 mt-1 line-clamp-1">แตะเพื่อดูรายละเอียดและวิธีแลกคูปอง / คอร์สฟรี</p>
+                                     </div>
+                                 </div>
+                             ) : (
+                                 <img src={promo.image} alt={promo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                             )}
+                             {promo.badge && !promo.isPointsArticle && (
                                  <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-teal-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-white/60 shadow-sm flex items-center gap-1">
                                      <Sparkles size={11} className="text-teal-600" />
                                      {promo.badge}
@@ -293,18 +354,17 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
                              )}
                          </div>
                          <div className="p-3.5">
-                             <h4 className="font-black text-gray-900 text-sm mb-1 line-clamp-1">{promo.title}</h4>
+                             <h4 className="font-black text-gray-900 text-sm mb-1 line-clamp-1 flex items-center justify-between">
+                                 <span>{promo.title}</span>
+                                 {promo.isPointsArticle && <ChevronRight size={16} className="text-teal-600 shrink-0" />}
+                             </h4>
                              {promo.desc && (
                                  <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed">{promo.desc}</p>
                              )}
                          </div>
                      </div>
-                 ))
-             ) : (
-                 <div className="w-full py-8 text-center text-xs text-gray-400 font-bold bg-white rounded-2xl border border-dashed border-gray-200">
-                     ยังไม่มีแบนเนอร์โปรโมชั่นในขณะนี้
-                 </div>
-             )}
+                 ));
+             })()}
          </div>
       </div>
       {/* Coupons Section */}
@@ -524,6 +584,16 @@ export default function Privileges({ customerData, parseNumber, handleRedeemRewa
             </div>
          </div>
       )}
+
+      {/* Points & Rewards Comprehensive Article Modal */}
+      <PointsArticleModal 
+        isOpen={isPointsArticleOpen} 
+        onClose={() => setIsPointsArticleOpen(false)}
+        onGoToPrivileges={() => {
+          setIsPointsArticleOpen(false);
+          setActiveSubTab('rewards');
+        }}
+      />
 
     </div>
   );

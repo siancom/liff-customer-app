@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Gift, Sparkles, Star, Heart, ArrowRight, Loader2, Ticket, CheckCircle2, QrCode, Camera, Clock } from 'lucide-react';
+import { Gift, Sparkles, Star, Heart, ArrowRight, ChevronRight, Loader2, Ticket, CheckCircle2, QrCode, Camera, Clock } from 'lucide-react';
 import { parseThaiDate, getFuzzyKey } from '../utils/helpers';
 import { QRCodeSVG } from 'qrcode.react';
 import Gamification from './Gamification';

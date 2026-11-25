@@ -225,11 +225,15 @@ export const buildCustomerData = (rawCustomer, cleanPhone, dbHistories, dbCourse
     finalUsed = Math.min(currentTotal, finalUsed);
     const remaining = Math.max(0, currentTotal - finalUsed);
 
-    const rawExplicitCredit = getFuzzyKey(c, ["เครดิตที่ได้รับ", "เครดิตที่ได้", "เครดิตทั้งหมด", "ยอดเครดิต", "วงเงินคอร์ส", "เครดิต", "วงเงิน", "วงเงินที่ได้รับ", "มูลค่าเครดิต", "col_14"]);
+    const rawExplicitCredit = getFuzzyKey(c, ["เครดิตที่ได้รับ", "เครดิตที่ได้", "เครดิตทั้งหมด", "ยอดเครดิต", "วงเงินคอร์ส", "เครดิต", "วงเงิน", "วงเงินที่ได้รับ", "มูลค่าเครดิต", "col_14", "col_8"]);
     const coursePrice = parseNumber(getFuzzyKey(c, ["ราคา", "ราคาคอร์ส", "ยอดเต็ม", "ยอดเงิน", "จำนวนเงิน", "ยอดสุทธิ", "ราคาขาย", "col_13"]));
     const courseName = String(getFuzzyKey(c, ["ชื่อคอส", "ชื่อคอร์ส", "col_8"]) || '').replace(new RegExp('\\s', 'g'), '').toLowerCase();
     
     let initialCredit = rawExplicitCredit !== undefined && rawExplicitCredit !== '' ? parseNumber(rawExplicitCredit) : 0;
+    
+    if (initialCredit === 0 && c.promoOption) {
+        initialCredit = parseNumber(c.promoOption.credit || c.promoOption.เครดิตที่ได้รับ || c.promoOption.วงเงินเครดิต || 0);
+    }
     
     if (initialCredit === 0 && coursePrice > 0) {
         if (courseName.includes('เครดิต') || courseName.includes('วงเงิน') || courseName.includes('voucher') || courseName.includes('บัตรกำนัล') || courseName.includes('เติมเงิน') || courseName.includes('ฝากเงิน')) {

@@ -2092,6 +2092,26 @@ export default function CustomerApp() {
                       <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                         <div className={`h-full rounded-full transition-all duration-1000 ${isPendingPayment ? 'bg-gradient-to-r from-red-400 to-orange-400' : 'bg-gradient-to-r from-teal-400 to-emerald-400'}`} style={{ width: `${(course.totalUsed / Math.max(1, parseNumber(getFuzzyKey(course, "จำนวนครั้งที่ได้")))) * 100}%` }}></div>
                       </div>
+
+                      {/* 💳 แสดงแถบวงเงินเครดิตผลิตภัณฑ์ในการ์ดคอร์ส (ถ้ามี) */}
+                      {(() => {
+                        const cTotalCredit = Number(course.computedTotalCredit || getFuzzyKey(course, ["เครดิตที่ได้รับ", "col_14"]) || 0);
+                        if (cTotalCredit <= 0) return null;
+                        const cRemainCredit = Number(course.computedRemainCredit !== undefined ? course.computedRemainCredit : cTotalCredit);
+                        const cUsedCredit = Math.max(0, cTotalCredit - cRemainCredit);
+                        return (
+                          <div className="mt-3 pt-3 border-t border-gray-200/80 border-dashed">
+                            <div className="flex justify-between text-[11px] mb-1">
+                              <span className="text-gray-500 font-bold">ใช้เครดิตไป ฿{cUsedCredit.toLocaleString()}</span>
+                              <span className="text-emerald-700 font-black">เหลือวงเงิน ฿{cRemainCredit.toLocaleString()}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                              <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (cUsedCredit / Math.max(1, cTotalCredit)) * 100)}%` }}></div>
+                            </div>
+                            <div className="text-[9px] text-gray-400 text-right mt-1 font-mono">วงเงินเครดิตผลิตภัณฑ์ ฿{cTotalCredit.toLocaleString()}</div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="mt-4 flex gap-2">
@@ -3064,15 +3084,104 @@ export default function CustomerApp() {
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="mb-6 bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
+                  <div className="mb-5 bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
                       <div className="flex justify-between text-[10px] font-bold mb-2">
-                          <span className="text-gray-600">การใช้คอร์ส ({Math.round(Math.min(100, Math.max(0, (selectedCourseDetail.totalUsed / Math.max(1, parseNumber(getFuzzyKey(selectedCourseDetail, "จำนวนครั้งที่ได้")))) * 100)))}%)</span>
-                          {getFuzzyKey(selectedCourseDetail, "หมดอายุ") && <span className="flex items-center text-gray-500"><Clock size={10} className="mr-1"/> หมดอายุ: {getFuzzyKey(selectedCourseDetail, "หมดอายุ")}</span>}
+                          <span className="text-gray-600">การใช้บริการ ({Math.round(Math.min(100, Math.max(0, (selectedCourseDetail.totalUsed / Math.max(1, parseNumber(getFuzzyKey(selectedCourseDetail, "จำนวนครั้งที่ได้")))) * 100)))}%)</span>
+                          {(() => {
+                            const rawExp = String(getFuzzyKey(selectedCourseDetail, ["วันหมดอายุ", "หมดอายุ", "expireDate"]) || '').trim();
+                            if (!rawExp || rawExp.startsWith('http') || rawExp.includes('firebasestorage')) return null;
+                            return (
+                              <span className="flex items-center text-gray-500"><Clock size={10} className="mr-1"/> หมดอายุ: {rawExp}</span>
+                            );
+                          })()}
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                           <div className="bg-gradient-to-r from-teal-400 to-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, (selectedCourseDetail.totalUsed / Math.max(1, parseNumber(getFuzzyKey(selectedCourseDetail, "จำนวนครั้งที่ได้")))) * 100))}%` }}></div>
                       </div>
                   </div>
+
+                  {/* 💳 วงเงินเครดิตผลิตภัณฑ์ (Product Credit Wallet) */}
+                  {(() => {
+                    let totalCredit = parseNumber(
+                      selectedCourseDetail.computedTotalCredit || 
+                      selectedCourseDetail.credit || 
+                      getFuzzyKey(selectedCourseDetail, ["เครดิตที่ได้รับ", "เครดิต", "credit", "วงเงิน", "วงเงินคอร์ส", "col_14", "col_8"]) || 
+                      0
+                    );
+                    if (totalCredit === 0 && selectedCourseDetail.promoOption) {
+                      totalCredit = parseNumber(selectedCourseDetail.promoOption.credit || selectedCourseDetail.promoOption.เครดิตที่ได้รับ || selectedCourseDetail.promoOption.วงเงินเครดิต || 0);
+                    }
+                    if (totalCredit === 0) {
+                      const cName = String(getFuzzyKey(selectedCourseDetail, "ชื่อคอส") || '');
+                      const cCode = String(getFuzzyKey(selectedCourseDetail, ["รหัสคอส", "col_1", "code"]) || '');
+                      const master = dbMasterCourses.find(mc => {
+                        if (cCode && (mc.id === cCode || mc.id === cCode.split('-opt_')[0] || String(getFuzzyKey(mc, ["รหัสคอส", "code"]) || '') === cCode)) return true;
+                        const mcName = String(getFuzzyKey(mc, ["ชื่อคอส", "col_4"]) || '').trim();
+                        if (!mcName) return false;
+                        return mcName === cName || cName.startsWith(mcName) || mcName.startsWith(cName.split(' - ')[0]);
+                      });
+                      if (master && Array.isArray(master.promoOptions)) {
+                        const opt = master.promoOptions.find(o => (cCode && cCode.includes(o.id)) || (o.name && cName.includes(o.name)));
+                        if (opt) totalCredit = parseNumber(opt.credit || opt.เครดิตที่ได้รับ || opt.วงเงินเครดิต || 0);
+                      }
+                    }
+                    if (totalCredit <= 0) return null;
+
+                    const remainCredit = Number(
+                      selectedCourseDetail.computedRemainCredit !== undefined 
+                        ? selectedCourseDetail.computedRemainCredit 
+                        : totalCredit
+                    );
+                    const usedCredit = Math.max(0, totalCredit - remainCredit);
+                    const usedPercent = Math.min(100, Math.max(0, Math.round((usedCredit / totalCredit) * 100)));
+
+                    return (
+                      <div className="mb-5 bg-gradient-to-br from-emerald-600 via-teal-700 to-teal-800 rounded-3xl p-4 sm:p-5 text-white shadow-md shadow-emerald-900/15 relative overflow-hidden">
+                        <div className="flex justify-between items-center mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="bg-white/20 p-2 rounded-xl backdrop-blur-xs">
+                              <Banknote size={18} className="text-white" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-black text-white leading-tight">วงเงินเครดิตผลิตภัณฑ์</h4>
+                              <p className="text-[10px] text-teal-100/90 font-medium">ใช้เบิกและชำระสินค้าในคลินิก</p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-extrabold bg-white/20 text-white px-2.5 py-1 rounded-full border border-white/25 backdrop-blur-xs">
+                            เครดิตพร้อมใช้
+                          </span>
+                        </div>
+
+                        <div className="flex justify-around items-center bg-black/20 backdrop-blur-xs rounded-2xl p-3 text-center mb-3 border border-white/10">
+                          <div>
+                            <p className="text-[9px] font-bold text-white/70 uppercase">วงเงินทั้งหมด</p>
+                            <p className="text-base sm:text-lg font-black text-white">฿{totalCredit.toLocaleString()}</p>
+                          </div>
+                          <div className="w-px h-8 bg-white/20"></div>
+                          <div>
+                            <p className="text-[9px] font-bold text-white/70 uppercase">ใช้ไปแล้ว</p>
+                            <p className="text-base sm:text-lg font-black text-white/90">฿{usedCredit.toLocaleString()}</p>
+                          </div>
+                          <div className="w-px h-8 bg-white/20"></div>
+                          <div>
+                            <p className="text-[9px] font-bold text-amber-300 uppercase">คงเหลือ</p>
+                            <p className="text-lg sm:text-xl font-black text-amber-300">฿{remainCredit.toLocaleString()}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[10px] font-bold text-teal-100 mb-1">
+                          <span>ใช้เครดิตไปแล้ว {usedPercent}%</span>
+                          <span className="text-amber-300 font-black">เหลือ ฿{remainCredit.toLocaleString()}</span>
+                        </div>
+                        <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-amber-300 to-yellow-400 h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${usedPercent}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* สิ่งที่ได้รับในคอร์ส (แสดงโดยตรง) */}
                   {(() => {

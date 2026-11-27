@@ -1251,6 +1251,12 @@ export default function CustomerApp() {
     const rawPhone = customerData ? customerData.cleanPhone : bookingForm.guestPhone;
     const cleanPhone = String(rawPhone || '').replace(/\D/g, '');
 
+    // 🔒 0.5. บังคับลงทะเบียนก่อนจองคิว หากเปิดโหมด requireRegistrationBeforeBooking
+    if (!customerData && bookingConfig?.requireRegistrationBeforeBooking) {
+        setBookingError('กรุณาลงทะเบียนประวัติลูกค้าก่อนทำการจองคิวค่ะ');
+        return;
+    }
+
     if (!cleanPhone || cleanPhone.length < 9) {
         setBookingError('กรุณาระบุเบอร์โทรศัพท์ติดต่อที่ถูกต้อง (อย่างน้อย 9-10 หลัก)');
         return;
@@ -1679,6 +1685,8 @@ export default function CustomerApp() {
             dbCustomersRaw={dbCustomersRaw}
             allFutureBookings={allFutureBookings}
             onRequireMemberOtp={handleRequireMemberOtp}
+            onOpenRegistration={() => setIsVipRegistrationOpen(true)}
+            onOpenLogin={() => { setIsBookingModalOpen(false); setAppState('login'); }}
         />
         {/* --- 🌟 SKIN AI MODALS (LOGIN SCREEN) 🌟 --- */}
         <SkinCheckModal
@@ -3838,6 +3846,8 @@ export default function CustomerApp() {
             dbCustomersRaw={dbCustomersRaw}
             allFutureBookings={allFutureBookings}
             onRequireMemberOtp={handleRequireMemberOtp}
+            onOpenRegistration={() => setIsVipRegistrationOpen(true)}
+            onOpenLogin={() => { setIsBookingModalOpen(false); setAppState('login'); }}
         />
 
         {/* --- PROMPTPAY QR MODAL --- */}

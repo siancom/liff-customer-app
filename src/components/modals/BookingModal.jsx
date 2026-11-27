@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin, Users, ShieldCheck, CalendarX } from 'lucide-react';
+import { CalendarPlus, AlertCircle, X, CalendarDays, Loader2, CheckCircle, QrCode, Sparkles, Droplets, Zap, Crosshair, MessageCircle, Package, Clock, XCircle, MapPin, Users, ShieldCheck, CalendarX, UserPlus } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import BookingCountdown from '../BookingCountdown';
 import { getFuzzyKey } from '../../utils/helpers';
@@ -39,7 +39,9 @@ export default function BookingModal({
     bookingConfig = DEFAULT_BOOKING_CONFIG,
     dbCustomersRaw = [],
     allFutureBookings = [],
-    onRequireMemberOtp
+    onRequireMemberOtp,
+    onOpenRegistration,
+    onOpenLogin
 }) {
     const cleanGuestPhone = String(bookingForm.guestPhone || '').replace(/\D/g, '');
     const matchedMember = useMemo(() => {
@@ -248,62 +250,99 @@ export default function BookingModal({
                         )}
                     </div>
 
-                    {/* ข้อมูลลูกค้า (Guest) */}
+                    {/* ข้อมูลลูกค้า (Guest หรือ ต้องลงทะเบียนก่อน) */}
                     {!customerData && (
-                        <div className="space-y-3 mb-4 p-4 sm:p-5 bg-gradient-to-br from-amber-50/60 to-orange-50/80 border-2 border-amber-200/80 rounded-3xl shadow-sm">
-                            <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-2 ml-1 flex items-center gap-1.5">
-                                <Users size={14} className="text-amber-600" /> ข้อมูลผู้จอง (เนื่องจากยังไม่ได้เข้าสู่ระบบ)
-                            </p>
-                            <div>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="ชื่อผู้จอง"
-                                    value={bookingForm.guestName || ''}
-                                    onChange={e => setBookingForm({...bookingForm, guestName: e.target.value})}
-                                    className="w-full px-4 py-3 border-2 border-white bg-white rounded-xl outline-none focus:border-teal-400 transition-all font-medium text-gray-800 text-sm shadow-sm"
-                                />
-                            </div>
-                            <div>
-                                <input
-                                    type="tel"
-                                    required
-                                    placeholder="เบอร์โทรศัพท์ติดต่อ (เช่น 0812345678)"
-                                    value={bookingForm.guestPhone || ''}
-                                    onChange={e => setBookingForm({...bookingForm, guestPhone: e.target.value})}
-                                    className={`w-full px-4 py-3 border-2 bg-white rounded-xl outline-none transition-all font-medium text-gray-800 text-sm shadow-sm ${
-                                        matchedMember ? 'border-amber-400 ring-2 ring-amber-200' : 'border-white focus:border-teal-400'
-                                    }`}
-                                />
-                            </div>
-
-                            {/* 🚨 แจ้งเตือนและบังคับยืนยันสมาชิกทันทีเมื่อพบเบอร์ในระบบ */}
-                            {matchedMember && (
-                                <div className="mt-2 p-3.5 bg-white border-2 border-amber-300 rounded-2xl shadow-sm space-y-2.5 animate-in fade-in">
-                                    <div className="flex items-start gap-2.5">
-                                        <div className="p-2 bg-amber-100 text-amber-700 rounded-xl shrink-0 mt-0.5">
-                                            <ShieldCheck size={20} />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-black text-amber-900 leading-tight">
-                                                เบอร์นี้เป็นสมาชิก Iris Clinic แล้ว!
-                                            </p>
-                                            <p className="text-[11px] font-medium text-gray-600 mt-0.5 leading-snug">
-                                                ตรวจพบข้อมูลของคุณ <b>{getFuzzyKey(matchedMember, "ชื่อ") || 'สมาชิก'}</b> ในระบบ เพื่อความปลอดภัย ป้องกันการจองซ้ำซ้อน และเพื่อใช้สิทธิ์คอร์สของคุณ กรุณายืนยันตัวตนด้วยรหัส OTP ก่อนทำการจอง
-                                            </p>
-                                        </div>
-                                    </div>
+                        bookingConfig?.requireRegistrationBeforeBooking ? (
+                            <div className="space-y-3 mb-4 p-5 bg-gradient-to-br from-rose-50/90 to-pink-50 border-2 border-rose-200 rounded-3xl shadow-sm text-center animate-in fade-in">
+                                <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-1 shadow-xs">
+                                    <UserPlus size={24} />
+                                </div>
+                                <h4 className="text-sm font-black text-rose-900">
+                                    กรุณาลงทะเบียนประวัติลูกค้าก่อนจองคิว
+                                </h4>
+                                <p className="text-xs text-rose-700 leading-relaxed max-w-xs mx-auto">
+                                    ทางคลินิกเปิดรับการจองคิวเฉพาะลูกค้าที่ลงทะเบียนแล้วเท่านั้น เพื่อความต่อเนื่องในการดูแลและบันทึกประวัติบริการ
+                                </p>
+                                <div className="pt-2 flex flex-col gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => onRequireMemberOtp && onRequireMemberOtp(cleanGuestPhone)}
-                                        className="w-full py-2.5 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl font-bold text-xs shadow-md shadow-teal-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                        onClick={() => {
+                                            closeBookingModal();
+                                            onOpenRegistration && onOpenRegistration();
+                                        }}
+                                        className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md shadow-teal-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                                     >
-                                        <ShieldCheck size={16} />
-                                        <span>ยืนยันตัวตนสมาชิกด้วย OTP ทันที</span>
+                                        <UserPlus size={16} />
+                                        <span>ลงทะเบียนลูกค้าใหม่ทันที</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            closeBookingModal();
+                                            onOpenLogin && onOpenLogin();
+                                        }}
+                                        className="w-full py-2.5 px-4 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold text-xs rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                                    >
+                                        <span>เข้าสู่ระบบสมาชิก (กรณีเคยลงทะเบียนแล้ว)</span>
                                     </button>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-3 mb-4 p-4 sm:p-5 bg-gradient-to-br from-amber-50/60 to-orange-50/80 border-2 border-amber-200/80 rounded-3xl shadow-sm">
+                                <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-2 ml-1 flex items-center gap-1.5">
+                                    <Users size={14} className="text-amber-600" /> ข้อมูลผู้จอง (เนื่องจากยังไม่ได้เข้าสู่ระบบ)
+                                </p>
+                                <div>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="ชื่อผู้จอง"
+                                        value={bookingForm.guestName || ''}
+                                        onChange={e => setBookingForm({...bookingForm, guestName: e.target.value})}
+                                        className="w-full px-4 py-3 border-2 border-white bg-white rounded-xl outline-none focus:border-teal-400 transition-all font-medium text-gray-800 text-sm shadow-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <input
+                                        type="tel"
+                                        required
+                                        placeholder="เบอร์โทรศัพท์ติดต่อ (เช่น 0812345678)"
+                                        value={bookingForm.guestPhone || ''}
+                                        onChange={e => setBookingForm({...bookingForm, guestPhone: e.target.value})}
+                                        className={`w-full px-4 py-3 border-2 bg-white rounded-xl outline-none transition-all font-medium text-gray-800 text-sm shadow-sm ${
+                                            matchedMember ? 'border-amber-400 ring-2 ring-amber-200' : 'border-white focus:border-teal-400'
+                                        }`}
+                                    />
+                                </div>
+
+                                {/* 🚨 แจ้งเตือนและบังคับยืนยันสมาชิกทันทีเมื่อพบเบอร์ในระบบ */}
+                                {matchedMember && (
+                                    <div className="mt-2 p-3.5 bg-white border-2 border-amber-300 rounded-2xl shadow-sm space-y-2.5 animate-in fade-in">
+                                        <div className="flex items-start gap-2.5">
+                                            <div className="p-2 bg-amber-100 text-amber-700 rounded-xl shrink-0 mt-0.5">
+                                                <ShieldCheck size={20} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black text-amber-900 leading-tight">
+                                                    เบอร์นี้เป็นสมาชิก Iris Clinic แล้ว!
+                                                </p>
+                                                <p className="text-[11px] font-medium text-gray-600 mt-0.5 leading-snug">
+                                                    ตรวจพบข้อมูลของคุณ <b>{getFuzzyKey(matchedMember, "ชื่อ") || 'สมาชิก'}</b> ในระบบ เพื่อความปลอดภัย ป้องกันการจองซ้ำซ้อน และเพื่อใช้สิทธิ์คอร์สของคุณ กรุณายืนยันตัวตนด้วยรหัส OTP ก่อนทำการจอง
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => onRequireMemberOtp && onRequireMemberOtp(cleanGuestPhone)}
+                                            className="w-full py-2.5 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl font-bold text-xs shadow-md shadow-teal-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <ShieldCheck size={16} />
+                                            <span>ยืนยันตัวตนสมาชิกด้วย OTP ทันที</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )
                     )}
 
                     {/* วันที่ Banner */}
@@ -564,6 +603,18 @@ export default function BookingModal({
                           >
                              <ShieldCheck size={20} />
                              ยืนยันตัวตนสมาชิกด้วย OTP ก่อนจอง
+                          </button>
+                       ) : (!customerData && bookingConfig?.requireRegistrationBeforeBooking) ? (
+                          <button
+                             type="button"
+                             onClick={() => {
+                                closeBookingModal();
+                                onOpenRegistration && onOpenRegistration();
+                             }}
+                             className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-teal-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 text-base"
+                          >
+                             <UserPlus size={20} />
+                             ลงทะเบียนประวัติลูกค้าก่อนจองคิว
                           </button>
                        ) : (
                           <button

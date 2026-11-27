@@ -344,3 +344,4 @@ export default function PointsArticleModal({ isOpen, onClose, onGoToPrivileges }
     </div>
   );
 }
+
